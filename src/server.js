@@ -5,10 +5,9 @@ import {resolve} from 'node:path';
 import {validateSubmission,transition} from './domain.js';
 import {createContribution,recordAdoption,recordUsage,summary} from './contribution.js';
 import {createDraft,updateDraft,preparePublication,publishDraft} from './draft.js';
+import {createStore} from './storage.js';
 const port=Number(process.env.PORT||3000);
-const items=new Map();
-const contributions=new Map();
-const drafts=new Map();
+const store=await createStore(process.env.MODUS_DATA_FILE||'data/modus-state.json');
 const tokens=new Map();
 function send(res,status,body,contentType='application/json; charset=utf-8'){
   res.writeHead(status,{'Content-Type':contentType,'Cache-Control':'no-store','X-Content-Type-Options':'nosniff','Content-Security-Policy':"default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'",'Referrer-Policy':'no-referrer'});
@@ -38,52 +37,53 @@ const server=createServer(async(req,res)=>{
     if(!url.pathname.startsWith('/api/'))return send(res,404,{error:'Not found'});
     const user=actor(req);if(!user)return send(res,401,{error:'Authentication required'});
     if(url.pathname==='/api/me'&&req.method==='GET')return send(res,200,user);
-    if(url.pathname==='/api/drafts'&&req.method==='GET')return send(res,200,[...drafts.values()].filter(d=>d.ownerId===user.id));
+    if(url.pathname==='/api/drafts'&&req.method==='GET')return send(res,200,store.state.drafts.filter(d=>d.ownerId===user.id));
     if(url.pathname==='/api/drafts'&&req.method==='POST'){
-      const draft=createDraft(user,await body(req));drafts.set(draft.id,draft);return send(res,201,draft);
+      const draft=createDraft(user,await body(req));await store.transact(st=>{st.drafts.push(draft)});return send(res,201,draft);
     }
     const dm=url.pathname.match(/^\/api\/drafts\/([0-9a-f-]+)(?:\/(publish))?$/);
     if(dm){
-      const draft=drafts.get(dm[1]);if(!draft||draft.ownerId!==user.id)return send(res,404,{error:'Not found'});
-      if(req.method==='PATCH'&&!dm[2]){const next=updateDraft(draft,user,await body(req));drafts.set(draft.id,next);return send(res,200,next);}
+      const draft=store.state.drafts.find(d=>d.id===dm[1]);if(!draft||draft.ownerId!==user.id)return send(res,404,{error:'Not found'});
+      if(req.method==='PATCH'&&!dm[2]){const next=updateDraft(draft,user,await body(req));await store.transact(st=>{const i=st.drafts.findIndex(x=>x.id===draft.id);if(i<0)throw Error('Not found');st.drafts[i]=next});return send(res,200,next);}
       if(req.method==='POST'&&dm[2]==='publish'){
         const data=preparePublication(draft,user);const payload=validateSubmission(data);const now=new Date().toISOString();
         const item={id:randomUUID(),...payload,authorId:user.id,status:'submitted',createdAt:now,updatedAt:now,history:[{at:now,actorId:user.id,event:'published',draftId:draft.id}]};
-        items.set(item.id,item);const next=publishDraft(draft,user,item.id);drafts.set(draft.id,next);
-        const contribution=createContribution(item,user);contributions.set(contribution.id,contribution);
+        const next=publishDraft(draft,user,item.id);
+        const contribution=createContribution(item,user);
+        await store.transact(st=>{const i=st.drafts.findIndex(x=>x.id===draft.id);if(i<0||st.drafts[i].state!=='private')throw Error('Already published');st.drafts[i]=next;st.requests.push(item);st.contributions.push(contribution)});
         return send(res,201,{request:item,contribution:summary(contribution)});
       }
     }
 
-    if(url.pathname==='/api/contributions'&&req.method==='GET')return send(res,200,[...contributions.values()].map(summary));
+    if(url.pathname==='/api/contributions'&&req.method==='GET')return send(res,200,store.state.contributions.map(summary));
     if(url.pathname==='/api/contributions'&&req.method==='POST'){
-      const data=await body(req),request=items.get(data.requestId);
+      const data=await body(req),request=store.state.requests.find(x=>x.id===data.requestId);
       if(!request)return send(res,404,{error:'Request not found'});
-      if([...contributions.values()].some(c=>c.requestId===request.id))return send(res,409,{error:'Already registered'});
-      const c=createContribution(request,user);contributions.set(c.id,c);return send(res,201,summary(c));
+      if(store.state.contributions.some(c=>c.requestId===request.id))return send(res,409,{error:'Already registered'});
+      const c=createContribution(request,user);await store.transact(st=>{if(st.contributions.some(x=>x.requestId===request.id))throw Error('Already registered');st.contributions.push(c)});return send(res,201,summary(c));
     }
     const cm=url.pathname.match(/^\/api\/contributions\/([0-9a-f-]+)\/(adoptions|usage)$/);
     if(cm&&req.method==='POST'){
-      const c=contributions.get(cm[1]);if(!c)return send(res,404,{error:'Not found'});
+      const c=store.state.contributions.find(c=>c.id===cm[1]);if(!c)return send(res,404,{error:'Not found'});
       const data=await body(req),next=cm[2]==='adoptions'?recordAdoption(c,data,user):recordUsage(c,data,user);
-      contributions.set(c.id,next);return send(res,201,summary(next));
+      await store.transact(st=>{const i=st.contributions.findIndex(x=>x.id===c.id);if(i<0)throw Error('Not found');st.contributions[i]=next});return send(res,201,summary(next));
     }
     if(url.pathname==='/api/requests'&&req.method==='GET'){
-      const data=[...items.values()].filter(x=>user.role!=='employee'||x.authorId===user.id);
+      const data=store.state.requests.filter(x=>user.role!=='employee'||x.authorId===user.id);
       return send(res,200,data.map(({history,...rest})=>({...rest,history:history.filter(()=>user.role!=='employee'||rest.authorId===user.id)})));
     }
     if(url.pathname==='/api/requests'&&req.method==='POST'){
       const payload=validateSubmission(await body(req));const now=new Date().toISOString();
       const item={id:randomUUID(),...payload,authorId:user.id,status:'submitted',createdAt:now,updatedAt:now,history:[{at:now,actorId:user.id,event:'submitted'}]};
-      items.set(item.id,item);return send(res,201,item);
+      await store.transact(st=>{st.requests.push(item)});return send(res,201,item);
     }
     const match=url.pathname.match(/^\/api\/requests\/([0-9a-f-]+)\/status$/);
     if(match&&req.method==='PATCH'){
-      const item=items.get(match[1]);if(!item)return send(res,404,{error:'Not found'});
+      const item=store.state.requests.find(x=>x.id===match[1]);if(!item)return send(res,404,{error:'Not found'});
       if(user.role==='employee'&&item.authorId!==user.id)return send(res,404,{error:'Not found'});
       const {status}=await body(req);const result=transition(item,status,user);
       result.history=[...item.history,{at:result.updatedAt,actorId:user.id,event:'status',from:item.status,to:status}];
-      items.set(item.id,result);return send(res,200,result);
+      await store.transact(st=>{const i=st.requests.findIndex(x=>x.id===item.id);if(i<0)throw Error('Not found');st.requests[i]=result});return send(res,200,result);
     }
     return send(res,404,{error:'Not found'});
   }catch(error){
