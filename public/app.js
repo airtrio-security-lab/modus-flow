@@ -7,29 +7,51 @@ async function load(){try{const data=await api('/api/requests');document.querySe
 document.querySelector('#form').addEventListener('submit',async(e)=>{e.preventDefault();const f=e.currentTarget;const data=Object.fromEntries(new FormData(f));try{await api('/api/requests',{method:'POST',body:JSON.stringify(data)});f.reset();notice.textContent='Обращение зарегистрировано';await load();}catch(error){notice.textContent=error.message;}});
 role.addEventListener('change',load);document.querySelector('#reload').addEventListener('click',load);load();
 
-const draftSteps=[['observation','Что я заметил?'],['cause','Почему так происходит?'],['evidence','Что подтверждает наблюдение?'],['proposal','Что предлагаю изменить?'],['risks','Что может пойти не так?'],['pilot','Как проверить с минимальными затратами?']];
+
+const draftSteps=[
+ ['observation','Что ты заметил?','Расскажи своими словами. Не нужно идеального описания.'],
+ ['cause','Почему это может происходить?','Это предположение, а не установленный факт. Какие есть альтернативные объяснения?'],
+ ['evidence','Что подтверждает твоё наблюдение?','Если доказательств пока нет, этот шаг можно пропустить.'],
+ ['proposal','Что именно ты предлагаешь изменить?','Попробуй описать одно конкретное действие.'],
+ ['risks','Что может пойти не так?','Кого затронет изменение и что мы могли упустить?'],
+ ['pilot','Как проверить идею безопасно и недорого?','Как поймём, что эксперимент сработал?']
+];
+let activeDraft=null,activeStep=0;
+function makeButton(label,handler,cls='secondary'){const b=el('button',cls,label);b.type='button';b.addEventListener('click',handler);return b;}
+function renderWorkspace(d){
+ const root=document.querySelector('#workspace');root.replaceChildren();activeDraft=d;
+ if(!d||d.state!=='private')return;
+ const step=draftSteps[activeStep],saved=d.steps[step[0]]||'';
+ root.append(el('p','eyebrow','ПРИВАТНАЯ ПРОРАБОТКА · ШАГ '+(activeStep+1)+' ИЗ '+draftSteps.length));
+ root.append(el('h3',null,step[1]),el('p','hint',step[2]));
+ const input=el('textarea');input.value=saved;input.maxLength=5000;input.rows=4;input.placeholder='Запиши мысль как есть...';root.append(input);
+ const status=el('p','hint',saved?'Шаг сохранён ранее':'Можно пропустить и вернуться позже');root.append(status);
+ const nav=el('div','actions');
+ if(activeStep>0)nav.append(makeButton('Назад',()=>{activeStep--;renderWorkspace(d)}));
+ nav.append(makeButton('Сохранить',async()=>{try{const updated=await api('/api/drafts/'+d.id,{method:'PATCH',body:JSON.stringify({step:step[0],text:input.value})});activeDraft=updated;status.textContent='Сохранено · '+new Date(updated.updatedAt).toLocaleTimeString('ru-RU');}catch(e){status.textContent=e.message;}}));
+ if(activeStep<draftSteps.length-1)nav.append(makeButton('Далее',()=>{activeStep++;renderWorkspace(activeDraft)}));
+ root.append(nav);
+ const preview=el('section','preview');preview.append(el('h3',null,'Перед публикацией'));
+ preview.append(el('p','hint','Опубликуются только наблюдение, предложение и план проверки. Остальные размышления останутся приватными.'));
+ const publish=makeButton('Опубликовать подготовленную идею',async()=>{
+  if(!confirm('Публикуем подготовленную версию? Приватная история не будет раскрыта.'))return;
+  try{await api('/api/drafts/'+d.id+'/publish',{method:'POST',body:'{}'});notice.textContent='Идея опубликована';activeDraft=null;root.replaceChildren();await load();await loadDrafts();}catch(e){notice.textContent=e.message;}
+ },'primary');
+ preview.append(publish);root.append(preview);
+}
 async function loadDrafts(){
  const root=document.querySelector('#drafts');if(!root)return;
  try{
   const data=await api('/api/drafts');root.replaceChildren();
   if(!data.length)root.append(el('p','empty','Создайте первую приватную идею.'));
   for(const d of data){
-   const card=el('article','request');card.append(el('b',null,d.title),el('small',null,d.state==='private'?' · Приватно':' · Опубликовано'));
-   if(d.state==='private'){
-    for(const [step,label] of draftSteps){
-     const wrap=el('label');wrap.append(el('span',null,label));
-     const field=el('textarea');field.value=d.steps[step]||'';field.rows=2;field.maxLength=5000;wrap.append(field);
-     const save=el('button','secondary','Сохранить шаг');save.type='button';
-     save.addEventListener('click',async()=>{try{await api('/api/drafts/'+d.id,{method:'PATCH',body:JSON.stringify({step,text:field.value})});notice.textContent='Шаг сохранён';}catch(e){notice.textContent=e.message;}});
-     card.append(wrap,save);
-    }
-    const publish=el('button',null,'Опубликовать идею');publish.type='button';
-    publish.addEventListener('click',async()=>{if(!confirm('Опубликовать подготовленную идею для коллег? Приватные заметки не публикуются.'))return;try{await api('/api/drafts/'+d.id+'/publish',{method:'POST',body:'{}'});notice.textContent='Идея опубликована';await load();await loadDrafts();}catch(e){notice.textContent=e.message;}});
-    card.append(publish);
-   }
+   const card=el('article','request');card.append(el('b',null,d.title),el('small',null,d.state==='private'?' · Только вы':' · Опубликовано'));
+   if(d.state==='private')card.append(makeButton('Продолжить размышление',()=>{activeStep=0;renderWorkspace(d)}));
    root.append(card);
   }
+  if(activeDraft){const fresh=data.find(x=>x.id===activeDraft.id);if(fresh?.state==='private')renderWorkspace(fresh);else document.querySelector('#workspace').replaceChildren();}
  }catch(e){notice.textContent=e.message;}
 }
-document.querySelector('#draft-create').addEventListener('submit',async e=>{e.preventDefault();const form=e.currentTarget;try{await api('/api/drafts',{method:'POST',body:JSON.stringify(Object.fromEntries(new FormData(form)))});form.reset();notice.textContent='Приватная идея создана';await loadDrafts();}catch(error){notice.textContent=error.message;}});
-role.addEventListener('change',loadDrafts);loadDrafts();
+document.querySelector('#draft-create').addEventListener('submit',async e=>{e.preventDefault();const form=e.currentTarget;try{const d=await api('/api/drafts',{method:'POST',body:JSON.stringify(Object.fromEntries(new FormData(form)))});form.reset();notice.textContent='Приватная идея создана';activeStep=0;activeDraft=d;await loadDrafts();}catch(error){notice.textContent=error.message;}});
+role.addEventListener('change',()=>{activeDraft=null;document.querySelector('#workspace').replaceChildren();loadDrafts()});
+loadDrafts();

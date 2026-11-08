@@ -1,0 +1,4 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {createDraft,updateDraft,preparePublication} from '../src/draft.js';
+const actor={id:'e1',role:'employee'};
+test('private reasoning stays out of publication',()=>{let d=createDraft(actor,{title:'Improve warehouse'});for(const [step,text] of [['observation','Trucks wait'],['proposal','Change schedule'],['cause','Private unverified cause'],['risks','Private sensitive note']])d=updateDraft(d,actor,{step,text});const p=preparePublication(d,actor);assert.match(p.description,/Trucks wait/);assert.doesNotMatch(p.description,/Private/);});
+test('publication rejects oversized composed content',()=>{let d=createDraft(actor,{title:'Improve warehouse'});d=updateDraft(d,actor,{step:'observation',text:'A'.repeat(4000)});d=updateDraft(d,actor,{step:'proposal',text:'B'.repeat(4000)});assert.throws(()=>preparePublication(d,actor),/exceeds/);});
