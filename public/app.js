@@ -3,7 +3,23 @@ const labels={submitted:'Отправлено',in_review:'На рассмотр�
 const routes={submitted:['in_review','rejected'],in_review:['in_progress','resolved','rejected'],in_progress:['resolved','rejected'],resolved:['reopened'],rejected:['reopened'],reopened:['in_review','in_progress']};
 function el(name,cls,text){const e=document.createElement(name);if(cls)e.className=cls;if(text!==undefined)e.textContent=text;return e;}
 async function api(path,options={}){const response=await fetch(path,{...options,headers:{'Content-Type':'application/json','Authorization':'Bearer '+role.value,...options.headers}});const data=await response.json();if(!response.ok)throw Error(data.error||'Ошибка');return data;}
-async function load(){try{const data=await api('/api/requests');document.querySelector('#count').textContent=data.length;list.replaceChildren();if(!data.length)list.append(el('p','empty','Пока нет обращений. Создайте первое.'));for(const item of data){const card=el('article','request');const top=el('div','request-head');top.append(el('b',null,item.title),el('span','status',labels[item.status]));card.append(top,el('p',null,item.description),el('small',null,(item.kind==='idea'?'Идея':'Проблема')+' · '+new Date(item.createdAt).toLocaleString('ru-RU')));const actions=el('div','actions');for(const status of routes[item.status]||[]){if(role.value==='demo-employee'&&status!=='reopened')continue;if(role.value==='demo-manager'&&status==='reopened')continue;const b=el('button','secondary',labels[status]);b.type='button';b.addEventListener('click',async()=>{try{await api('/api/requests/'+item.id+'/status',{method:'PATCH',body:JSON.stringify({status})});notice.textContent='Статус обновлён';await load();}catch(e){notice.textContent=e.message;}});actions.append(b);}card.append(actions);list.append(card);}}catch(e){notice.textContent=e.message;}}
+async function load(){try{const data=await api('/api/requests');document.querySelector('#count').textContent=data.length;list.replaceChildren();if(!data.length)list.append(el('p','empty','Пока нет обращений. Создайте первое.'));for(const item of data){const card=el('article','request');const top=el('div','request-head');top.append(el('b',null,item.title),el('span','status',labels[item.status]));card.append(top,el('p',null,item.description),el('small',null,(item.kind==='idea'?'Идея':'Проблема')+' · '+new Date(item.createdAt).toLocaleString('ru-RU')));const actions=el('div','actions');for(const status of routes[item.status]||[]){if(role.value==='demo-employee'&&status!=='reopened')continue;if(role.value==='demo-manager'&&status==='reopened')continue;const b=el('button','secondary',labels[status]);b.type='button';b.addEventListener('click',async()=>{try{await api('/api/requests/'+item.id+'/status',{method:'PATCH',body:JSON.stringify({status})});notice.textContent='Статус обновлён';await load();}catch(e){notice.textContent=e.message;}});actions.append(b);}if(item.kind==='idea'){
+ const panel=el('section','preview');panel.append(el('h3',null,'Ревью и проверка'));
+ for(const r of item.reviews||[]){
+  const line=el('div','request');line.append(el('b',null,({comment:'Комментарий',request_changes:'Требуется доработка',positive:'Положительный отзыв',negative:'Отрицательный отзыв'})[r.kind]),el('p',null,r.text),el('small',null,r.authorId+(r.resolved?' · Исправлено':'')));
+  if(r.kind==='request_changes'&&!r.resolved&&role.value==='demo-manager')line.append(makeButton('Закрыть замечание',async()=>{try{await api('/api/requests/'+item.id+'/reviews/'+r.id+'/resolve',{method:'POST'});await load();}catch(e){notice.textContent=e.message;}}));
+  panel.append(line);
+ }
+ const input=el('textarea');input.rows=2;input.placeholder='Укажите тонкости, ошибку или наблюдение';panel.append(input);
+ const kind=el('select');
+ for(const [v,label] of [['comment','Комментарий'],['request_changes','Запросить доработку'],['positive','Положительный результат'],['negative','Отрицательный результат']]){
+  if(v==='request_changes'&&role.value!=='demo-manager')continue;
+  const o=el('option');o.value=v;o.textContent=label;kind.append(o);
+ }
+ panel.append(kind,makeButton('Отправить',async()=>{try{await api('/api/requests/'+item.id+'/reviews',{method:'POST',body:JSON.stringify({kind:kind.value,text:input.value})});await load();}catch(e){notice.textContent=e.message;}}));
+ card.append(panel);
+}
+card.append(actions);list.append(card);}}catch(e){notice.textContent=e.message;}}
 document.querySelector('#form').addEventListener('submit',async(e)=>{e.preventDefault();const f=e.currentTarget;const data=Object.fromEntries(new FormData(f));try{await api('/api/requests',{method:'POST',body:JSON.stringify(data)});f.reset();notice.textContent='Обращение зарегистрировано';await load();}catch(error){notice.textContent=error.message;}});
 role.addEventListener('change',load);document.querySelector('#reload').addEventListener('click',load);load();
 
