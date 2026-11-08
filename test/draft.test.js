@@ -1,0 +1,6 @@
+import test from 'node:test';import assert from 'node:assert/strict';
+import {createDraft,updateDraft,preparePublication,publishDraft} from '../src/draft.js';
+const a={id:'author',role:'employee'},b={id:'other',role:'employee'};
+test('private draft is owned by creator',()=>{const d=createDraft(a,{title:'Warehouse improvement'});assert.equal(d.state,'private');assert.throws(()=>updateDraft(d,b,{step:'observation',text:'Something'}),/Forbidden/);});
+test('publication needs a formulated observation and proposal',()=>{let d=createDraft(a,{title:'Warehouse improvement'});assert.throws(()=>preparePublication(d,a),/required/);d=updateDraft(d,a,{step:'observation',text:'Long queues'},);d=updateDraft(d,a,{step:'proposal',text:'Change loading schedule'});const p=preparePublication(d,a);assert.match(p.description,/Long queues/);assert.doesNotMatch(p.description,/private/);});
+test('publication freezes private draft',()=>{let d=createDraft(a,{title:'Warehouse improvement'});d=updateDraft(d,a,{step:'observation',text:'Long queues'});d=updateDraft(d,a,{step:'proposal',text:'Change loading schedule'});d=publishDraft(d,a,'request-1');assert.equal(d.publicationId,'request-1');assert.throws(()=>updateDraft(d,a,{step:'pilot',text:'Pilot'}),/immutable/);});
