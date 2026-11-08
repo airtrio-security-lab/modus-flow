@@ -3,8 +3,10 @@ import {randomUUID} from 'node:crypto';
 import {readFile} from 'node:fs/promises';
 import {resolve} from 'node:path';
 import {validateSubmission,transition} from './domain.js';
+import {createContribution,recordAdoption,recordUsage,summary} from './contribution.js';
 const port=Number(process.env.PORT||3000);
 const items=new Map();
+const contributions=new Map();
 const tokens=new Map();
 function send(res,status,body,contentType='application/json; charset=utf-8'){
   res.writeHead(status,{'Content-Type':contentType,'Cache-Control':'no-store','X-Content-Type-Options':'nosniff','Content-Security-Policy':"default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'",'Referrer-Policy':'no-referrer'});
@@ -34,6 +36,19 @@ const server=createServer(async(req,res)=>{
     if(!url.pathname.startsWith('/api/'))return send(res,404,{error:'Not found'});
     const user=actor(req);if(!user)return send(res,401,{error:'Authentication required'});
     if(url.pathname==='/api/me'&&req.method==='GET')return send(res,200,user);
+    if(url.pathname==='/api/contributions'&&req.method==='GET')return send(res,200,[...contributions.values()].map(summary));
+    if(url.pathname==='/api/contributions'&&req.method==='POST'){
+      const data=await body(req),request=items.get(data.requestId);
+      if(!request)return send(res,404,{error:'Request not found'});
+      if([...contributions.values()].some(c=>c.requestId===request.id))return send(res,409,{error:'Already registered'});
+      const c=createContribution(request,user);contributions.set(c.id,c);return send(res,201,summary(c));
+    }
+    const cm=url.pathname.match(/^\/api\/contributions\/([0-9a-f-]+)\/(adoptions|usage)$/);
+    if(cm&&req.method==='POST'){
+      const c=contributions.get(cm[1]);if(!c)return send(res,404,{error:'Not found'});
+      const data=await body(req),next=cm[2]==='adoptions'?recordAdoption(c,data,user):recordUsage(c,data,user);
+      contributions.set(c.id,next);return send(res,201,summary(next));
+    }
     if(url.pathname==='/api/requests'&&req.method==='GET'){
       const data=[...items.values()].filter(x=>user.role!=='employee'||x.authorId===user.id);
       return send(res,200,data.map(({history,...rest})=>({...rest,history:history.filter(()=>user.role!=='employee'||rest.authorId===user.id)})));
