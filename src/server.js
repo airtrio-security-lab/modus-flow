@@ -6,6 +6,7 @@ import {validateSubmission,transition} from './domain.js';
 import {createContribution,recordAdoption,recordUsage,summary} from './contribution.js';
 import {createDraft,updateDraft,preparePublication,publishDraft} from './draft.js';
 import {createStore} from './storage.js';
+import {addReview,resolveReview,assertDecision} from './review.js';
 const port=Number(process.env.PORT||3000);
 const store=await createStore(process.env.MODUS_DATA_FILE||'data/modus-state.json');
 const tokens=new Map();
@@ -77,11 +78,22 @@ const server=createServer(async(req,res)=>{
       const item={id:randomUUID(),...payload,authorId:user.id,status:'submitted',createdAt:now,updatedAt:now,history:[{at:now,actorId:user.id,event:'submitted'}]};
       await store.transact(st=>{st.requests.push(item)});return send(res,201,item);
     }
+    const rr=url.pathname.match(/^\/api\/requests\/([0-9a-f-]+)\/reviews(?:\/([0-9a-f-]+)\/resolve)?$/);
+    if(rr){
+      const item=store.state.requests.find(x=>x.id===rr[1]);
+      if(!item||(user.role==='employee'&&item.authorId!==user.id))return send(res,404,{error:'Not found'});
+      if(req.method==='GET'&&!rr[2])return send(res,200,item.reviews||[]);
+      if(req.method==='POST'){
+        const next=rr[2]?resolveReview(item,user,rr[2]):addReview(item,user,await body(req));
+        await store.transact(st=>{const i=st.requests.findIndex(x=>x.id===item.id);if(i<0)throw Error('Not found');st.requests[i]=next});
+        return send(res,201,next.reviews);
+      }
+    }
     const match=url.pathname.match(/^\/api\/requests\/([0-9a-f-]+)\/status$/);
     if(match&&req.method==='PATCH'){
       const item=store.state.requests.find(x=>x.id===match[1]);if(!item)return send(res,404,{error:'Not found'});
       if(user.role==='employee'&&item.authorId!==user.id)return send(res,404,{error:'Not found'});
-      const {status}=await body(req);const result=transition(item,status,user);
+      const {status}=await body(req);assertDecision(item,status,user);const result=transition(item,status,user);
       result.history=[...item.history,{at:result.updatedAt,actorId:user.id,event:'status',from:item.status,to:status}];
       await store.transact(st=>{const i=st.requests.findIndex(x=>x.id===item.id);if(i<0)throw Error('Not found');st.requests[i]=result});return send(res,200,result);
     }
