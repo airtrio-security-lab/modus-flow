@@ -1,5 +1,5 @@
 import { notFound } from '../domain/errors.ts';
-import type { OrgActor, OrgRole } from '../domain/model.ts';
+import type { MembershipAccess, OrgActor, OrgRole } from '../domain/model.ts';
 import { withTx, type Database } from '../db/pool.ts';
 
 /**
@@ -9,8 +9,8 @@ import { withTx, type Database } from '../db/pool.ts';
  */
 export async function resolveOrgActor(db: Database, userId: string, orgSlug: string): Promise<OrgActor> {
   const row = await withTx(db, { userId }, async (c) => {
-    const { rows } = await c.query<{ org_id: string; membership_id: string; roles: OrgRole[] }>(
-      `SELECT o.id AS org_id, m.id AS membership_id, m.roles
+    const { rows } = await c.query<{ org_id: string; membership_id: string; roles: OrgRole[]; access: MembershipAccess }>(
+      `SELECT o.id AS org_id, m.id AS membership_id, m.roles, m.access
          FROM memberships m JOIN organizations o ON o.id = m.organization_id
         WHERE o.slug = $1 AND m.user_id = $2 AND m.status = 'active'`,
       [orgSlug, userId],
@@ -18,7 +18,7 @@ export async function resolveOrgActor(db: Database, userId: string, orgSlug: str
     return rows[0];
   });
   if (!row) throw notFound('Организация не найдена');
-  return { userId, orgId: row.org_id, membershipId: row.membership_id, roles: row.roles };
+  return { userId, orgId: row.org_id, membershipId: row.membership_id, roles: row.roles, access: row.access };
 }
 
 export const orgTx = (actor: OrgActor) => ({

@@ -5,7 +5,7 @@ import type { IdeaStage } from './model.ts';
  * Idea lifecycle (organization side). "Private draft" is not a stage: drafts
  * live in the Personal Lab and become ideas only through explicit publication.
  *
- *   published → review → development ⇄ review
+ *   published → review → development ⇄ review   (a change request sends the idea to development)
  *                     ↘ verification → decision → adoption → impact_verification → closed
  *   any open stage → closed (reject / close decision, always with rationale)
  *
@@ -13,11 +13,11 @@ import type { IdeaStage } from './model.ts';
  * own state in their own records; the stage only says where the idea is.
  */
 const TRANSITIONS: Readonly<Record<IdeaStage, readonly IdeaStage[]>> = {
-  published: ['review', 'closed'],
+  published: ['review', 'development', 'closed'],
   review: ['development', 'verification', 'decision', 'closed'],
   development: ['review', 'closed'],
   verification: ['review', 'development', 'decision', 'closed'],
-  decision: ['review', 'adoption', 'closed'],
+  decision: ['review', 'development', 'adoption', 'closed'],
   adoption: ['impact_verification', 'closed'],
   impact_verification: ['closed'],
   closed: [],

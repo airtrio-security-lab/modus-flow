@@ -12,6 +12,7 @@ import type { IdeaAccessFacts, OrgActor, OrgRole } from './model.ts';
  *  - The author may object to any change request (right of reply).
  *  - Nobody decides on their own idea (conflict of interest).
  *  - Organization Admin administers; it does not grant review or decision power.
+ *  - Invited guests act only on ideas they are assigned to (visibility is enforced by RLS).
  */
 export type IdeaAction =
   | 'idea.view'
@@ -32,6 +33,7 @@ export type IdeaAction =
   | 'contribution.confirm';
 
 const has = (actor: OrgActor, role: OrgRole) => actor.roles.includes(role);
+const member = (actor: OrgActor) => actor.access === 'member';
 const isAuthor = (actor: OrgActor, idea: IdeaAccessFacts) => actor.membershipId === idea.authorMembershipId;
 const isMaintainer = (actor: OrgActor, idea: IdeaAccessFacts) =>
   idea.maintainerMembershipId !== null && actor.membershipId === idea.maintainerMembershipId;
@@ -42,7 +44,7 @@ const leadsReview = (actor: OrgActor, idea: IdeaAccessFacts) =>
   !isAuthor(actor, idea) &&
   (isMaintainer(actor, idea) ||
     isDecisionOwner(actor, idea) ||
-    (idea.maintainerMembershipId === null && has(actor, 'maintainer')));
+    (idea.maintainerMembershipId === null && member(actor) && has(actor, 'maintainer')));
 
 export interface PolicyContext {
   /** For review.resolve: who opened the change request. */
@@ -72,7 +74,8 @@ export function can(actor: OrgActor, action: IdeaAction, idea: IdeaAccessFacts, 
     case 'idea.suggest_revision':
       return open && !isAuthor(actor, idea);
     case 'idea.assign':
-      return open && (has(actor, 'maintainer') || has(actor, 'decision_owner'));
+      // Invited guests never assign; the author never picks their own reviewers.
+      return open && member(actor) && !isAuthor(actor, idea) && (has(actor, 'maintainer') || has(actor, 'decision_owner'));
     case 'review.resolve':
       return (
         open &&

@@ -51,8 +51,15 @@ export const NOTIFICATION_EVENTS = [
   'idea_rejected',
   'contribution_confirmed',
   'honor_board_recognition',
+  'objection_raised',
+  'revision_submitted',
+  'suggestion_submitted',
+  'suggestion_decided',
 ] as const;
 export type NotificationEvent = (typeof NOTIFICATION_EVENTS)[number];
+
+/** member = employee of the organization; guest = invited independent reviewer (sees only assigned ideas). */
+export type MembershipAccess = 'member' | 'guest';
 
 /** Who is acting, inside one organization. Built only by the server from a verified session. */
 export interface OrgActor {
@@ -60,6 +67,7 @@ export interface OrgActor {
   orgId: string;
   membershipId: string;
   roles: readonly OrgRole[];
+  access: MembershipAccess;
 }
 
 /** The parts of an idea that authorization decisions depend on. */

@@ -40,7 +40,8 @@ export async function notify(
 /** Members holding any of the given roles (e.g. who triages newly published ideas). */
 export async function membersWithRoles(c: Client, orgId: string, roles: readonly string[]): Promise<string[]> {
   const { rows } = await c.query<{ id: string }>(
-    `SELECT id FROM memberships WHERE organization_id = $1 AND status = 'active' AND roles && $2::text[]`,
+    `SELECT id FROM memberships
+      WHERE organization_id = $1 AND status = 'active' AND access = 'member' AND roles && $2::text[]`,
     [orgId, roles],
   );
   return rows.map((r) => r.id);
@@ -57,6 +58,10 @@ const TEMPLATES: Record<NotificationEvent, (actor: string, title: string) => str
   idea_rejected: (a, t) => `${a} отклоняет идею «${t}» с объяснением`,
   contribution_confirmed: (a, t) => `${a} подтверждает ваш вклад в идею «${t}»`,
   honor_board_recognition: (_a, t) => `Ваш вклад в идею «${t}» отмечен на доске почёта`,
+  objection_raised: (a, t) => `${a} возражает против замечания по идее «${t}»`,
+  revision_submitted: (a, t) => `${a} публикует новую версию идеи «${t}»`,
+  suggestion_submitted: (a, t) => `${a} предлагает свою версию идеи «${t}»`,
+  suggestion_decided: (a, t) => `${a} рассматривает ваше предложение по идее «${t}»`,
 };
 
 export interface InboxItem {
