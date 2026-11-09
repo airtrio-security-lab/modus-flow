@@ -17,8 +17,15 @@ export interface TxIdentity {
 
 export const APP_ROLE = 'modus_app';
 
-export function createDatabase(connectionString: string, max = 10): Database {
+export function createDatabase(
+  connectionString: string,
+  max = 10,
+  onIdleError: (error: Error) => void = (e) => console.error(JSON.stringify({ level: 'error', msg: 'idle database client error', error: e.message })),
+): Database {
   const pool = new pg.Pool({ connectionString, max });
+  // Without this handler a dropped idle connection (database restart, failover)
+  // is an uncaught exception that terminates the whole API process.
+  pool.on('error', onIdleError);
   return { pool, close: () => pool.end() };
 }
 
