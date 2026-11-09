@@ -56,7 +56,7 @@ test('revisions: only the author writes author updates; suggestions never by the
   const id = await ideaId(n);
   const insert = (p: P, origin: string, status: string) =>
     sql(p, `INSERT INTO idea_revisions (organization_id, idea_id, number, author_membership_id, origin, based_on_number, title, problem, proposal, rationale, status)
-            VALUES ($1, $2, 9, $3, $4, 1, 'Переписано', 'проблема', 'предложение', 'причина', $5)`, [w.acmeId, id, p.membershipId, origin, status]);
+            VALUES ($1, $2, 2, $3, $4, 1, 'Переписано', 'проблема', 'предложение', 'причина', $5)`, [w.acmeId, id, p.membershipId, origin, status]);
   await assert.rejects(insert(w.maintainer, 'author_update', 'current'), rejected('forbidden'));
   await assert.rejects(insert(w.author, 'suggestion', 'proposed'), rejected('forbidden'));
   await assert.rejects(insert(w.colleague, 'suggestion', 'current'), rejected('forbidden'), 'a suggestion cannot enter as current');
@@ -117,12 +117,12 @@ test('decisions: snapshot is server-computed; one per idea; merge never over ope
   await wf.recordEvidence(db, w.colleague.actor, n, v, { kind: 'result', body: 'Ожидание 36 минут', metric: 'ожидание', value: 36, unit: 'мин' });
   await wf.concludeVerification(db, w.maintainer.actor, n, v, { outcome: 'positive', conclusion: 'Критерий достигнут, сбой записи нужно исправить' });
 
-  const forged = JSON.stringify([{ outcome: 'positive', negativeEvidence: 0 }]);
+  const forged = JSON.stringify([{ outcome: 'positive', negativeObservations: 0 }]);
   const row = await sql(w.decider, `INSERT INTO decisions (organization_id, idea_id, revision_number, decided_by_membership_id, outcome, rationale, verification_summary)
                                     VALUES ($1, $2, 1, $3, 'merge', 'Внедряем с исправлением записи', $4) RETURNING verification_summary`,
     [w.acmeId, id, w.decider.membershipId, forged]);
-  const summary = row.rows[0]!.verification_summary as { negativeEvidence: number }[];
-  assert.equal(Number(summary[0]!.negativeEvidence), 1, 'the client cannot hide negative evidence from the decision record');
+  const summary = row.rows[0]!.verification_summary as { negativeObservations: number }[];
+  assert.equal(Number(summary[0]!.negativeObservations), 1, 'the client cannot hide negative evidence from the decision record');
 
   await assert.rejects(
     withAdminTx(db, (c) => c.query(`INSERT INTO decisions (organization_id, idea_id, revision_number, decided_by_membership_id, outcome, rationale)

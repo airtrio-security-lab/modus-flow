@@ -11,6 +11,8 @@ import type { IdeaAccessFacts, OrgActor, OrgRole } from './model.ts';
  *    accepts them. Nobody silently rewrites an author's proposal.
  *  - The author may object to any change request (right of reply).
  *  - Nobody decides on their own idea (conflict of interest).
+ *  - Maintainer and Decision Owner are different people: the maintainer leads
+ *    review and verification, the decision owner decides on what they did not run.
  *  - Organization Admin administers; it does not grant review or decision power.
  *  - Invited guests act only on ideas they are assigned to (visibility is enforced by RLS).
  */
@@ -84,10 +86,12 @@ export function can(actor: OrgActor, action: IdeaAction, idea: IdeaAccessFacts, 
       );
     case 'verification.start':
     case 'verification.conclude':
-      return open && !isAuthor(actor, idea) && (isMaintainer(actor, idea) || isDecisionOwner(actor, idea));
+      // Verification is the maintainer's job; the decision owner stays independent of it.
+      return open && !isAuthor(actor, idea) && isMaintainer(actor, idea);
     case 'verification.record_evidence':
       return (
         open &&
+        !isAuthor(actor, idea) &&
         (ctx.verificationOwnerMembershipId === actor.membershipId ||
           isMaintainer(actor, idea) ||
           isDecisionOwner(actor, idea))

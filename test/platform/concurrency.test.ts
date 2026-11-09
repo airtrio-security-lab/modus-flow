@@ -110,7 +110,7 @@ test('parallel conclusions → one verdict, never overwritten', async () => {
   await wf.recordEvidence(db, w.colleague.actor, n, v, { kind: 'result', body: 'Итог замера', metric: 'ожидание', value: 52, unit: 'мин' });
   const r = await settled([
     wf.concludeVerification(db, w.maintainer.actor, n, v, { outcome: 'positive', conclusion: 'Считаю успехом: заметное снижение' }),
-    wf.concludeVerification(db, w.decider.actor, n, v, { outcome: 'negative', conclusion: 'Критерий 40 минут не достигнут' }),
+    wf.concludeVerification(db, w.maintainer.actor, n, v, { outcome: 'negative', conclusion: 'Критерий 40 минут не достигнут' }),
   ]);
   assert.equal(r.ok, 1);
   assert.deepEqual(r.codes, ['conflict']);

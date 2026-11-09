@@ -71,7 +71,7 @@ test('scenario: review → change request → objection → revision → verific
   const d = await wf.decide(db, w.decider.actor, n, { outcome: 'merge', rationale: 'Внедряем на всех рампах с исправлением записи' });
   assert.equal(d.body.stage, 'adoption');
   assert.deepEqual(
-    (d.body.verificationSummary as { outcome: string; negativeEvidence: number }[]).map((s) => [s.outcome, s.negativeEvidence]),
+    (d.body.verificationSummary as { outcome: string; negativeObservations: number }[]).map((s) => [s.outcome, s.negativeObservations]),
     [['positive', 1]],
     'the decision permanently records that negative evidence existed',
   );

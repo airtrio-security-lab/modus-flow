@@ -94,7 +94,7 @@ test('vertical slice over HTTP: idea → review → change request → objection
   assert.equal(page.json.revisions.length, 2);
   assert.equal(page.json.reviews.filter((r: { kind: string }) => r.kind === 'objection').length, 1);
   assert.deepEqual(page.json.verifications[0].evidence.map((e: { kind: string }) => e.kind), ['result', 'negative_observation']);
-  assert.equal(page.json.decisions[0].verification_summary[0].negativeEvidence, 1);
+  assert.equal(page.json.decisions[0].verification_summary[0].negativeObservations, 1);
   assert.doesNotMatch(JSON.stringify(page.json), /ЛИЧНОЕ/);
 });
 

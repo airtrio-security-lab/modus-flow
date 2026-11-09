@@ -166,10 +166,11 @@ test('#4 the author cannot start verification or confirm contributions on their 
     ),
     { code: 'forbidden' },
   );
-  const contrib = await withTx(db, ctx(w.colleague), async (c) =>
+  // A legitimate review contribution of the maintainer (backed by their change request).
+  const contrib = await withTx(db, ctx(w.maintainer), async (c) =>
     (await c.query<{ id: string }>(
       `INSERT INTO contributions (organization_id, membership_id, idea_id, kind, source_type, source_id)
-       VALUES ($1, $2, $3, 'review', 'review', $4) RETURNING id`, [w.acmeId, w.colleague.membershipId, ideaId, reviewId])).rows[0]!.id,
+       VALUES ($1, $2, $3, 'review', 'review', $4) RETURNING id`, [w.acmeId, w.maintainer.membershipId, ideaId, reviewId])).rows[0]!.id,
   );
   await assert.rejects(
     withTx(db, ctx(w.author), (c) =>

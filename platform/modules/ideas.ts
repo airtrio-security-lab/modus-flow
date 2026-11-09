@@ -95,8 +95,8 @@ export async function computeChecks(c: Client, idea: IdeaRow): Promise<CheckResu
   );
   const ver = await c.query<{ total: number; completed: number }>(
     `SELECT count(*)::int AS total, count(*) FILTER (WHERE status = 'completed')::int AS completed
-       FROM verifications WHERE idea_id = $1 AND purpose = 'hypothesis'`,
-    [idea.id],
+       FROM verifications WHERE idea_id = $1 AND purpose = 'hypothesis' AND revision_number = $2`,
+    [idea.id, idea.current_revision_number],
   );
   return runChecks({
     revision: current

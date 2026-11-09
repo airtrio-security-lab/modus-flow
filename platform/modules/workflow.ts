@@ -152,6 +152,11 @@ export function assign(db: Database, actor: OrgActor, number: number, input: z.i
     }
     const maintainer = input.maintainer ?? idea.maintainer_membership_id;
     const decisionOwner = input.decisionOwner ?? idea.decision_owner_membership_id;
+    if (maintainer && maintainer === decisionOwner) {
+      throw new AppError('validation_failed', 'Ведущий и ответственный за решение должны быть разными людьми');
+    }
+    const active = await c.query(`SELECT 1 FROM verifications WHERE idea_id = $1 AND status IN ('planned','running')`, [idea.id]);
+    if (active.rowCount) throw conflict('Назначения нельзя менять во время проверки');
     await c.query(
       'UPDATE ideas SET maintainer_membership_id = $2, decision_owner_membership_id = $3, updated_at = clock_timestamp() WHERE id = $1',
       [idea.id, maintainer, decisionOwner],
@@ -261,6 +266,13 @@ async function nextRevisionNumber(c: Client, idea: IdeaRow): Promise<number> {
   return rows[0]!.n;
 }
 
+/** The text may change only before verification; afterwards the verified text is what gets decided. */
+function assertTextEditable(idea: IdeaRow): void {
+  if (!['published', 'review', 'development'].includes(idea.stage)) {
+    throw conflict('Текст идеи нельзя менять после начала проверки — решение принимается по проверенной версии');
+  }
+}
+
 function assertBase(idea: IdeaRow, base: number): void {
   if (base !== idea.current_revision_number) {
     throw conflict('Версия идеи изменилась, обновите страницу', { currentRevision: idea.current_revision_number });
@@ -279,9 +291,7 @@ export function revise(db: Database, actor: OrgActor, number: number, input: z.i
   return mutate(db, actor, number, 'idea.revise', input, key, async (c, idea) => {
     authorize(actor, 'idea.revise', accessFacts(idea));
     assertBase(idea, input.baseRevision);
-    if (['verification', 'adoption', 'impact_verification'].includes(idea.stage)) {
-      throw conflict('Нельзя менять текст во время проверки или внедрения');
-    }
+    assertTextEditable(idea);
     const n = await nextRevisionNumber(c, idea);
     await c.query(`UPDATE idea_revisions SET status = 'superseded' WHERE idea_id = $1 AND status = 'current'`, [idea.id]);
     await c.query(
@@ -336,9 +346,7 @@ export function decideSuggestion(
     if (!s) throw notFound('Предложенная версия не найдена');
     if (s.status !== 'proposed') throw conflict('Предложение уже рассмотрено');
     if (input.accept) {
-      if (['verification', 'adoption', 'impact_verification'].includes(idea.stage)) {
-        throw conflict('Нельзя менять текст во время проверки или внедрения');
-      }
+      assertTextEditable(idea);
       if (s.based_on_number !== idea.current_revision_number) {
         throw conflict('Предложение основано на устаревшей версии', { currentRevision: idea.current_revision_number });
       }
@@ -372,8 +380,18 @@ export function startVerification(
     authorize(actor, 'verification.start', accessFacts(idea));
     if (idea.stage !== 'review') throw conflict('Проверку запускают на стадии обсуждения, без открытых доработок');
     await requireChecks(c, idea, 'start_verification');
-    const owner = await c.query('SELECT 1 FROM memberships WHERE id = $1 AND organization_id = app_org_id() AND status = $2', [input.owner, 'active']);
-    if (!owner.rowCount) throw new AppError('validation_failed', 'Ответственный за проверку не найден');
+    if (input.owner === idea.author_membership_id) {
+      throw new AppError('validation_failed', 'Автор не может проводить проверку собственной идеи');
+    }
+    if (input.owner === idea.decision_owner_membership_id) {
+      throw new AppError('validation_failed', 'Ответственный за решение не проводит проверку, которую будет оценивать');
+    }
+    const assignedLead = input.owner === idea.maintainer_membership_id;
+    const owner = await c.query(
+      `SELECT 1 FROM memberships WHERE id = $1 AND organization_id = app_org_id() AND status = 'active' AND (access = 'member' OR $2)`,
+      [input.owner, assignedLead],
+    );
+    if (!owner.rowCount) throw new AppError('validation_failed', 'Ответственный за проверку должен быть сотрудником или назначенным проверяющим');
     const { rows } = await c.query<{ id: string }>(
       `INSERT INTO verifications (organization_id, idea_id, revision_number, purpose, owner_membership_id,
                                   created_by_membership_id, plan, success_criteria)

@@ -22,19 +22,12 @@ export async function notify(
   dedupeSuffix: string,
 ): Promise<number> {
   const targets = [...new Set([...recipients].filter((r): r is string => !!r && r !== actor.membershipId))];
-  if (targets.length === 0) return 0;
-  const { rowCount } = await c.query(
-    `INSERT INTO notifications (organization_id, recipient_membership_id, actor_membership_id, event_type, idea_id, dedupe_key)
-     SELECT $1, r, $2, $3, $4, $5 FROM unnest($6::uuid[]) AS r
-      WHERE app_notification_enabled(r, $3, $4)
-     ON CONFLICT DO NOTHING`,
-    // No conflict target on purpose: with an explicit target PostgreSQL also
-    // applies the SELECT policy to the new row, and senders must not be able
-    // to read other people's inboxes. The only unique key besides the random
-    // primary key is (recipient_membership_id, dedupe_key).
-    [actor.orgId, actor.membershipId, event, ideaId, `${event}:${dedupeSuffix}`, targets],
-  );
-  return rowCount ?? 0;
+  if (targets.length === 0 || ideaId === null) return 0;
+  // app_notify (migration 0003) is the only write path: it verifies that the
+  // event is backed by a workflow record created by the actor and that every
+  // recipient may see the idea. Direct INSERTs are not granted.
+  const { rows } = await c.query<{ n: number }>('SELECT app_notify($1, $2, $3::uuid[], $4) AS n', [event, ideaId, targets, dedupeSuffix]);
+  return rows[0]!.n;
 }
 
 /** Members holding any of the given roles (e.g. who triages newly published ideas). */

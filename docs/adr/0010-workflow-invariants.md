@@ -29,6 +29,14 @@ workflow rules to the service.
 8. **Chronology.** History timestamps use `clock_timestamp()` (time of write under the lock), not
    `now()` (transaction start), so the timeline matches the real order of events.
 
+**Hardening (migration 0003, after adversarial review):** maintainer ≠ decision owner; decision owner
+never owns/starts/concludes a verification; author never owns a verification or records evidence;
+contributions require a backing record and system facts cannot be revoked; running verifications are
+frozen and cannot be cancelled once evidence exists; text frozen from verification on; exactly one
+current revision per idea (deferred constraint); resolution only by requester/maintainer; gate
+triggers lock the idea row; notifications only via `app_notify()`; guest scope on people, counters and
+subscriptions.
+
 **Consequences.** + Rules hold even for a buggy service (tested with direct SQL as `modus_app`).
 − Rules exist twice (TS + SQL); both are covered by tests so drift fails CI. − Checks that depend on
 "who acts" are skipped for operator transactions without a bound identity (owner provisioning).
