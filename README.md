@@ -31,3 +31,37 @@ Switch between demo employee and manager in the UI. Create an idea/problem, send
 - Separate build/deploy with secret management and controlled demo-data migration
 
 See `docs/SPEC.md` and `docs/DELIVERY.md`.
+
+---
+
+## Platform (v1, in progress)
+
+The scalable MODUS FLOW platform is built **alongside** the prototype in `platform/` (ADR-0001):
+PostgreSQL with tenant isolation enforced by Row Level Security, a private Personal Lab, an explicit
+idea lifecycle, append-only history and an idempotent, transactional publication flow.
+
+* Audit of the current repository: [`docs/audit/2026-11-09-phase0-audit.md`](docs/audit/2026-11-09-phase0-audit.md)
+* Architecture: [`docs/architecture/PLATFORM.md`](docs/architecture/PLATFORM.md) · Decisions: [`docs/adr/`](docs/adr/)
+
+**Status:** Phase 1 (foundation) — schema for all core models, access policy, Lab + publication,
+idea read API, notifications inbox, automated checks. Review/verification/decision workflows are
+Phase 2; the UI is Phase 3. Not production-ready (see ADR-0004 for authentication).
+
+### Run locally (Node ≥ 22.18, PostgreSQL 16)
+```bash
+npm ci
+docker compose up -d postgres            # or any PostgreSQL 16
+cp .env.example .env && $EDITOR .env     # set MODUS_AUTH_SECRET (≥ 32 chars)
+set -a && . ./.env && set +a
+npm run platform:seed-demo               # migrates, creates a FICTIONAL org, prints tokens
+npm run platform:start                   # http://127.0.0.1:3100/api/v1/health
+```
+
+### Platform tests
+Integration tests use a real PostgreSQL; each test file creates and drops its own database.
+They fail (never skip) when `TEST_DATABASE_URL` is missing.
+```bash
+export TEST_DATABASE_URL=postgres://modus:modus-local-only@127.0.0.1:5432/postgres
+npm run check          # syntax + TypeScript
+npm test               # legacy prototype tests + platform tests
+```
