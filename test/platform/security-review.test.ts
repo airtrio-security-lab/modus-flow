@@ -29,7 +29,9 @@ before(async () => {
   const d = await createDraft(db, w.author.userId, fullDraft);
   ideaId = (await publishDraft(db, w.author.userId, d.id, { organization: 'acme' })).body.idea.id;
   await withAdminTx(db, (c) =>
-    c.query('UPDATE ideas SET maintainer_membership_id = $2, decision_owner_membership_id = $3 WHERE id = $1', [
+    // Stage 'review' so each attack below reaches the policy layer it targets
+    // rather than being stopped earlier by the Phase 2 stage guards.
+    c.query(`UPDATE ideas SET maintainer_membership_id = $2, decision_owner_membership_id = $3, stage = 'review' WHERE id = $1`, [
       ideaId,
       w.maintainer.membershipId,
       w.decider.membershipId,

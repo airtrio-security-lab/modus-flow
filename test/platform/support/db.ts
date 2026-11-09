@@ -41,10 +41,17 @@ export interface Person {
   actor: OrgActor;
 }
 
-async function person(db: Database, orgId: string, name: string, roles: OrgRole[], department: string): Promise<Person> {
+export async function person(
+  db: Database,
+  orgId: string,
+  name: string,
+  roles: OrgRole[],
+  department: string,
+  access: 'member' | 'guest' = 'member',
+): Promise<Person> {
   const userId = await createUser(db, name);
-  const membershipId = await addMember(db, orgId, userId, roles, { department });
-  return { userId, membershipId, actor: { userId, orgId, membershipId, roles } };
+  const membershipId = await addMember(db, orgId, userId, roles, { department, access });
+  return { userId, membershipId, actor: { userId, orgId, membershipId, roles, access } };
 }
 
 /** Two fictional organizations with distinct people. No real personal data. */

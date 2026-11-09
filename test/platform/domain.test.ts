@@ -12,6 +12,7 @@ const actor = (membershipId: string, roles: OrgActor['roles'] = ['employee']): O
   orgId: 'org',
   membershipId,
   roles,
+  access: 'member',
 });
 const author = actor('author');
 const maintainer = actor('maint', ['employee', 'maintainer']);
@@ -136,4 +137,17 @@ test('auth tokens: valid, tampered, expired, weak secret', () => {
   assert.equal(verifyToken(secret, `${v}.${p}.${m}`, 1_000_000 + 61_000), null, 'expired');
   assert.throws(() => assertSecret('short'), /32/);
   assert.throws(() => assertSecret(undefined), /32/);
+});
+
+test('authenticator selection: explicit mode, dev tokens refused in production, OIDC not faked', async () => {
+  const { authenticatorFromEnv } = await import('../../platform/http/authn.ts');
+  const secret = 's'.repeat(40);
+  assert.throws(() => authenticatorFromEnv({}), /must be set explicitly/);
+  assert.throws(() => authenticatorFromEnv({ MODUS_AUTH_MODE: 'dev-token', NODE_ENV: 'production', MODUS_AUTH_SECRET: secret }), /not allowed/);
+  assert.throws(() => authenticatorFromEnv({ MODUS_AUTH_MODE: 'oidc' }), /not implemented/);
+  const a = authenticatorFromEnv({ MODUS_AUTH_MODE: 'dev-token', MODUS_AUTH_SECRET: secret });
+  assert.equal(a.productionReady, false);
+  const uid = '6f1c1d2e-3b4a-4c5d-8e9f-0a1b2c3d4e5f';
+  assert.deepEqual(await a.authenticate(issueToken(secret, uid)), { userId: uid });
+  assert.equal(await a.authenticate('garbage'), null);
 });
