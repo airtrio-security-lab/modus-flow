@@ -2,7 +2,7 @@ import { createServer } from 'node:http';
 import { assertUnprivilegedConnection, createDatabase } from './db/pool.ts';
 import { migrate } from './db/migrate.ts';
 import { createApp } from './http/app.ts';
-import { assertSecret } from './http/auth.ts';
+import { authenticatorFromEnv } from './http/authn.ts';
 
 /**
  * MODUS FLOW platform API (v1). Runs alongside the legacy prototype
@@ -10,7 +10,7 @@ import { assertSecret } from './http/auth.ts';
  */
 const databaseUrl = process.env.DATABASE_URL;
 if (!databaseUrl) throw new Error('DATABASE_URL is required');
-const authSecret = assertSecret(process.env.MODUS_AUTH_SECRET);
+const authenticator = authenticatorFromEnv(process.env);
 const port = Number(process.env.PLATFORM_PORT ?? 3100);
 const host = process.env.PLATFORM_HOST ?? '127.0.0.1';
 
@@ -28,7 +28,10 @@ if (process.env.MODUS_ALLOW_PRIVILEGED_DB === 'true') {
 } else {
   await assertUnprivilegedConnection(db);
 }
-const handler = createApp({ db, authSecret, log: (e) => console.log(JSON.stringify(e)) });
+if (!authenticator.productionReady) {
+  console.warn(JSON.stringify({ level: 'warn', msg: `auth mode ${authenticator.mode} is for development only (ADR-0009)` }));
+}
+const handler = createApp({ db, authenticator, log: (e) => console.log(JSON.stringify(e)) });
 const server = createServer((req, res) => void handler(req, res));
 server.listen(port, host, () => console.log(JSON.stringify({ level: 'info', msg: `MODUS FLOW platform API on ${host}:${port}` })));
 
