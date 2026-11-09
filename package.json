@@ -5,10 +5,27 @@
   "scripts": {
     "dev": "node --watch src/server.js",
     "start": "node src/server.js",
-    "test": "node --test",
-    "check": "node --check src/server.js && node --check src/domain.js"
+    "test": "npm run test:legacy && npm run test:platform",
+    "test:legacy": "node --test \"test/*.test.js\"",
+    "test:domain": "node --test test/platform/domain.test.ts",
+    "test:platform": "node --test --test-concurrency=1 \"test/platform/*.test.ts\"",
+    "typecheck": "tsc -p .",
+    "check": "node --check src/server.js && node --check src/domain.js && npm run typecheck",
+    "platform:start": "node platform/main.ts",
+    "platform:migrate": "node platform/cli/migrate.ts",
+    "platform:seed-demo": "node platform/cli/seed-demo.ts",
+    "platform:token": "node platform/cli/issue-token.ts"
   },
   "engines": {
     "node": ">=22"
+  },
+  "dependencies": {
+    "pg": "^8.23.1",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.5",
+    "@types/pg": "^8.23.1",
+    "typescript": "^5.9.3"
   }
 }
