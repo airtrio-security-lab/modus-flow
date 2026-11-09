@@ -44,9 +44,10 @@ idea lifecycle, append-only history and an idempotent, transactional publication
 * Independent security review and fixes: [`docs/audit/2026-11-09-security-review.md`](docs/audit/2026-11-09-security-review.md)
 * Architecture: [`docs/architecture/PLATFORM.md`](docs/architecture/PLATFORM.md) · Decisions: [`docs/adr/`](docs/adr/)
 
-**Status:** Phase 1 (foundation) — schema for all core models, access policy, Lab + publication,
-idea read API, notifications inbox, automated checks. Review/verification/decision workflows are
-Phase 2; the UI is Phase 3. Not production-ready (see ADR-0004 for authentication).
+**Status:** Phase 1 (foundation) and Phase 2 (review → change request → objection → revision →
+verification with positive/negative evidence → decision, see
+[`docs/architecture/PHASE2-WORKFLOW.md`](docs/architecture/PHASE2-WORKFLOW.md)). The UI is Phase 3.
+Not production-ready: authentication is development-only until OIDC lands (ADR-0009).
 
 ### Run locally (Node ≥ 22.18, PostgreSQL 16)
 ```bash

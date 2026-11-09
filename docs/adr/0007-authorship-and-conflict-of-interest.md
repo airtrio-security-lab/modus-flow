@@ -11,6 +11,10 @@
 * Completed verifications and decisions cannot be edited or deleted, so negative results cannot be
   hidden.
 
-**Consequences.** In very small organizations a leader cannot merge their own idea; another decision
-owner must be assigned. **Owner may revise** this rule (it affects people's rights) — it is
-centralized in one function so a change is local.
+**Owner decision (2026-11-09): confirmed.** For small teams an independent decision owner (or
+maintainer) may be an **invited guest** — a membership with `access = 'guest'` and only the
+`maintainer` and/or `decision_owner` roles. Guests see only the ideas they are assigned to, cannot
+publish, assign or join organization-wide triage (enforced by RLS, migration 0002; see ADR-0010).
+
+**Consequences.** A leader never merges their own idea; another decision owner — internal or invited —
+must be assigned. Since Phase 2 these rules are enforced by the database as well as the service.

@@ -8,5 +8,7 @@
 | [0004](0004-interim-authentication.md) | Interim signed tokens until SSO; no demo tokens | Accepted |
 | [0005](0005-typescript-without-build.md) | TypeScript via Node type stripping; zod at the boundary | Accepted |
 | [0006](0006-lifecycle-separate-from-subprocess-state.md) | Lifecycle stage is separate from review/verification/decision state; merge ≠ proven impact | Accepted |
-| [0007](0007-authorship-and-conflict-of-interest.md) | Authorship, right of reply and conflict-of-interest rules | Accepted — owner may revise |
+| [0007](0007-authorship-and-conflict-of-interest.md) | Authorship, right of reply and conflict-of-interest rules | Accepted — confirmed by owner 2026-11-09 |
 | [0008](0008-notifications.md) | Targeted notifications without free-text payload | Accepted |
+| [0009](0009-authentication-boundary-oidc.md) | Authentication boundary; OIDC planned; dev tokens never production | Accepted (owner decision) |
+| [0010](0010-workflow-invariants.md) | Workflow invariants in the database; invited independent reviewers; truthful chronology | Accepted |

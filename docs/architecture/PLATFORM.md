@@ -127,11 +127,15 @@ AI may later summarize evidence; it never writes outcomes, decisions or contribu
 | GET | `/api/v1/orgs/:org/notifications` | own inbox, rendered messages |
 | POST | `/api/v1/orgs/:org/notifications/read` | `{ids}`; own inbox only |
 
+## API v1 — workflow (Phase 2)
+
+See [`PHASE2-WORKFLOW.md`](PHASE2-WORKFLOW.md) for the review, revision, suggestion, verification,
+evidence and decision endpoints and the UI integration plan.
+
 ## Planned (next phases)
 
-* **Phase 2:** review, change request / objection / resolution, suggested revisions and author
-  acceptance, assignment, verification run + evidence + conclusion, decision, adoption, impact
-  verification, contribution confirmation — each with policy, audit, notifications and tests.
+* **Phase 2 (done):** see `PHASE2-WORKFLOW.md`. Still open: impact verification and contribution
+  confirmation endpoints.
 * **Phase 3:** React + TypeScript PWA (Quiet Intelligence tokens, mobile chat-first capture, desktop
   workspace, PR-like idea page) over API v1.
 * Employee Contribution Profile and Honor Board as read models over confirmed contributions
