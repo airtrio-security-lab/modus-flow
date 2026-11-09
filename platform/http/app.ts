@@ -18,11 +18,16 @@ import {
   saveVersion,
 } from '../modules/lab.ts';
 import { listInbox, markRead } from '../modules/notifications.ts';
-import { verifyToken } from './auth.ts';
+import * as wf from '../modules/workflow.ts';
+import type { IdempotentResult } from '../modules/idempotency.ts';
+import { DevTokenAuthenticator, type Authenticator } from './authn.ts';
 
 export interface AppConfig {
   db: Database;
-  authSecret: string;
+  /** Preferred: an explicit authenticator (ADR-0009). */
+  authenticator?: Authenticator;
+  /** Shortcut for tests/local use: builds a DevTokenAuthenticator. */
+  authSecret?: string;
   log?: (entry: Record<string, unknown>) => void;
 }
 
@@ -94,6 +99,7 @@ const MarkReadInput = z.object({ ids: z.array(z.uuid()).min(1).max(200) }).stric
 
 export function createApp(config: AppConfig) {
   const { db } = config;
+  const authenticator = config.authenticator ?? new DevTokenAuthenticator(config.authSecret);
   const routes: Route[] = [];
   const route = (method: string, path: string, handler: Handler) =>
     routes.push({ method, pattern: new RegExp(`^${path}$`), handler });
@@ -149,6 +155,39 @@ export function createApp(config: AppConfig) {
   const userExists = (userId: string) =>
     withTx(db, { userId }, async (c) => (await c.query('SELECT 1 FROM users WHERE id = app_user_id()')).rowCount === 1);
 
+  // ---- workflow (Phase 2) ---------------------------------------------------
+  // Every mutation accepts an Idempotency-Key header and returns 201 with the
+  // resulting state; a replay returns the stored response with Idempotent-Replayed.
+  const IDEA = `/api/v1/orgs/(?<org>${SLUG})/ideas/(?<number>\\d{1,10})`;
+  const replied = <T>(r: IdempotentResult<T>): Reply => ({
+    status: r.status,
+    body: r.body,
+    headers: r.replayed ? { 'Idempotent-Replayed': 'true' } : {},
+  });
+  const step = <S extends z.ZodType>(
+    path: string,
+    schema: S,
+    run: (actor: Awaited<ReturnType<typeof org>>, n: number, input: z.infer<S>, params: Record<string, string>, key?: string) => Promise<IdempotentResult<unknown>>,
+  ) =>
+    route('POST', `${IDEA}${path}`, async (ctx) => {
+      const actor = await org(ctx);
+      const input = schema.parse(await ctx.body());
+      return replied(await run(actor, NumberParam.parse(ctx.params.number), input, ctx.params, idemKey(ctx.req)));
+    });
+
+  step('/assignments', wf.AssignInput, (a, n, i, _p, k) => wf.assign(db, a, n, i, k));
+  step('/reviews', wf.ReviewInput, (a, n, i, _p, k) => wf.addReview(db, a, n, i, k));
+  step(`/reviews/(?<review>${UUID})/resolve`, wf.ResolveInput, (a, n, i, p, k) => wf.resolveReview(db, a, n, p.review!, i, k));
+  step('/revisions', wf.ReviseInput, (a, n, i, _p, k) => wf.revise(db, a, n, i, k));
+  step('/suggestions', wf.SuggestInput, (a, n, i, _p, k) => wf.suggest(db, a, n, i, k));
+  step('/suggestions/(?<rev>\\d{1,6})/decision', wf.SuggestionDecisionInput, (a, n, i, p, k) =>
+    wf.decideSuggestion(db, a, n, NumberParam.parse(p.rev), i, k),
+  );
+  step('/verifications', wf.StartVerificationInput, (a, n, i, _p, k) => wf.startVerification(db, a, n, i, k));
+  step(`/verifications/(?<v>${UUID})/evidence`, wf.EvidenceInput, (a, n, i, p, k) => wf.recordEvidence(db, a, n, p.v!, i, k));
+  step(`/verifications/(?<v>${UUID})/conclusion`, wf.ConcludeInput, (a, n, i, p, k) => wf.concludeVerification(db, a, n, p.v!, i, k));
+  step('/decision', wf.DecideInput, (a, n, i, _p, k) => wf.decide(db, a, n, i, k));
+
   function send(res: ServerResponse, reply: Reply, requestId: string) {
     const headers: Record<string, string> = { ...SECURITY_HEADERS, 'X-Request-Id': requestId, ...reply.headers };
     if (reply.status === 413) headers.Connection = 'close';
@@ -190,15 +229,15 @@ export function createApp(config: AppConfig) {
             : { status: 404, body: { error: 'not_found', message: 'Не найдено' } };
         } else {
           const auth = req.headers.authorization ?? '';
-          const claims = auth.startsWith('Bearer ') ? verifyToken(config.authSecret, auth.slice(7)) : null;
-          if (!claims || !(await userExists(claims.sub))) {
+          const claims = auth.startsWith('Bearer ') ? await authenticator.authenticate(auth.slice(7)) : null;
+          if (!claims || !(await userExists(claims.userId))) {
             reply = { status: 401, body: { error: 'unauthenticated', message: 'Требуется вход' } };
           } else {
             reply = await match.handler({
               req,
               params: { ...match.pattern.exec(url.pathname)!.groups },
               query: url.searchParams,
-              userId: claims.sub,
+              userId: claims.userId,
               body: () => readJson(req),
             });
           }

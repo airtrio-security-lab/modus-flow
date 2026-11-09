@@ -136,16 +136,33 @@ export async function getIdea(db: Database, actor: OrgActor, number: number) {
         WHERE v.idea_id = $1 ORDER BY v.created_at, v.id`,
       [idea.id],
     );
+    // Every piece of evidence is returned — positive and negative alike.
     const verifications = await c.query(
-      `SELECT id, purpose, revision_number, status, outcome, plan, success_criteria, conclusion,
-              owner_membership_id, started_at, completed_at, created_at
-         FROM verifications WHERE idea_id = $1 ORDER BY created_at`,
+      `SELECT v.id, v.purpose, v.revision_number, v.status, v.outcome, v.plan, v.success_criteria, v.conclusion,
+              v.owner_membership_id, eo.display_name AS owner, ec.display_name AS concluded_by,
+              v.started_at, v.completed_at, v.created_at,
+              coalesce((SELECT jsonb_agg(jsonb_build_object(
+                         'id', x.id, 'kind', x.kind, 'body', x.body, 'metric', x.metric, 'value', x.value,
+                         'unit', x.unit, 'recordedBy', er.display_name, 'createdAt', x.created_at) ORDER BY x.created_at, x.id)
+                          FROM verification_evidence x JOIN employees er ON er.membership_id = x.recorded_by_membership_id
+                         WHERE x.verification_id = v.id), '[]'::jsonb) AS evidence
+         FROM verifications v
+         JOIN employees eo ON eo.membership_id = v.owner_membership_id
+         LEFT JOIN employees ec ON ec.membership_id = v.concluded_by_membership_id
+        WHERE v.idea_id = $1 ORDER BY v.created_at`,
       [idea.id],
     );
     const decisions = await c.query(
-      `SELECT d.id, d.outcome, d.revision_number, d.rationale, d.created_at, e.display_name AS decided_by
+      `SELECT d.id, d.outcome, d.revision_number, d.rationale, d.verification_summary, d.created_at,
+              e.display_name AS decided_by
          FROM decisions d JOIN employees e ON e.membership_id = d.decided_by_membership_id
         WHERE d.idea_id = $1 ORDER BY d.created_at`,
+      [idea.id],
+    );
+    const contributions = await c.query(
+      `SELECT c.kind, c.status, c.source_type, c.source_id, e.display_name AS member, c.created_at
+         FROM contributions c JOIN employees e ON e.membership_id = c.membership_id
+        WHERE c.idea_id = $1 ORDER BY c.created_at, c.id`,
       [idea.id],
     );
     return {
@@ -163,6 +180,7 @@ export async function getIdea(db: Database, actor: OrgActor, number: number) {
       reviews: reviews.rows,
       verifications: verifications.rows,
       decisions: decisions.rows,
+      contributions: contributions.rows,
       checks: await computeChecks(c, idea),
     };
   });
