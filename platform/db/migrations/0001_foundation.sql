@@ -67,36 +67,47 @@ CREATE TABLE memberships (
 -- without recursing into the memberships policy; they only ever answer about
 -- the caller's own user id.
 CREATE FUNCTION app_is_member(org uuid) RETURNS boolean
-LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
   SELECT EXISTS (
-    SELECT 1 FROM memberships m
+    SELECT 1 FROM public.memberships m
     WHERE m.organization_id = org AND m.user_id = app_user_id() AND m.status = 'active')
 $$;
 
 CREATE FUNCTION app_has_role(org uuid, role text) RETURNS boolean
-LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
   SELECT EXISTS (
-    SELECT 1 FROM memberships m
+    SELECT 1 FROM public.memberships m
     WHERE m.organization_id = org AND m.user_id = app_user_id()
       AND m.status = 'active' AND role = ANY (m.roles))
 $$;
 
 CREATE FUNCTION app_in_current_org(target_user uuid) RETURNS boolean
-LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
   SELECT app_is_member(app_org_id()) AND EXISTS (
-    SELECT 1 FROM memberships m
+    SELECT 1 FROM public.memberships m
     WHERE m.organization_id = app_org_id() AND m.user_id = target_user)
+$$;
+
+-- The bound actor is consistent: app.membership_id belongs to app.user_id,
+-- lives in app.org_id and is active. Every organization-scoped policy requires
+-- it, so a membership id of another person cannot be borrowed.
+CREATE FUNCTION app_actor_ok() RETURNS boolean
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.memberships m
+    WHERE m.id = app_membership_id() AND m.user_id = app_user_id()
+      AND m.organization_id = app_org_id() AND m.status = 'active')
 $$;
 
 -- Allocates the next per-organization idea number (like a PR number).
 CREATE FUNCTION app_next_idea_number(org uuid) RETURNS integer
-LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE n integer;
 BEGIN
-  IF org IS DISTINCT FROM app_org_id() OR NOT app_is_member(org) THEN
+  IF org IS DISTINCT FROM app_org_id() OR NOT app_actor_ok() THEN
     RAISE EXCEPTION 'not a member of organization' USING ERRCODE = '42501';
   END IF;
-  UPDATE organizations SET next_idea_number = next_idea_number + 1
+  UPDATE public.organizations SET next_idea_number = next_idea_number + 1
    WHERE id = org RETURNING next_idea_number - 1 INTO n;
   RETURN n;
 END $$;
@@ -355,12 +366,12 @@ CREATE UNIQUE INDEX notification_subscriptions_unique
 -- Whether a recipient wants this event (per-idea setting beats the global one;
 -- default on). Definer: senders may ask, but cannot read others' settings.
 CREATE FUNCTION app_notification_enabled(recipient uuid, event text, idea uuid) RETURNS boolean
-LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
-  SELECT app_is_member(app_org_id()) AND coalesce(
-    (SELECT s.enabled FROM notification_subscriptions s
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
+  SELECT app_actor_ok() AND coalesce(
+    (SELECT s.enabled FROM public.notification_subscriptions s
       WHERE s.organization_id = app_org_id() AND s.membership_id = recipient
         AND s.event_type = event AND s.idea_id = idea),
-    (SELECT s.enabled FROM notification_subscriptions s
+    (SELECT s.enabled FROM public.notification_subscriptions s
       WHERE s.organization_id = app_org_id() AND s.membership_id = recipient
         AND s.event_type = event AND s.idea_id IS NULL),
     true)
@@ -433,9 +444,13 @@ END $$;
 CREATE TRIGGER idea_revisions_freeze BEFORE UPDATE ON idea_revisions
   FOR EACH ROW EXECUTE FUNCTION idea_revisions_freeze_content();
 
--- Reviews: body, author and kind are frozen; only resolution fields change.
+-- Reviews: body, author and kind are frozen; only resolution fields change,
+-- and only once (a resolved or withdrawn change request is final).
 CREATE FUNCTION reviews_freeze_content() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
+  IF OLD.state <> 'open' THEN
+    RAISE EXCEPTION 'resolved review is immutable' USING ERRCODE = 'P0001';
+  END IF;
   IF (NEW.organization_id, NEW.idea_id, NEW.revision_number, NEW.author_membership_id,
       NEW.kind, NEW.parent_review_id, NEW.body, NEW.created_at)
      IS DISTINCT FROM
@@ -510,8 +525,8 @@ BEGIN
                            'verification_evidence','decisions','contributions'] LOOP
     EXECUTE format(
       'CREATE POLICY %I ON %I FOR ALL TO modus_app
-         USING (organization_id = app_org_id() AND app_is_member(organization_id))
-         WITH CHECK (organization_id = app_org_id() AND app_is_member(organization_id))',
+         USING (organization_id = app_org_id() AND app_actor_ok())
+         WITH CHECK (organization_id = app_org_id() AND app_actor_ok())',
       t || '_tenant', t);
   END LOOP;
 END $$;
@@ -540,26 +555,26 @@ CREATE POLICY contributions_confirmer_is_actor ON contributions AS RESTRICTIVE F
   WITH CHECK (confirmed_by_membership_id IS NULL OR confirmed_by_membership_id = app_membership_id());
 
 CREATE POLICY notifications_read ON notifications FOR SELECT TO modus_app
-  USING (organization_id = app_org_id() AND app_is_member(organization_id)
+  USING (organization_id = app_org_id() AND app_actor_ok()
          AND recipient_membership_id = app_membership_id());
 CREATE POLICY notifications_mark_read ON notifications FOR UPDATE TO modus_app
-  USING (organization_id = app_org_id() AND recipient_membership_id = app_membership_id())
-  WITH CHECK (organization_id = app_org_id() AND recipient_membership_id = app_membership_id());
+  USING (organization_id = app_org_id() AND app_actor_ok() AND recipient_membership_id = app_membership_id())
+  WITH CHECK (organization_id = app_org_id() AND app_actor_ok() AND recipient_membership_id = app_membership_id());
 CREATE POLICY notifications_emit ON notifications FOR INSERT TO modus_app
-  WITH CHECK (organization_id = app_org_id() AND app_is_member(organization_id)
-              AND actor_membership_id IS NOT DISTINCT FROM app_membership_id());
+  WITH CHECK (organization_id = app_org_id() AND app_actor_ok()
+              AND actor_membership_id = app_membership_id());
 
 CREATE POLICY notification_subscriptions_own ON notification_subscriptions FOR ALL TO modus_app
-  USING (organization_id = app_org_id() AND membership_id = app_membership_id())
-  WITH CHECK (organization_id = app_org_id() AND membership_id = app_membership_id());
+  USING (organization_id = app_org_id() AND app_actor_ok() AND membership_id = app_membership_id())
+  WITH CHECK (organization_id = app_org_id() AND app_actor_ok() AND membership_id = app_membership_id());
 
 CREATE POLICY audit_events_write ON audit_events FOR INSERT TO modus_app
   WITH CHECK (actor_user_id = app_user_id()
               AND (organization_id IS NULL
-                   OR (organization_id = app_org_id() AND app_is_member(organization_id))));
+                   OR (organization_id = app_org_id() AND app_actor_ok())));
 CREATE POLICY audit_events_read ON audit_events FOR SELECT TO modus_app
   USING ((organization_id IS NULL AND actor_user_id = app_user_id())
-         OR (organization_id = app_org_id() AND app_has_role(organization_id, 'org_admin')));
+         OR (organization_id = app_org_id() AND app_actor_ok() AND app_has_role(organization_id, 'org_admin')));
 
 CREATE POLICY idempotency_keys_own ON idempotency_keys FOR ALL TO modus_app
   USING (user_id = app_user_id()) WITH CHECK (user_id = app_user_id());
@@ -570,8 +585,9 @@ CREATE POLICY idempotency_keys_own ON idempotency_keys FOR ALL TO modus_app
 -- ---------------------------------------------------------------------------
 GRANT USAGE ON SCHEMA public TO modus_app;
 GRANT SELECT ON users, organizations, memberships, employees TO modus_app;
-GRANT SELECT, INSERT, UPDATE, DELETE ON lab_drafts TO modus_app;
-GRANT SELECT, INSERT, DELETE ON lab_draft_versions TO modus_app;
+GRANT SELECT, INSERT, DELETE ON lab_drafts TO modus_app;
+GRANT UPDATE (current_version, updated_at, state, published_idea_id, published_at) ON lab_drafts TO modus_app;
+GRANT SELECT, INSERT ON lab_draft_versions TO modus_app;
 GRANT SELECT, INSERT ON ideas TO modus_app;
 GRANT UPDATE (stage, maintainer_membership_id, decision_owner_membership_id,
               current_revision_number, updated_at) ON ideas TO modus_app;
@@ -592,5 +608,110 @@ GRANT SELECT, INSERT ON audit_events TO modus_app;
 GRANT SELECT, INSERT ON idempotency_keys TO modus_app;
 GRANT EXECUTE ON FUNCTION app_user_id(), app_org_id(), app_membership_id(),
   app_is_member(uuid), app_has_role(uuid, text), app_in_current_org(uuid),
-  app_next_idea_number(uuid), app_notification_enabled(uuid, text, uuid) TO modus_app;
+  app_next_idea_number(uuid), app_notification_enabled(uuid, text, uuid), app_actor_ok() TO modus_app;
 REVOKE EXECUTE ON FUNCTION app_next_idea_number(uuid) FROM PUBLIC;
+
+-- ---------------------------------------------------------------------------
+-- Hardening: workflow invariants the database enforces on its own, so that a
+-- service bug cannot create states the product rules forbid.
+-- (Added after independent security review; see docs/audit/2026-11-09-security-review.md)
+-- ---------------------------------------------------------------------------
+
+-- No temporary tables for anyone: they could shadow tables in functions.
+DO $$ BEGIN
+  EXECUTE format('REVOKE TEMPORARY ON DATABASE %I FROM PUBLIC', current_database());
+END $$;
+
+-- Records are always born in their initial state; confirmation, resolution and
+-- conclusion happen later, by someone else, through an UPDATE.
+CREATE POLICY contributions_born_recorded ON contributions AS RESTRICTIVE FOR INSERT TO modus_app
+  WITH CHECK (status = 'recorded' AND confirmed_by_membership_id IS NULL AND confirmed_at IS NULL);
+CREATE POLICY verifications_born_planned ON verifications AS RESTRICTIVE FOR INSERT TO modus_app
+  WITH CHECK (status = 'planned' AND outcome IS NULL AND conclusion IS NULL
+              AND concluded_by_membership_id IS NULL AND completed_at IS NULL);
+CREATE POLICY reviews_born_open ON reviews AS RESTRICTIVE FOR INSERT TO modus_app
+  WITH CHECK (state = 'open' AND resolved_by_membership_id IS NULL AND resolved_at IS NULL);
+
+-- Conflict of interest. Nobody decides, verifies, resolves change requests on,
+-- or confirms contributions to their own idea; decisions come only from the
+-- idea's assigned decision owner; confirmations only from its maintainer or
+-- decision owner.
+CREATE POLICY decisions_by_assigned_owner ON decisions AS RESTRICTIVE FOR INSERT TO modus_app
+  WITH CHECK (EXISTS (SELECT 1 FROM ideas i
+                       WHERE i.id = idea_id
+                         AND i.decision_owner_membership_id = decided_by_membership_id
+                         AND i.author_membership_id <> decided_by_membership_id));
+CREATE POLICY verifications_not_by_author ON verifications AS RESTRICTIVE FOR INSERT TO modus_app
+  WITH CHECK (NOT EXISTS (SELECT 1 FROM ideas i
+                           WHERE i.id = idea_id AND i.author_membership_id = created_by_membership_id));
+CREATE POLICY verifications_concluded_not_by_author ON verifications AS RESTRICTIVE FOR UPDATE TO modus_app
+  USING (true)
+  WITH CHECK (concluded_by_membership_id IS NULL
+              OR NOT EXISTS (SELECT 1 FROM ideas i
+                              WHERE i.id = idea_id AND i.author_membership_id = concluded_by_membership_id));
+CREATE POLICY reviews_resolved_not_by_author ON reviews AS RESTRICTIVE FOR UPDATE TO modus_app
+  USING (true)
+  WITH CHECK (resolved_by_membership_id IS NULL
+              OR NOT EXISTS (SELECT 1 FROM ideas i
+                              WHERE i.id = idea_id AND i.author_membership_id = resolved_by_membership_id));
+CREATE POLICY contributions_confirmed_by_lead ON contributions AS RESTRICTIVE FOR UPDATE TO modus_app
+  USING (true)
+  WITH CHECK (confirmed_by_membership_id IS NULL
+              OR EXISTS (SELECT 1 FROM ideas i
+                          WHERE i.id = idea_id
+                            AND confirmed_by_membership_id IN (i.maintainer_membership_id, i.decision_owner_membership_id)));
+
+-- Assignments: maintainer and decision owner are never the author and must
+-- hold the matching organization role.
+CREATE FUNCTION ideas_guard_assignment() RETURNS trigger
+LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
+BEGIN
+  IF NEW.author_membership_id IN (NEW.maintainer_membership_id, NEW.decision_owner_membership_id) THEN
+    RAISE EXCEPTION 'the author cannot lead or decide their own idea' USING ERRCODE = '23514';
+  END IF;
+  IF NEW.maintainer_membership_id IS NOT NULL AND NOT EXISTS (
+       SELECT 1 FROM public.memberships m WHERE m.id = NEW.maintainer_membership_id
+          AND m.status = 'active' AND 'maintainer' = ANY (m.roles)) THEN
+    RAISE EXCEPTION 'maintainer must hold the maintainer role' USING ERRCODE = '23514';
+  END IF;
+  IF NEW.decision_owner_membership_id IS NOT NULL AND NOT EXISTS (
+       SELECT 1 FROM public.memberships m WHERE m.id = NEW.decision_owner_membership_id
+          AND m.status = 'active' AND 'decision_owner' = ANY (m.roles)) THEN
+    RAISE EXCEPTION 'decision owner must hold the decision_owner role' USING ERRCODE = '23514';
+  END IF;
+  RETURN NEW;
+END $$;
+CREATE TRIGGER ideas_guard_assignment BEFORE INSERT OR UPDATE ON ideas
+  FOR EACH ROW EXECUTE FUNCTION ideas_guard_assignment();
+
+-- Personal Lab integrity: versions belong to the draft's owner (and a foreign
+-- or missing draft id produce the same error); a published draft is final and
+-- may only point at an idea its owner authored.
+CREATE FUNCTION lab_versions_guard_owner() RETURNS trigger
+LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM public.lab_drafts d
+                  WHERE d.id = NEW.draft_id AND d.owner_user_id = NEW.owner_user_id
+                    AND d.state = 'private') THEN
+    RAISE EXCEPTION 'draft not found' USING ERRCODE = '42501';
+  END IF;
+  RETURN NEW;
+END $$;
+CREATE TRIGGER lab_versions_guard_owner BEFORE INSERT ON lab_draft_versions
+  FOR EACH ROW EXECUTE FUNCTION lab_versions_guard_owner();
+
+CREATE FUNCTION lab_drafts_guard_publication() RETURNS trigger
+LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
+BEGIN
+  IF OLD.state = 'published' THEN
+    RAISE EXCEPTION 'published draft is final' USING ERRCODE = 'P0001';
+  END IF;
+  IF NEW.state = 'published' AND NOT EXISTS (
+       SELECT 1 FROM public.ideas i JOIN public.memberships m ON m.id = i.author_membership_id
+        WHERE i.id = NEW.published_idea_id AND m.user_id = NEW.owner_user_id) THEN
+    RAISE EXCEPTION 'draft can only be linked to an idea its owner authored' USING ERRCODE = '42501';
+  END IF;
+  RETURN NEW;
+END $$;
+CREATE TRIGGER lab_drafts_guard_publication BEFORE UPDATE ON lab_drafts
+  FOR EACH ROW EXECUTE FUNCTION lab_drafts_guard_publication();

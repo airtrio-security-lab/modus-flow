@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { z, ZodError } from 'zod';
 import { AppError } from '../domain/errors.ts';
 import { IDEA_STAGES } from '../domain/model.ts';
-import type { Database } from '../db/pool.ts';
+import { withTx, type Database } from '../db/pool.ts';
 import { getMe, resolveOrgActor } from '../modules/context.ts';
 import { getIdea, listIdeas } from '../modules/ideas.ts';
 import {
@@ -145,6 +145,10 @@ export function createApp(config: AppConfig) {
     body: { updated: await markRead(db, await org(ctx), MarkReadInput.parse(await ctx.body()).ids) },
   }));
 
+  /** A valid signature is not enough: the user must still exist (deleted users lose access at once). */
+  const userExists = (userId: string) =>
+    withTx(db, { userId }, async (c) => (await c.query('SELECT 1 FROM users WHERE id = app_user_id()')).rowCount === 1);
+
   function send(res: ServerResponse, reply: Reply, requestId: string) {
     const headers: Record<string, string> = { ...SECURITY_HEADERS, 'X-Request-Id': requestId, ...reply.headers };
     if (reply.status === 413) headers.Connection = 'close';
@@ -187,7 +191,7 @@ export function createApp(config: AppConfig) {
         } else {
           const auth = req.headers.authorization ?? '';
           const claims = auth.startsWith('Bearer ') ? verifyToken(config.authSecret, auth.slice(7)) : null;
-          if (!claims) {
+          if (!claims || !(await userExists(claims.sub))) {
             reply = { status: 401, body: { error: 'unauthenticated', message: 'Требуется вход' } };
           } else {
             reply = await match.handler({

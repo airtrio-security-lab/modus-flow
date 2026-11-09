@@ -121,19 +121,19 @@ test('ideas cannot be deleted; author cannot be reassigned by the app role', asy
   );
 });
 
-test('contributions: self-confirmation is rejected by the schema', async () => {
+test('contributions: self-confirmation is rejected by a CHECK, even for the schema owner', async () => {
   const [row] = await ownerQuery<{ id: string }>(db, `SELECT id FROM contributions WHERE idea_id = $1 AND kind = 'authorship'`, [ideaId]);
   await assert.rejects(
-    withTx(db, as(w.author), (c) =>
+    withAdminTx(db, (c) =>
       c.query(`UPDATE contributions SET status = 'confirmed', confirmed_by_membership_id = $2, confirmed_at = now() WHERE id = $1`, [row!.id, w.author.membershipId]),
     ),
     { code: 'validation_failed' },
   );
 });
 
-test('verifications: completed requires outcome, conclusion and reviewer', async () => {
+test('verifications: completed requires outcome, conclusion and reviewer (CHECK, even for the owner)', async () => {
   await assert.rejects(
-    withTx(db, as(w.maintainer), (c) =>
+    withAdminTx(db, (c) =>
       c.query(`INSERT INTO verifications (organization_id, idea_id, revision_number, purpose, owner_membership_id, created_by_membership_id,
                  plan, success_criteria, status, started_at)
                VALUES ($1, $2, 1, 'hypothesis', $3, $3, 'план', 'критерий', 'completed', now())`, [w.acmeId, ideaId, w.maintainer.membershipId]),

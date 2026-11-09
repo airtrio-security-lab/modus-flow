@@ -41,6 +41,7 @@ PostgreSQL with tenant isolation enforced by Row Level Security, a private Perso
 idea lifecycle, append-only history and an idempotent, transactional publication flow.
 
 * Audit of the current repository: [`docs/audit/2026-11-09-phase0-audit.md`](docs/audit/2026-11-09-phase0-audit.md)
+* Independent security review and fixes: [`docs/audit/2026-11-09-security-review.md`](docs/audit/2026-11-09-security-review.md)
 * Architecture: [`docs/architecture/PLATFORM.md`](docs/architecture/PLATFORM.md) · Decisions: [`docs/adr/`](docs/adr/)
 
 **Status:** Phase 1 (foundation) — schema for all core models, access policy, Lab + publication,
@@ -52,6 +53,8 @@ Phase 2; the UI is Phase 3. Not production-ready (see ADR-0004 for authenticatio
 npm ci
 docker compose up -d postgres            # or any PostgreSQL 16
 cp .env.example .env && $EDITOR .env     # set MODUS_AUTH_SECRET (≥ 32 chars)
+# The API must use an unprivileged login (modus_api, created by docker compose);
+# migrations/seed use MIGRATION_DATABASE_URL. The server refuses to start as a superuser/owner.
 set -a && . ./.env && set +a
 npm run platform:seed-demo               # migrates, creates a FICTIONAL org, prints tokens
 npm run platform:start                   # http://127.0.0.1:3100/api/v1/health

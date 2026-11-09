@@ -77,6 +77,12 @@ never reference a row of tenant B, even through a buggy service or an operator s
 * **Tenant isolation in the database.** RLS on every table; policies require
   `organization_id = app.org_id` **and** active membership of the caller. Forging `app.org_id`
   without membership returns nothing (tested).
+* **Unprivileged API login.** The API connects as a non-owner, non-superuser member of `modus_app`
+  (startup check), so `RESET ROLE` cannot escape RLS. Migrations use a separate owner connection.
+* **Bound actor.** Policies require the bound membership to belong to the bound user (`app_actor_ok()`).
+* **Workflow invariants in the database.** Rows are born in initial states; decisions only by the
+  assigned, non-author decision owner; no self-assignment, self-verification or self-confirmation;
+  resolved change requests and published drafts are final.
 * **Authorship cannot be forged.** Restrictive policies force `author/decided_by/recorded_by/
   created_by = app.membership_id` on insert.
 * **Least privilege.** The application role has column-level `UPDATE` only on workflow state columns;

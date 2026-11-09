@@ -7,8 +7,9 @@ import { addMember, createOrganization, createUser } from '../modules/provisioni
  * Creates a demo organization with FICTIONAL people (no real employee data)
  * and prints short-lived tokens for local testing. Refuses to run twice.
  */
-const url = process.env.DATABASE_URL;
-if (!url) throw new Error('DATABASE_URL is required');
+// Schema owner connection (not the API's unprivileged login role).
+const url = process.env.MIGRATION_DATABASE_URL ?? process.env.DATABASE_URL;
+if (!url) throw new Error('MIGRATION_DATABASE_URL is required');
 const secret = assertSecret(process.env.MODUS_AUTH_SECRET);
 const db = createDatabase(url, 2);
 try {

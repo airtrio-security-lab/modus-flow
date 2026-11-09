@@ -134,3 +134,10 @@ test('errors do not leak database internals', async () => {
   assert.doesNotMatch(JSON.stringify(r.json), /SELECT|relation|policy|pg_/i);
   assert.ok(logs.some((l) => l.status === 404 && typeof l.requestId === 'string'));
 });
+
+test('a validly signed token for a non-existent user is rejected, without schema details', async () => {
+  const ghost = issueToken(SECRET, '00000000-0000-4000-8000-00000000dead');
+  const r = await call('POST', '/api/v1/lab/drafts', { token: ghost, body: { title: 'Призрак', content: {} } });
+  assert.equal(r.status, 401);
+  assert.doesNotMatch(JSON.stringify(r.json), /constraint|fkey|_id/);
+});
