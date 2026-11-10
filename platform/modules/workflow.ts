@@ -9,6 +9,7 @@ import { audit } from './audit.ts';
 import { orgTx } from './context.ts';
 import { accessFacts, computeChecks, loadIdea, type IdeaRow } from './ideas.ts';
 import { hashRequest, idempotent, type IdempotentResult } from './idempotency.ts';
+import { afterAward } from './progress.ts';
 import { notify } from './notifications.ts';
 
 /**
@@ -581,7 +582,7 @@ export function completeImplementation(
        VALUES ($1, $2, $3, $4, 'progress', $5) RETURNING id`,
       [actor.orgId, idea.id, idea.current_revision_number, actor.membershipId, input.report],
     );
-    await moveStage(c, idea, 'impact_verification');
+    await moveStage(c, idea, 'impact_verification'); // the database awards the castle XP here (0007)
     if (idea.implementer_membership_id) {
       await recordContribution(c, actor, idea, idea.implementer_membership_id, 'implementation', 'idea', idea.id);
     }
@@ -594,7 +595,8 @@ export function completeImplementation(
       [idea.author_membership_id, idea.raised_by_membership_id, idea.maintainer_membership_id, idea.decision_owner_membership_id],
       `${idea.id}:implemented`,
     );
-    return { number: idea.number, stage: idea.stage, status: 'implemented', reportId: rows[0]!.id };
+    const levelUp = await afterAward(c, actor, idea.id, 'implementation');
+    return { number: idea.number, stage: idea.stage, status: 'implemented', reportId: rows[0]!.id, levelUp };
   });
 }
 

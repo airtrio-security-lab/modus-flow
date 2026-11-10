@@ -13,7 +13,15 @@ import { orgTx } from './context.ts';
  */
 const name = (min: number, max: number) => z.string().trim().min(min).max(max);
 
-export const DepartmentInput = z.object({ name: name(2, 120), head: z.uuid().nullable().optional(), active: z.boolean().optional() }).strict();
+export const DepartmentInput = z
+  .object({
+    name: name(2, 120),
+    head: z.uuid().nullable().optional(),
+    active: z.boolean().optional(),
+    // Optional size of the department: only for the normalized rating (XP per 10 people).
+    headcount: z.number().int().min(1).max(100000).nullable().optional(),
+  })
+  .strict();
 export const CategoryInput = z
   .object({ name: name(2, 80), description: name(1, 500).nullable().optional(), sortOrder: z.number().int().min(0).max(10000).optional(), active: z.boolean().optional() })
   .strict();
@@ -50,7 +58,7 @@ const log = (c: Client, a: OrgActor, action: string, type: string, id: string, d
 export async function getDirectory(db: Database, actor: OrgActor) {
   return withTx(db, orgTx(actor), async (c) => {
     const departments = await c.query(
-      `SELECT d.id, d.name, d.active, d.head_membership_id AS "headMembershipId", e.display_name AS head
+      `SELECT d.id, d.name, d.active, d.head_membership_id AS "headMembershipId", e.display_name AS head, d.headcount
          FROM departments d LEFT JOIN employees e ON e.membership_id = d.head_membership_id
         WHERE d.organization_id = app_org_id() ORDER BY d.name`,
     );
@@ -99,8 +107,8 @@ export async function createDepartment(db: Database, actor: OrgActor, input: z.i
   requireAdmin(actor);
   return withTx(db, orgTx(actor), async (c) => {
     const { rows } = await c.query<{ id: string }>(
-      'INSERT INTO departments (organization_id, name, head_membership_id, active) VALUES ($1, $2, $3, $4) RETURNING id',
-      [actor.orgId, input.name, input.head ?? null, input.active ?? true],
+      'INSERT INTO departments (organization_id, name, head_membership_id, active, headcount) VALUES ($1, $2, $3, $4, $5) RETURNING id',
+      [actor.orgId, input.name, input.head ?? null, input.active ?? true, input.headcount ?? null],
     );
     await log(c, actor, 'admin.department_created', 'department', rows[0]!.id, { name: input.name });
     return { id: rows[0]!.id };
@@ -113,9 +121,10 @@ export async function updateDepartment(db: Database, actor: OrgActor, id: string
     const { rowCount } = await c.query(
       `UPDATE departments SET name = coalesce($2, name),
               head_membership_id = CASE WHEN $3::boolean THEN $4::uuid ELSE head_membership_id END,
-              active = coalesce($5, active)
+              active = coalesce($5, active),
+              headcount = CASE WHEN $6::boolean THEN $7::integer ELSE headcount END
         WHERE id = $1 AND organization_id = app_org_id()`,
-      [id, input.name ?? null, input.head !== undefined, input.head ?? null, input.active ?? null],
+      [id, input.name ?? null, input.head !== undefined, input.head ?? null, input.active ?? null, input.headcount !== undefined, input.headcount ?? null],
     );
     if (!rowCount) throw notFound('Подразделение не найдено');
     await log(c, actor, 'admin.department_updated', 'department', id, input as Record<string, unknown>);

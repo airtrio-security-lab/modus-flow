@@ -2,6 +2,8 @@ import { forbidden } from '../domain/errors.ts';
 import type { OrgActor } from '../domain/model.ts';
 import { withTx, type Database } from '../db/pool.ts';
 import { orgTx } from './context.ts';
+import { castleProgress, loadConfig } from './progress.ts';
+import { levelFor } from '../domain/progress.ts';
 
 /**
  * «Королевство»: the same items drawn as a living map (owner decision,
@@ -21,6 +23,16 @@ export interface Castle {
   envoys: number;
   waiting: number;
   returned: number;
+  /** Progress (0007): XP from confirmed events only, level 1..5 by the organization's thresholds. */
+  xp: number;
+  level: number;
+  levelName: string;
+  levelFloor: number;
+  nextLevelXp: number | null;
+  nextLevelName: string | null;
+  progress: number;
+  effectXp: number;
+  headcount: number | null;
 }
 
 export interface Envoy {
@@ -36,7 +48,10 @@ export interface Envoy {
   publishedAt: string;
 }
 
-export async function kingdom(db: Database, actor: OrgActor): Promise<{ castles: Castle[]; envoys: Envoy[]; wildlands: number }> {
+export async function kingdom(
+  db: Database,
+  actor: OrgActor,
+): Promise<{ castles: Castle[]; envoys: Envoy[]; wildlands: number; levels: { thresholds: number[]; names: string[] } }> {
   if (actor.access !== 'member') throw forbidden('Королевство доступно сотрудникам организации');
   return withTx(db, orgTx(actor), async (c) => {
     const castles = await c.query<Castle>(
@@ -65,6 +80,24 @@ export async function kingdom(db: Database, actor: OrgActor): Promise<{ castles:
     );
     const known = new Set(castles.rows.map((r) => r.id));
     const wildlands = envoys.rows.filter((e) => !e.departmentId || !known.has(e.departmentId)).length;
-    return { castles: castles.rows, envoys: envoys.rows, wildlands };
+    const cfg = await loadConfig(c);
+    const progress = await castleProgress(c);
+    const withProgress = castles.rows.map((r) => {
+      const p = progress.get(r.id);
+      const lv = levelFor(p?.xp ?? 0, cfg);
+      return {
+        ...r,
+        xp: p?.xp ?? 0,
+        level: lv.level,
+        levelName: lv.name,
+        levelFloor: lv.floor,
+        nextLevelXp: lv.next,
+        nextLevelName: lv.nextName,
+        progress: lv.progress,
+        effectXp: p?.effectXp ?? 0,
+        headcount: p?.headcount ?? null,
+      };
+    });
+    return { castles: withProgress, envoys: envoys.rows, wildlands, levels: { thresholds: cfg.thresholds, names: cfg.names } };
   });
 }

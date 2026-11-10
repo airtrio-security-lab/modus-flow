@@ -59,6 +59,9 @@ const TEMPLATES: Record<NotificationEvent, (actor: string, title: string) => str
   implemented: (a, t) => `${a} сообщает: «${t}» реализовано`,
   raised_on_behalf: (a, t) => `${a} зафиксировал(а) ваш вопрос «${t}» — следите за статусом`,
   escalated: (_a, t) => `Обращение «${t}» просрочено или зависло — требуется внимание`,
+  council_recommendation: (a, t) => `${a} оставляет рекомендацию Совета по «${t}»`,
+  council_handoff: (a, t) => `${a} передаёт вам решение по «${t}» после обсуждения в Совете`,
+  castle_level_up: (_a, t) => `Внедрение «${t}» подняло замок подразделения на новый уровень`,
 };
 
 export interface InboxItem {

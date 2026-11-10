@@ -21,6 +21,8 @@ import * as wf from '../modules/workflow.ts';
 import * as admin from '../modules/admin.ts';
 import { analytics, AnalyticsQuery } from '../modules/analytics.ts';
 import { kingdom } from '../modules/kingdom.ts';
+import * as progress from '../modules/progress.ts';
+import * as council from '../modules/council.ts';
 import { downloadAttachment, MAX_ATTACHMENT_BYTES, uploadAttachment } from '../modules/attachments.ts';
 import { SubmitInput, submitItem } from '../modules/intake.ts';
 import { SearchQuery, searchItems, SimilarQuery, similarItems } from '../modules/search.ts';
@@ -286,6 +288,20 @@ export function createApp(config: AppConfig) {
   json('PATCH', `/categories/(?<id>${UUID})`, admin.CategoryInput.partial(), (a, i, p) => admin.updateCategory(db, a, p.id!, i));
   json('PATCH', '/settings', admin.SettingsInput, (a, i) => admin.updateSettings(db, a, i));
   route('GET', `${ORG}/kingdom`, async (ctx) => ({ status: 200, body: await kingdom(db, await org(ctx)) }));
+  // ---- Kingdom progress and the council (0007, ADR-0012) -------------------
+  route('GET', `${ORG}/rating`, async (ctx) => ({
+    status: 200,
+    body: await progress.rating(db, await org(ctx), progress.RatingQuery.parse(queryObject(ctx.query))),
+  }));
+  route('GET', `${ORG}/castles/(?<id>${UUID})`, async (ctx) => ({ status: 200, body: await progress.castle(db, await org(ctx), ctx.params.id!) }));
+  route('GET', `${ORG}/me/contribution`, async (ctx) => ({ status: 200, body: await progress.myContribution(db, await org(ctx)) }));
+  json('PATCH', '/settings/progress', progress.ProgressSettingsInput, (a, i) => progress.updateProgressSettings(db, a, i));
+  route('GET', `${ORG}/council`, async (ctx) => ({ status: 200, body: await council.listCouncil(db, await org(ctx)) }));
+  route('GET', `${IDEA}/council`, async (ctx) => ({ status: 200, body: await council.getCouncil(db, await org(ctx), NumberParam.parse(ctx.params.number)) }));
+  route('GET', `${IDEA}/progress`, async (ctx) => ({ status: 200, body: await progress.ideaProgress(db, await org(ctx), NumberParam.parse(ctx.params.number)) }));
+  step('/council/entries', council.CouncilEntryInput, (a, n, i, _p, k) => council.addEntry(db, a, n, i, k));
+  step('/council/handoff', council.HandoffInput, (a, n, i, _p, k) => council.handoff(db, a, n, i, k));
+  step('/effect', progress.EffectInput, (a, n, i, _p, k) => progress.approveEffect(db, a, n, i, k));
   route('GET', `${ORG}/analytics`, async (ctx) => ({
     status: 200,
     body: await analytics(db, await org(ctx), AnalyticsQuery.parse(queryObject(ctx.query))),
