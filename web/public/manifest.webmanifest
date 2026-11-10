@@ -1,0 +1,10 @@
+{
+  "name": "MODUS FLOW — обратная связь и предложения",
+  "short_name": "MODUS FLOW",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#F6F7F6",
+  "theme_color": "#F6F7F6",
+  "lang": "ru",
+  "icons": [{ "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}

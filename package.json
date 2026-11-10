@@ -16,7 +16,11 @@
     "platform:seed-demo": "node platform/cli/seed-demo.ts",
     "platform:token": "node platform/cli/issue-token.ts",
     "platform:seed-modus-demo": "node platform/cli/seed-modus-demo.ts",
-    "platform:escalate": "node platform/cli/escalate.ts"
+    "platform:escalate": "node platform/cli/escalate.ts",
+    "web:build": "npm --prefix web ci && npm --prefix web run build",
+    "demo:seed": "node platform/cli/seed-modus-demo.ts",
+    "demo:start": "node platform/cli/demo-start.ts",
+    "demo:e2e": "node web/e2e/demo-flow.mjs"
   },
   "engines": {
     "node": ">=22"

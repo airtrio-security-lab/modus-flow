@@ -61,6 +61,19 @@ npm run platform:seed-demo               # migrates, creates a FICTIONAL org, pr
 npm run platform:start                   # http://127.0.0.1:3100/api/v1/health
 ```
 
+### Feedback MVP demo (fictional «Модус Трейд — демо»)
+One process serves the API and the web app on http://127.0.0.1:3100. Sign-in is a demo imitation of
+SSO; all people and items are invented. Details: [`docs/architecture/PHASE3-UI.md`](docs/architecture/PHASE3-UI.md).
+```bash
+npm ci
+docker compose up -d postgres
+export MIGRATION_DATABASE_URL=postgres://modus:modus-local-only@127.0.0.1:5432/modus
+npm run demo:seed        # fresh database only: 15 items in every status, writes .demo/personas.json
+npm run web:build        # builds web/dist
+npm run demo:start       # API as modus_api + web app + demo sign-in; refuses NODE_ENV=production
+npm run demo:e2e         # optional: Playwright walks through the main scenario
+```
+
 ### Platform tests
 Integration tests use a real PostgreSQL; each test file creates and drops its own database.
 They fail (never skip) when `TEST_DATABASE_URL` is missing.
