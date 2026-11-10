@@ -14,6 +14,7 @@ import { Overview } from './screens/Overview';
 import { Inbox } from './screens/Inbox';
 import { Settings } from './screens/Settings';
 import { Meeting } from './screens/Meeting';
+import { Board } from './screens/Board';
 
 export function App() {
   const [me, setMe] = useState<Me | null>(null);
@@ -83,6 +84,7 @@ function Shell() {
   const nav: NavItem[] = [
     { href: '#/', label: 'Мои обращения', short: 'Мои', match: (p) => p.length === 0 },
     ...(s.isLead ? [{ href: '#/work', label: 'Рабочее место', short: 'Работа', match: (p: string[]) => p[0] === 'work' }] : []),
+    { href: '#/board', label: 'Доска', short: 'Доска', match: (p: string[]) => p[0] === 'board' },
     { href: '#/meeting', label: 'Разбор совещания', short: 'Совещание', match: (p) => p[0] === 'meeting' },
     { href: '#/all', label: 'Все обращения', short: 'Все', match: (p) => p[0] === 'all' },
     ...(s.isLead || s.isAdmin ? [{ href: '#/overview', label: 'Обзор', short: 'Обзор', match: (p: string[]) => p[0] === 'overview' }] : []),
@@ -94,6 +96,7 @@ function Shell() {
   if (head === '') page = <Mine />;
   else if (head === 'new') page = <NewItem />;
   else if (head === 'meeting') page = <Meeting />;
+  else if (head === 'board') page = <Board />;
   else if (head === 'items' && route[1]) page = <ItemPage number={Number(route[1])} key={route[1]} />;
   else if (head === 'work' && s.isLead) page = <Workspace tab={route[1]} />;
   else if (head === 'all') page = <AllItems />;
@@ -111,9 +114,10 @@ function Shell() {
     );
 
   // Mobile tab bar: four or five destinations around the central «+».
-  const tabs = nav.filter((n) => ['#/', '#/work', '#/all', '#/inbox', '#/overview'].includes(n.href));
-  const left = tabs.slice(0, 2);
-  const right = tabs.slice(2, s.isLead ? 4 : 3);
+  // Leads: Работа, Доска | Уведомления, Обзор. Employees: Мои, Доска | Уведомления.
+  const pickTab = (h: string) => nav.find((n) => n.href === h);
+  const left = (s.isLead ? ['#/work', '#/board'] : ['#/', '#/board']).map(pickTab).filter((n): n is NavItem => !!n);
+  const right = (s.isLead || s.isAdmin ? ['#/inbox', '#/overview'] : ['#/inbox']).map(pickTab).filter((n): n is NavItem => !!n);
 
   return (
     <div className="shell">

@@ -38,6 +38,14 @@ const expectText = async (page, text) => {
   await page.getByText(text, { exact: false }).first().waitFor({ timeout: 5000 });
 };
 const step = (name) => console.log(`✓ ${name}`);
+/** HTML5 drag and drop with real DOM events (mouse emulation can land on a neighbour card). */
+const drag = async (page, source, target) => {
+  const dt = await page.evaluateHandle(() => new DataTransfer());
+  await source.dispatchEvent('dragstart', { dataTransfer: dt });
+  await target.dispatchEvent('dragover', { dataTransfer: dt });
+  await target.dispatchEvent('drop', { dataTransfer: dt });
+  await source.dispatchEvent('dragend', { dataTransfer: dt });
+};
 /** Selects the option whose text contains `text` (option labels carry job titles too). */
 const pick = async (select, text) => {
   const label = (await select.locator('option', { hasText: text }).first().textContent())?.trim();
@@ -170,7 +178,27 @@ try {
   });
   step('сообщение из WhatsApp через «Поделиться» стало обращением с источником «Мессенджер»');
 
-  // 9. Owner overview loads with facts.
+  // 9. Kanban: dragging a card opens the workflow step; disallowed moves are explained.
+  await as(whHead, async (page) => {
+    await page.goto(`${BASE}/#/board`);
+    await page.getByRole('button', { name: 'Все', exact: true }).click();
+    await page.waitForLoadState('networkidle');
+    // A seeded unrouted item that Oleg did not raise (fresh demo database).
+    const href = await page.locator('section[aria-label^="Новые"] .card').filter({ hasText: 'Нет общей базы знаний' }).first().locator('a.card-title').getAttribute('href');
+    const card = page.locator('.card', { has: page.locator(`a[href="${href}"]`) });
+    await drag(page, card, page.locator('section[aria-label^="Рассмотрение"]'));
+    await page.locator('dialog').getByRole('button', { name: 'Взять в работу' }).click();
+    await expectText(page, 'вы ведёте обращение');
+    await page.locator(`section[aria-label^="Рассмотрение"] a[href="${href}"]`).waitFor({ timeout: 5000 });
+
+    const reviewCard = page.locator('section[aria-label^="Рассмотрение"] .card').first();
+    await drag(page, reviewCard, page.locator('section[aria-label^="Решение"]'));
+    await expectText(page, 'переходит само после проверки');
+    await page.locator('dialog').getByRole('button', { name: 'Понятно' }).click();
+  });
+  step('канбан: перетаскивание открывает нужный шаг, запрещённый переход объяснён');
+
+  // 10. Owner overview loads with facts.
   await as(by('Собственник компании'), async (page) => {
     await page.goto(`${BASE}/#/overview`);
     await expectText(page, 'Откуда приходят вопросы');

@@ -387,3 +387,35 @@ ol.timeline { list-style: none; margin: 0 0 0 6px; }
 .meeting-rows li[data-state='error'] { border-left: 3px solid var(--red); }
 .meeting-rows li[data-state='sending'] { opacity: 0.7; }
 .meeting { max-width: 900px; }
+
+/* ---- Kanban board --------------------------------------------------- */
+.page:has(.board-page) { max-width: none; }
+.board { display: grid; grid-template-columns: repeat(5, minmax(220px, 1fr)); gap: 14px; align-items: start; overflow-x: auto; padding-bottom: 8px; }
+.column { background: #eef0ef; border-radius: var(--r-md); padding: 12px; min-height: 240px; display: flex; flex-direction: column; gap: 10px; border: 2px solid transparent; }
+.column.over { border-color: var(--accent); background: var(--accent-tint); }
+.column-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; }
+.column-head h2 { font-size: var(--fs-sm); }
+.column-head .count { font-size: var(--fs-xs); color: var(--ink-2); font-weight: 600; }
+.column-head p { flex-basis: 100%; }
+.cards { display: flex; flex-direction: column; gap: 8px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-sm); padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; cursor: grab; }
+.card:hover { border-color: var(--line-strong); }
+.card[data-dragging] { opacity: 0.45; }
+.card-title { color: var(--ink); text-decoration: none; font-size: var(--fs-sm); font-weight: 500; line-height: 1.35; }
+.card-title:hover { text-decoration: underline; }
+.card-meta { display: flex; justify-content: space-between; gap: 8px; }
+.card-move { align-self: flex-start; padding-inline: 0; min-height: 24px; }
+.empty-col { text-align: center; padding: 16px 0; }
+.segmented.wrap { flex-wrap: wrap; }
+.select.compact-lg { width: auto; }
+@media (max-width: 860px) {
+  .board { grid-template-columns: repeat(5, 82vw); scroll-snap-type: x mandatory; }
+  .column { scroll-snap-align: start; }
+}
+.board { grid-template-columns: repeat(5, minmax(188px, 1fr)); gap: 10px; }
+.column { padding: 10px; }
+.card .card-move { padding: 0; min-height: 22px; font-size: var(--fs-xs); color: var(--ink-2); font-weight: 500; }
+.card .card-move:hover { color: var(--accent-ink); }
+.card-meta { flex-wrap: wrap; column-gap: 10px; row-gap: 0; }
+.card-meta span { white-space: nowrap; }
+@media (max-width: 860px) { .board { grid-template-columns: repeat(5, 82vw); } }
