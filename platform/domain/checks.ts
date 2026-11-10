@@ -14,7 +14,9 @@ export interface CheckResult {
 }
 
 export interface CheckInput {
-  revision: { title: string; problem: string; proposal: string; successCriteria: string | null } | null;
+  revision: { title: string; problem: string; proposal: string | null; successCriteria: string | null } | null;
+  /** Problems may be reported without a proposed solution. Defaults to 'idea'. */
+  kind?: 'idea' | 'problem';
   currentRevisionNumber: number;
   revisionNumbers: readonly number[];
   maintainerMembershipId: string | null;
@@ -38,7 +40,9 @@ export function runChecks(input: CheckInput): CheckResult[] {
 
   push(
     'completeness',
-    !!r && r.problem.trim().length >= MIN_PROBLEM && r.proposal.trim().length >= MIN_PROPOSAL,
+    !!r &&
+      r.problem.trim().length >= MIN_PROBLEM &&
+      (input.kind === 'problem' || (r.proposal ?? '').trim().length >= MIN_PROPOSAL),
     'Проблема и предложение описаны',
     `Опишите проблему и предложение (не менее ${MIN_PROBLEM} символов каждое)`,
   );

@@ -5,7 +5,7 @@ import { withTx, type Client, type Database } from '../db/pool.ts';
 import { audit } from './audit.ts';
 import { orgTx, resolveOrgActor } from './context.ts';
 import { hashRequest, idempotent, type IdempotentResult } from './idempotency.ts';
-import { membersWithRoles, notify } from './notifications.ts';
+import { createItem } from './intake.ts';
 
 /**
  * Personal Lab: private, user-owned drafts. Nothing here is organization-scoped
@@ -29,7 +29,13 @@ export const SaveVersionInput = z
   })
   .strict();
 
-export const PublishInput = z.object({ organization: z.string().min(2).max(63) }).strict();
+export const PublishInput = z
+  .object({
+    organization: z.string().min(2).max(63),
+    categoryId: z.uuid().optional(),
+    departmentId: z.uuid().optional(),
+  })
+  .strict();
 
 export interface DraftView {
   id: string;
@@ -169,23 +175,18 @@ export async function publishDraft(
       if (!parsed.success) throw new AppError('validation_failed', 'Содержимое черновика повреждено');
       const snapshot = projectPublication(draft.title, parsed.data);
 
-      const num = await c.query<{ n: number }>('SELECT app_next_idea_number($1) AS n', [actor.orgId]);
-      const number = num.rows[0]!.n;
-      const idea = await c.query<{ id: string }>(
-        `INSERT INTO ideas (organization_id, number, kind, author_membership_id) VALUES ($1, $2, $3, $4) RETURNING id`,
-        [actor.orgId, number, draft.kind, actor.membershipId],
-      );
-      const ideaId = idea.rows[0]!.id;
-      await c.query(
-        `INSERT INTO idea_revisions (organization_id, idea_id, number, author_membership_id, origin, title, problem, proposal, success_criteria, status)
-         VALUES ($1, $2, 1, $3, 'publication', $4, $5, $6, $7, 'current')`,
-        [actor.orgId, ideaId, actor.membershipId, snapshot.title, snapshot.problem, snapshot.proposal, snapshot.successCriteria],
-      );
-      await c.query(
-        `INSERT INTO contributions (organization_id, membership_id, idea_id, kind, source_type, source_id)
-         VALUES ($1, $2, $3, 'authorship', 'idea', $3)`,
-        [actor.orgId, actor.membershipId, ideaId],
-      );
+      const created = await createItem(c, actor, {
+        kind: draft.kind,
+        title: snapshot.title,
+        problem: snapshot.problem,
+        proposal: snapshot.proposal,
+        successCriteria: snapshot.successCriteria,
+        categoryId: input.categoryId,
+        departmentId: input.departmentId,
+        sourceChannel: 'app',
+      });
+      const ideaId = created.id;
+      const number = created.number;
       await c.query(
         `UPDATE lab_drafts SET state = 'published', published_idea_id = $2, published_at = now(), updated_at = now() WHERE id = $1`,
         [draftId, ideaId],
@@ -198,19 +199,9 @@ export async function publishDraft(
         entityId: draftId,
         data: { version: draft.current_version, ideaId },
       });
-      await audit(c, {
-        orgId: actor.orgId,
-        actorUserId: userId,
-        action: 'idea.published',
-        entityType: 'idea',
-        entityId: ideaId,
-        data: { number, revision: 1 },
-      });
-      const triage = await membersWithRoles(c, actor.orgId, ['maintainer', 'decision_owner']);
-      await notify(c, actor, 'idea_published', ideaId, triage, ideaId);
       return {
         status: 201,
-        body: { idea: { id: ideaId, number, organization: input.organization, title: snapshot.title, stage: 'published' } },
+        body: { idea: { id: ideaId, number, organization: input.organization, title: snapshot.title, stage: created.stage } },
       };
     }),
   );

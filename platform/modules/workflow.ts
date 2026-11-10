@@ -34,7 +34,7 @@ export const AssignInput = z
   .refine((v) => v.maintainer || v.decisionOwner, 'Укажите maintainer и/или decisionOwner');
 export const ReviewInput = z
   .object({
-    kind: z.enum(['comment', 'request_changes', 'objection', 'approval']),
+    kind: z.enum(['comment', 'request_changes', 'objection', 'approval', 'progress']),
     body: text(1, 5000),
     parentReviewId: uuid.optional(),
   })
@@ -68,7 +68,12 @@ export const EvidenceInput = z
 export const ConcludeInput = z
   .object({ outcome: z.enum(['positive', 'negative', 'inconclusive']), conclusion: text(10, 5000) })
   .strict();
-export const DecideInput = z.object({ outcome: z.enum(['merge', 'reject', 'close']), rationale: text(10, 5000) }).strict();
+export const DecideInput = z
+  .object({ outcome: z.enum(['merge', 'reject', 'close']), rationale: text(10, 5000), implementer: uuid.optional() })
+  .strict()
+  .refine((v) => !v.implementer || v.outcome === 'merge', { message: 'Исполнитель назначается только при решении о внедрении', path: ['implementer'] });
+export const ImplementerInput = z.object({ implementer: uuid }).strict();
+export const CompleteImplementationInput = z.object({ report: text(10, 5000) }).strict();
 
 type Result<T> = Promise<IdempotentResult<T>>;
 
@@ -177,6 +182,7 @@ const REVIEW_ACTION = {
   approval: 'idea.approve',
   request_changes: 'idea.request_changes',
   objection: 'idea.object',
+  progress: 'idea.report_progress',
 } as const;
 
 export function addReview(db: Database, actor: OrgActor, number: number, input: z.infer<typeof ReviewInput>, key?: string) {
@@ -210,11 +216,23 @@ export function addReview(db: Database, actor: OrgActor, number: number, input: 
     }
     await log(c, actor, `review.${input.kind}`, 'review', review.id, { idea: idea.number, revision: idea.current_revision_number });
     const event: NotificationEvent =
-      input.kind === 'request_changes' ? 'changes_requested' : input.kind === 'objection' ? 'objection_raised' : 'comment_added';
+      input.kind === 'request_changes'
+        ? 'changes_requested'
+        : input.kind === 'objection'
+          ? 'objection_raised'
+          : input.kind === 'progress'
+            ? 'status_report'
+            : 'comment_added';
+    // Whoever raised the item follows it too: they must see that it is not forgotten.
     const to =
       input.kind === 'objection'
         ? [parentAuthor, idea.maintainer_membership_id]
-        : [idea.author_membership_id, idea.maintainer_membership_id];
+        : [
+            idea.author_membership_id,
+            idea.raised_by_membership_id,
+            idea.maintainer_membership_id,
+            ...(input.kind === 'progress' ? [idea.decision_owner_membership_id, idea.implementer_membership_id] : []),
+          ];
     await ping(c, actor, event, idea, to, review.id);
     return {
       id: review.id,
@@ -493,6 +511,7 @@ export function decide(db: Database, actor: OrgActor, number: number, input: z.i
     );
     const decision = rows[0]!;
     if (input.outcome === 'merge') {
+      if (input.implementer) await setImplementer(c, actor, idea, input.implementer);
       await moveStage(c, idea, 'decision');
       await moveStage(c, idea, 'adoption');
     } else {
@@ -505,7 +524,7 @@ export function decide(db: Database, actor: OrgActor, number: number, input: z.i
       actor,
       input.outcome === 'merge' ? 'idea_merged' : 'idea_rejected',
       idea,
-      [idea.author_membership_id, idea.maintainer_membership_id, ...owners.rows.map((o) => o.owner_membership_id)],
+      [idea.author_membership_id, idea.raised_by_membership_id, idea.maintainer_membership_id, ...owners.rows.map((o) => o.owner_membership_id)],
       decision.id,
     );
     return {
@@ -515,5 +534,64 @@ export function decide(db: Database, actor: OrgActor, number: number, input: z.i
       stage: idea.stage,
       verificationSummary: decision.verification_summary,
     };
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Implementation ("в реализации" → "реализовано")
+// ---------------------------------------------------------------------------
+async function setImplementer(c: Client, actor: OrgActor, idea: IdeaRow, implementer: string): Promise<void> {
+  const ok = await c.query(
+    `SELECT 1 FROM memberships WHERE id = $1 AND organization_id = app_org_id() AND status = 'active' AND access = 'member'`,
+    [implementer],
+  );
+  if (!ok.rowCount) throw new AppError('validation_failed', 'Исполнитель должен быть действующим сотрудником');
+  await c.query('UPDATE ideas SET implementer_membership_id = $2, updated_at = clock_timestamp() WHERE id = $1', [idea.id, implementer]);
+  idea.implementer_membership_id = implementer;
+  await log(c, actor, 'idea.assigned', 'idea', idea.id, { implementer });
+  await ping(c, actor, 'assigned', idea, [implementer], `${idea.id}:impl:${implementer}`);
+}
+
+export function assignImplementer(db: Database, actor: OrgActor, number: number, input: z.infer<typeof ImplementerInput>, key?: string) {
+  return mutate(db, actor, number, 'idea.implementer', input, key, async (c, idea) => {
+    authorize(actor, 'idea.report_progress', accessFacts(idea));
+    if (actor.membershipId !== idea.maintainer_membership_id && actor.membershipId !== idea.decision_owner_membership_id) {
+      throw new AppError('forbidden', 'Исполнителя назначают ведущий или ответственный за решение');
+    }
+    if (idea.stage !== 'adoption') throw conflict('Исполнитель назначается после решения о внедрении');
+    await setImplementer(c, actor, idea, input.implementer);
+    return { number: idea.number, implementer: input.implementer, stage: idea.stage };
+  });
+}
+
+/** The implementer (or a lead) reports that the change is in place. The report stays in history. */
+export function completeImplementation(
+  db: Database,
+  actor: OrgActor,
+  number: number,
+  input: z.infer<typeof CompleteImplementationInput>,
+  key?: string,
+) {
+  return mutate(db, actor, number, 'idea.complete', input, key, async (c, idea) => {
+    authorize(actor, 'idea.complete_implementation', accessFacts(idea));
+    const { rows } = await c.query<{ id: string }>(
+      `INSERT INTO reviews (organization_id, idea_id, revision_number, author_membership_id, kind, body)
+       VALUES ($1, $2, $3, $4, 'progress', $5) RETURNING id`,
+      [actor.orgId, idea.id, idea.current_revision_number, actor.membershipId, input.report],
+    );
+    await moveStage(c, idea, 'impact_verification');
+    if (idea.implementer_membership_id) {
+      await recordContribution(c, actor, idea, idea.implementer_membership_id, 'implementation', 'idea', idea.id);
+    }
+    await log(c, actor, 'idea.implemented', 'idea', idea.id, { report: rows[0]!.id });
+    await ping(
+      c,
+      actor,
+      'implemented',
+      idea,
+      [idea.author_membership_id, idea.raised_by_membership_id, idea.maintainer_membership_id, idea.decision_owner_membership_id],
+      `${idea.id}:implemented`,
+    );
+    return { number: idea.number, stage: idea.stage, status: 'implemented', reportId: rows[0]!.id };
   });
 }

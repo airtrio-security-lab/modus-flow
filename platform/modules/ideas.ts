@@ -14,6 +14,8 @@ export interface IdeaRow {
   author_membership_id: string;
   maintainer_membership_id: string | null;
   decision_owner_membership_id: string | null;
+  raised_by_membership_id: string | null;
+  implementer_membership_id: string | null;
   current_revision_number: number;
   published_at: Date;
   updated_at: Date;
@@ -23,13 +25,16 @@ export const accessFacts = (r: IdeaRow): IdeaAccessFacts => ({
   authorMembershipId: r.author_membership_id,
   maintainerMembershipId: r.maintainer_membership_id,
   decisionOwnerMembershipId: r.decision_owner_membership_id,
+  raisedByMembershipId: r.raised_by_membership_id,
+  implementerMembershipId: r.implementer_membership_id,
   stage: r.stage,
 });
 
 export async function loadIdea(c: Client, number: number, lock = false): Promise<IdeaRow> {
   const { rows } = await c.query<IdeaRow>(
     `SELECT id, number, kind, stage, author_membership_id, maintainer_membership_id,
-            decision_owner_membership_id, current_revision_number, published_at, updated_at
+            decision_owner_membership_id, raised_by_membership_id, implementer_membership_id,
+            current_revision_number, published_at, updated_at
        FROM ideas WHERE organization_id = app_org_id() AND number = $1${lock ? ' FOR UPDATE' : ''}`,
     [number],
   );
@@ -84,7 +89,7 @@ const person = (membershipId: string | null, name: string | null) =>
 
 /** Computes automated checks for an idea inside an existing transaction. */
 export async function computeChecks(c: Client, idea: IdeaRow): Promise<CheckResult[]> {
-  const revs = await c.query<{ number: number; title: string; problem: string; proposal: string; success_criteria: string | null }>(
+  const revs = await c.query<{ number: number; title: string; problem: string; proposal: string | null; success_criteria: string | null }>(
     'SELECT number, title, problem, proposal, success_criteria FROM idea_revisions WHERE idea_id = $1 ORDER BY number',
     [idea.id],
   );
@@ -102,6 +107,7 @@ export async function computeChecks(c: Client, idea: IdeaRow): Promise<CheckResu
     revision: current
       ? { title: current.title, problem: current.problem, proposal: current.proposal, successCriteria: current.success_criteria }
       : null,
+    kind: idea.kind,
     currentRevisionNumber: idea.current_revision_number,
     revisionNumbers: revs.rows.map((r) => r.number),
     maintainerMembershipId: idea.maintainer_membership_id,
@@ -165,7 +171,34 @@ export async function getIdea(db: Database, actor: OrgActor, number: number) {
         WHERE c.idea_id = $1 ORDER BY c.created_at, c.id`,
       [idea.id],
     );
+    const overview = await c.query(
+      `SELECT status, category, category_id AS "categoryId", department, department_id AS "departmentId",
+              source_channel AS "sourceChannel", source_note AS "sourceNote",
+              raised_by AS "raisedBy", raised_by_membership_id AS "raisedByMembershipId",
+              implementer, implementer_membership_id AS "implementerMembershipId",
+              first_response_due_at AS "firstResponseDueAt", first_response_at AS "firstResponseAt",
+              resolution_due_at AS "resolutionDueAt", overdue_first_response AS "overdueFirstResponse",
+              overdue_resolution AS "overdueResolution", stale
+         FROM idea_overview WHERE id = $1`,
+      [idea.id],
+    );
+    const attachments = await c.query(
+      `SELECT a.id, a.file_name AS "fileName", a.content_type AS "contentType", a.size_bytes AS "sizeBytes",
+              a.sha256, a.created_at AS "createdAt", e.display_name AS "uploadedBy"
+         FROM attachments a JOIN employees e ON e.membership_id = a.uploaded_by_membership_id
+        WHERE a.idea_id = $1 ORDER BY a.created_at`,
+      [idea.id],
+    );
+    const escalations = await c.query(
+      `SELECT x.kind, x.created_at AS "createdAt", e.display_name AS "escalatedTo"
+         FROM escalations x LEFT JOIN employees e ON e.membership_id = x.escalated_to_membership_id
+        WHERE x.idea_id = $1 ORDER BY x.created_at`,
+      [idea.id],
+    );
     return {
+      ...(overview.rows[0] as Record<string, unknown>),
+      attachments: attachments.rows,
+      escalations: escalations.rows,
       id: idea.id,
       number: idea.number,
       kind: idea.kind,

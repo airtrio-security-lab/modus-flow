@@ -55,6 +55,10 @@ const TEMPLATES: Record<NotificationEvent, (actor: string, title: string) => str
   revision_submitted: (a, t) => `${a} публикует новую версию идеи «${t}»`,
   suggestion_submitted: (a, t) => `${a} предлагает свою версию идеи «${t}»`,
   suggestion_decided: (a, t) => `${a} рассматривает ваше предложение по идее «${t}»`,
+  status_report: (a, t) => `${a} сообщает о ходе работы по «${t}»`,
+  implemented: (a, t) => `${a} сообщает: «${t}» реализовано`,
+  raised_on_behalf: (a, t) => `${a} зафиксировал(а) ваш вопрос «${t}» — следите за статусом`,
+  escalated: (_a, t) => `Обращение «${t}» просрочено или зависло — требуется внимание`,
 };
 
 export interface InboxItem {

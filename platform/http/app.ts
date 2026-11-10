@@ -2,10 +2,9 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { randomUUID } from 'node:crypto';
 import { z, ZodError } from 'zod';
 import { AppError } from '../domain/errors.ts';
-import { IDEA_STAGES } from '../domain/model.ts';
 import { withTx, type Database } from '../db/pool.ts';
 import { getMe, resolveOrgActor } from '../modules/context.ts';
-import { getIdea, listIdeas } from '../modules/ideas.ts';
+import { getIdea } from '../modules/ideas.ts';
 import {
   CreateDraftInput,
   PublishInput,
@@ -19,6 +18,11 @@ import {
 } from '../modules/lab.ts';
 import { listInbox, markRead } from '../modules/notifications.ts';
 import * as wf from '../modules/workflow.ts';
+import * as admin from '../modules/admin.ts';
+import { analytics, AnalyticsQuery } from '../modules/analytics.ts';
+import { downloadAttachment, MAX_ATTACHMENT_BYTES, uploadAttachment } from '../modules/attachments.ts';
+import { SubmitInput, submitItem } from '../modules/intake.ts';
+import { SearchQuery, searchItems, SimilarQuery, similarItems } from '../modules/search.ts';
 import type { IdempotentResult } from '../modules/idempotency.ts';
 import { DevTokenAuthenticator, type Authenticator } from './authn.ts';
 
@@ -41,6 +45,8 @@ interface Ctx {
 
 interface Reply {
   status: number;
+  /** Binary payload (file download); sent as-is with `headers`. */
+  raw?: Buffer;
   body?: unknown;
   headers?: Record<string, string>;
 }
@@ -89,6 +95,25 @@ async function readJson(req: IncomingMessage): Promise<unknown> {
   }
 }
 
+/** Raw body for file uploads (attachments). */
+async function readRaw(req: IncomingMessage, limit: number): Promise<Buffer> {
+  const tooLarge = () => {
+    req.resume();
+    return new AppError('payload_too_large', 'Файл больше 5 МБ');
+  };
+  if (Number(req.headers['content-length'] ?? 0) > limit) throw tooLarge();
+  const chunks: Buffer[] = [];
+  let size = 0;
+  for await (const chunk of req as AsyncIterable<Buffer>) {
+    size += chunk.length;
+    if (size > limit) throw tooLarge();
+    chunks.push(chunk);
+  }
+  return Buffer.concat(chunks);
+}
+
+const queryObject = (q: URLSearchParams) => Object.fromEntries(q.entries());
+
 const idemKey = (req: IncomingMessage) => {
   const v = req.headers['idempotency-key'];
   return Array.isArray(v) ? v[0] : v;
@@ -133,10 +158,20 @@ export function createApp(config: AppConfig) {
   });
 
   // ---- organization workspace ---------------------------------------------
-  route('GET', `/api/v1/orgs/(?<org>${SLUG})/ideas`, async (ctx) => {
-    const stage = ctx.query.get('stage');
-    const parsed = stage === null ? undefined : z.enum(IDEA_STAGES).parse(stage);
-    return { status: 200, body: await listIdeas(db, await org(ctx), parsed) };
+  // List with filters and full-text search (Phase 2.5). `stage` keeps working as before.
+  route('GET', `/api/v1/orgs/(?<org>${SLUG})/ideas`, async (ctx) => ({
+    status: 200,
+    body: await searchItems(db, await org(ctx), SearchQuery.parse(queryObject(ctx.query))),
+  }));
+  route('GET', `/api/v1/orgs/(?<org>${SLUG})/ideas/similar`, async (ctx) => ({
+    status: 200,
+    body: await similarItems(db, await org(ctx), SimilarQuery.parse(queryObject(ctx.query)).q),
+  }));
+  // Quick submission, or recording on a colleague's behalf (meeting / e-mail / call).
+  route('POST', `/api/v1/orgs/(?<org>${SLUG})/ideas`, async (ctx) => {
+    const r = await submitItem(db, await org(ctx), SubmitInput.parse(await ctx.body()), idemKey(ctx.req));
+    const headers: Record<string, string> = r.replayed ? { 'Idempotent-Replayed': 'true' } : {};
+    return { status: r.status, body: r.body, headers };
   });
   route('GET', `/api/v1/orgs/(?<org>${SLUG})/ideas/(?<number>\\d{1,10})`, async (ctx) => ({
     status: 200,
@@ -188,9 +223,63 @@ export function createApp(config: AppConfig) {
   step(`/verifications/(?<v>${UUID})/conclusion`, wf.ConcludeInput, (a, n, i, p, k) => wf.concludeVerification(db, a, n, p.v!, i, k));
   step('/decision', wf.DecideInput, (a, n, i, _p, k) => wf.decide(db, a, n, i, k));
 
+  // ---- Phase 2.5: implementation, attachments, directory, admin, analytics ---
+  step('/implementer', wf.ImplementerInput, (a, n, i, _p, k) => wf.assignImplementer(db, a, n, i, k));
+  step('/implementation', wf.CompleteImplementationInput, (a, n, i, _p, k) => wf.completeImplementation(db, a, n, i, k));
+
+  route('POST', `${IDEA}/attachments`, async (ctx) => {
+    const actor = await org(ctx);
+    const contentType = (ctx.req.headers['content-type'] ?? '').split(';')[0]!.trim().toLowerCase();
+    const rawName = ctx.req.headers['x-file-name'];
+    let fileName = '';
+    try {
+      fileName = decodeURIComponent(Array.isArray(rawName) ? rawName[0]! : (rawName ?? ''));
+    } catch {
+      throw new AppError('validation_failed', 'Некорректное имя файла (X-File-Name, URL-encoded)');
+    }
+    const data = await readRaw(ctx.req, MAX_ATTACHMENT_BYTES);
+    return { status: 201, body: await uploadAttachment(db, actor, NumberParam.parse(ctx.params.number), { fileName, contentType, data }) };
+  });
+  route('GET', `${IDEA}/attachments/(?<file>${UUID})`, async (ctx) => {
+    const f = await downloadAttachment(db, await org(ctx), NumberParam.parse(ctx.params.number), ctx.params.file!);
+    return {
+      status: 200,
+      raw: f.data,
+      headers: {
+        'Content-Type': f.contentType,
+        'Content-Length': String(f.data.length),
+        'Content-Disposition': `attachment; filename*=UTF-8''${encodeURIComponent(f.fileName)}`,
+        'Content-Security-Policy': "default-src 'none'; sandbox",
+        ETag: `"${f.sha256}"`,
+      },
+    };
+  });
+
+  const ORG = `/api/v1/orgs/(?<org>${SLUG})`;
+  const json = <S extends z.ZodType>(method: string, path: string, schema: S, run: (a: Awaited<ReturnType<typeof org>>, input: z.infer<S>, p: Record<string, string>) => Promise<unknown>, status = 200) =>
+    route(method, `${ORG}${path}`, async (ctx) => ({ status, body: await run(await org(ctx), schema.parse(await ctx.body()), ctx.params) }));
+
+  route('GET', `${ORG}/directory`, async (ctx) => ({ status: 200, body: await admin.getDirectory(db, await org(ctx)) }));
+  route('GET', `${ORG}/routing-rules`, async (ctx) => ({ status: 200, body: await admin.listRules(db, await org(ctx)) }));
+  json('POST', '/routing-rules', admin.RuleInput, (a, i) => admin.createRule(db, a, i), 201);
+  json('POST', `/routing-rules/(?<id>${UUID})/active`, z.object({ active: z.boolean() }).strict(), (a, i, p) => admin.setRuleActive(db, a, p.id!, i.active));
+  json('POST', '/departments', admin.DepartmentInput, (a, i) => admin.createDepartment(db, a, i), 201);
+  json('PATCH', `/departments/(?<id>${UUID})`, admin.DepartmentInput.partial(), (a, i, p) => admin.updateDepartment(db, a, p.id!, i));
+  json('POST', '/categories', admin.CategoryInput, (a, i) => admin.createCategory(db, a, i), 201);
+  json('PATCH', `/categories/(?<id>${UUID})`, admin.CategoryInput.partial(), (a, i, p) => admin.updateCategory(db, a, p.id!, i));
+  json('PATCH', '/settings', admin.SettingsInput, (a, i) => admin.updateSettings(db, a, i));
+  route('GET', `${ORG}/analytics`, async (ctx) => ({
+    status: 200,
+    body: await analytics(db, await org(ctx), AnalyticsQuery.parse(queryObject(ctx.query))),
+  }));
+
   function send(res: ServerResponse, reply: Reply, requestId: string) {
     const headers: Record<string, string> = { ...SECURITY_HEADERS, 'X-Request-Id': requestId, ...reply.headers };
     if (reply.status === 413) headers.Connection = 'close';
+    if (reply.raw) {
+      res.writeHead(reply.status, headers).end(reply.raw);
+      return;
+    }
     if (reply.body === undefined) {
       res.writeHead(reply.status, headers).end();
       return;

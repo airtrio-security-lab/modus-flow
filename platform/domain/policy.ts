@@ -11,8 +11,12 @@ import type { IdeaAccessFacts, OrgActor, OrgRole } from './model.ts';
  *    accepts them. Nobody silently rewrites an author's proposal.
  *  - The author may object to any change request (right of reply).
  *  - Nobody decides on their own idea (conflict of interest).
- *  - Maintainer and Decision Owner are different people: the maintainer leads
- *    review and verification, the decision owner decides on what they did not run.
+ *  - Whoever raised an item (author, or the employee it was recorded for) never
+ *    leads, verifies or decides it.
+ *  - Hybrid powers (owner decision 2026-11-10): one head may lead and decide a
+ *    simple item; a field verification needs a separate decision owner, and the
+ *    decision owner never judges a verification they ran.
+ *  - The responsible people report progress; the implementer reports completion.
  *  - Organization Admin administers; it does not grant review or decision power.
  *  - Invited guests act only on ideas they are assigned to (visibility is enforced by RLS).
  */
@@ -32,18 +36,25 @@ export type IdeaAction =
   | 'verification.conclude'
   | 'idea.decide'
   | 'idea.adopt'
+  | 'idea.report_progress'
+  | 'idea.complete_implementation'
   | 'contribution.confirm';
 
 const has = (actor: OrgActor, role: OrgRole) => actor.roles.includes(role);
 const member = (actor: OrgActor) => actor.access === 'member';
 const isAuthor = (actor: OrgActor, idea: IdeaAccessFacts) => actor.membershipId === idea.authorMembershipId;
+/** Author or the employee the item was raised for: both have a stake and never judge it. */
+const isOriginator = (actor: OrgActor, idea: IdeaAccessFacts) =>
+  isAuthor(actor, idea) || (!!idea.raisedByMembershipId && actor.membershipId === idea.raisedByMembershipId);
+const isImplementer = (actor: OrgActor, idea: IdeaAccessFacts) =>
+  !!idea.implementerMembershipId && actor.membershipId === idea.implementerMembershipId;
 const isMaintainer = (actor: OrgActor, idea: IdeaAccessFacts) =>
   idea.maintainerMembershipId !== null && actor.membershipId === idea.maintainerMembershipId;
 const isDecisionOwner = (actor: OrgActor, idea: IdeaAccessFacts) =>
   idea.decisionOwnerMembershipId !== null && actor.membershipId === idea.decisionOwnerMembershipId;
 /** Until a maintainer is assigned, any organization maintainer may lead review. */
 const leadsReview = (actor: OrgActor, idea: IdeaAccessFacts) =>
-  !isAuthor(actor, idea) &&
+  !isOriginator(actor, idea) &&
   (isMaintainer(actor, idea) ||
     isDecisionOwner(actor, idea) ||
     (idea.maintainerMembershipId === null && member(actor) && has(actor, 'maintainer')));
@@ -77,7 +88,7 @@ export function can(actor: OrgActor, action: IdeaAction, idea: IdeaAccessFacts, 
       return open && !isAuthor(actor, idea);
     case 'idea.assign':
       // Invited guests never assign; the author never picks their own reviewers.
-      return open && member(actor) && !isAuthor(actor, idea) && (has(actor, 'maintainer') || has(actor, 'decision_owner'));
+      return open && member(actor) && !isOriginator(actor, idea) && (has(actor, 'maintainer') || has(actor, 'decision_owner'));
     case 'review.resolve':
       return (
         open &&
@@ -87,7 +98,7 @@ export function can(actor: OrgActor, action: IdeaAction, idea: IdeaAccessFacts, 
     case 'verification.start':
     case 'verification.conclude':
       // Verification is the maintainer's job; the decision owner stays independent of it.
-      return open && !isAuthor(actor, idea) && isMaintainer(actor, idea);
+      return open && !isOriginator(actor, idea) && isMaintainer(actor, idea);
     case 'verification.record_evidence':
       return (
         open &&
@@ -98,7 +109,11 @@ export function can(actor: OrgActor, action: IdeaAction, idea: IdeaAccessFacts, 
       );
     case 'idea.decide':
     case 'idea.adopt':
-      return open && isDecisionOwner(actor, idea) && !isAuthor(actor, idea);
+      return open && isDecisionOwner(actor, idea) && !isOriginator(actor, idea);
+    case 'idea.report_progress':
+      return open && (isMaintainer(actor, idea) || isDecisionOwner(actor, idea) || isImplementer(actor, idea));
+    case 'idea.complete_implementation':
+      return idea.stage === 'adoption' && (isImplementer(actor, idea) || isMaintainer(actor, idea) || isDecisionOwner(actor, idea));
     case 'contribution.confirm':
       return (
         ctx.contributorMembershipId !== undefined &&
