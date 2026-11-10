@@ -186,7 +186,8 @@ LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp 
 DECLARE
   o record;
   r record;
-  excluded uuid[] := ARRAY[NEW.author_membership_id, NEW.raised_by_membership_id];
+  -- array_remove: `x = ANY(ARRAY[a, NULL])` is NULL (not false) and would silently drop every rule.
+  excluded uuid[] := array_remove(ARRAY[NEW.author_membership_id, NEW.raised_by_membership_id], NULL);
   dept_head uuid;
 BEGIN
   SELECT * INTO o FROM public.organizations WHERE id = NEW.organization_id;
