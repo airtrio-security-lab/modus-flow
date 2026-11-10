@@ -132,6 +132,38 @@ AI may later summarize evidence; it never writes outcomes, decisions or contribu
 See [`PHASE2-WORKFLOW.md`](PHASE2-WORKFLOW.md) for the review, revision, suggestion, verification,
 evidence and decision endpoints and the UI integration plan.
 
+## API v1 — feedback MVP (Phase 2.5)
+
+Hackathon brief «обратная связь и предложения сотрудников» + the owner's requirements: nothing gets
+lost, everyone sees the stage, the owner sees what needs attention. Migrations 0004 + 0005.
+
+| Method | Path | Notes |
+|---|---|---|
+| POST | `/api/v1/orgs/:org/ideas` | quick submission: `{kind: idea\|problem, title, problem, proposal?, categoryId?, departmentId?, sourceChannel, sourceNote?, raisedBy?}`; routed by the database (rule → head of department → unrouted queue); `Idempotency-Key` |
+| GET | `/api/v1/orgs/:org/ideas?q=&status=&kind=&category=&department=&channel=&mine=&assigned=&overdue=&stale=&open=` | search over `idea_overview` (Russian full text + substring) |
+| GET | `/api/v1/orgs/:org/ideas/similar?q=` | up to 5 similar items before creating a duplicate |
+| POST | `…/ideas/:number/implementer` | after a merge decision, by the leads |
+| POST | `…/ideas/:number/implementation` | `{report}`; implementer (not an originator) or a lead → `implemented` |
+| POST | `…/ideas/:number/attribution/decline` | the person recorded as "raised by" declines the credit |
+| POST/GET | `…/ideas/:number/attachments[/:id]` | raw body, `Content-Type`, `X-File-Name` (URL-encoded); ≤ 5 MB, ≤ 10 per item; signature must match type |
+| GET | `/api/v1/orgs/:org/directory` | departments, categories, active members, settings (full members only) |
+| GET/POST | `/api/v1/orgs/:org/routing-rules`, `POST …/:id/active` | org_admin writes; rules are deactivated, never deleted |
+| POST/PATCH | `/api/v1/orgs/:org/departments[/:id]`, `/categories[/:id]` | org_admin |
+| PATCH | `/api/v1/orgs/:org/settings` | first-response hours, resolution days, stale days, escalation contact |
+| GET | `/api/v1/orgs/:org/analytics?from=&to=` | leads and admins; counts and shares from recorded facts only |
+
+Escalation of overdue / stale items: `node platform/cli/escalate.ts` (schema owner, run by a
+scheduler; none is bundled). Audit: [`../audit/2026-11-10-feedback-review.md`](../audit/2026-11-10-feedback-review.md).
+
+### Local demo (hackathon only)
+
+`platform/cli/seed-modus-demo.ts` creates the fictional organization «Модус Трейд — демо» (invented
+people, 15 items in every status) and writes `.demo/personas.json`. With
+`MODUS_AUTH_MODE=dev-token MODUS_DEMO_LOGIN=true` the API offers `GET /api/v1/demo/personas` and
+`POST /api/v1/demo/login {userId}` — an **imitation of SSO** for the demo; refused at startup in
+production or with OIDC. `MODUS_SERVE_WEB=true` (or `MODUS_WEB_DIR`) serves the built web app from the
+same origin with a strict CSP.
+
 ## Planned (next phases)
 
 * **Phase 2 (done):** see `PHASE2-WORKFLOW.md`. Still open: impact verification and contribution

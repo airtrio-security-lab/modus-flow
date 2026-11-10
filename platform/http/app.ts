@@ -25,6 +25,7 @@ import { SubmitInput, submitItem } from '../modules/intake.ts';
 import { SearchQuery, searchItems, SimilarQuery, similarItems } from '../modules/search.ts';
 import type { IdempotentResult } from '../modules/idempotency.ts';
 import { DevTokenAuthenticator, type Authenticator } from './authn.ts';
+import { createStaticHandler } from './static.ts';
 
 export interface AppConfig {
   db: Database;
@@ -33,6 +34,20 @@ export interface AppConfig {
   /** Shortcut for tests/local use: builds a DevTokenAuthenticator. */
   authSecret?: string;
   log?: (entry: Record<string, unknown>) => void;
+  /** Serve the built web app from this directory for non-API paths. */
+  staticDir?: string;
+  /**
+   * Demo login (development only, never in production): lists fictional
+   * personas and issues a short-lived token for one of them. Clearly an
+   * imitation of SSO for the hackathon demo (ADR-0009).
+   */
+  demo?: { personas: DemoPersonas; issue: (userId: string) => string };
+}
+
+export interface DemoPersonas {
+  organization: string;
+  organizationName: string;
+  personas: { userId: string; name: string; title: string; department: string; hint: string }[];
 }
 
 interface Ctx {
@@ -226,6 +241,7 @@ export function createApp(config: AppConfig) {
   // ---- Phase 2.5: implementation, attachments, directory, admin, analytics ---
   step('/implementer', wf.ImplementerInput, (a, n, i, _p, k) => wf.assignImplementer(db, a, n, i, k));
   step('/implementation', wf.CompleteImplementationInput, (a, n, i, _p, k) => wf.completeImplementation(db, a, n, i, k));
+  step('/attribution/decline', z.object({}).strict(), (a, n, _i, _p, k) => wf.declineAttribution(db, a, n, k));
 
   route('POST', `${IDEA}/attachments`, async (ctx) => {
     const actor = await org(ctx);
@@ -273,6 +289,22 @@ export function createApp(config: AppConfig) {
     body: await analytics(db, await org(ctx), AnalyticsQuery.parse(queryObject(ctx.query))),
   }));
 
+  const serveStatic = config.staticDir ? createStaticHandler(config.staticDir) : null;
+  const DemoLogin = z.object({ userId: z.uuid() }).strict();
+  async function demoRoute(req: IncomingMessage, pathname: string): Promise<Reply> {
+    const demo = config.demo;
+    if (!demo) return { status: 404, body: { error: 'not_found', message: 'Демо-вход выключен' } };
+    if (req.method === 'GET' && pathname === '/api/v1/demo/personas') return { status: 200, body: demo.personas };
+    if (req.method === 'POST' && pathname === '/api/v1/demo/login') {
+      const { userId } = DemoLogin.parse(await readJson(req));
+      if (!demo.personas.personas.some((p) => p.userId === userId)) {
+        return { status: 403, body: { error: 'forbidden', message: 'Это не демо-персона' } };
+      }
+      return { status: 200, body: { token: demo.issue(userId), organization: demo.personas.organization } };
+    }
+    return { status: 404, body: { error: 'not_found', message: 'Не найдено' } };
+  }
+
   function send(res: ServerResponse, reply: Reply, requestId: string) {
     const headers: Record<string, string> = { ...SECURITY_HEADERS, 'X-Request-Id': requestId, ...reply.headers };
     if (reply.status === 413) headers.Connection = 'close';
@@ -309,6 +341,11 @@ export function createApp(config: AppConfig) {
       const url = new URL(req.url ?? '/', 'http://localhost');
       if (req.method === 'GET' && url.pathname === '/api/v1/health') {
         reply = { status: 200, body: { ok: true } };
+      } else if (url.pathname.startsWith('/api/v1/demo/')) {
+        reply = await demoRoute(req, url.pathname);
+      } else if (serveStatic && !url.pathname.startsWith('/api/') && (req.method === 'GET' || req.method === 'HEAD')) {
+        await serveStatic(req, res, url.pathname);
+        return;
       } else {
         const candidates = routes.filter((r) => r.pattern.test(url.pathname));
         const match = candidates.find((r) => r.method === req.method);

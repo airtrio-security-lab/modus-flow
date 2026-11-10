@@ -14,7 +14,9 @@
     "platform:start": "node platform/main.ts",
     "platform:migrate": "node platform/cli/migrate.ts",
     "platform:seed-demo": "node platform/cli/seed-demo.ts",
-    "platform:token": "node platform/cli/issue-token.ts"
+    "platform:token": "node platform/cli/issue-token.ts",
+    "platform:seed-modus-demo": "node platform/cli/seed-modus-demo.ts",
+    "platform:escalate": "node platform/cli/escalate.ts"
   },
   "engines": {
     "node": ">=22"

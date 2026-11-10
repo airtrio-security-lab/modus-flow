@@ -2,6 +2,7 @@ import { createServer } from 'node:http';
 import { assertUnprivilegedConnection, createDatabase } from './db/pool.ts';
 import { migrate } from './db/migrate.ts';
 import { createApp } from './http/app.ts';
+import { demoConfigFromEnv } from './http/demo.ts';
 import { authenticatorFromEnv } from './http/authn.ts';
 
 /**
@@ -31,7 +32,13 @@ if (process.env.MODUS_ALLOW_PRIVILEGED_DB === 'true') {
 if (!authenticator.productionReady) {
   console.warn(JSON.stringify({ level: 'warn', msg: `auth mode ${authenticator.mode} is for development only (ADR-0009)` }));
 }
-const handler = createApp({ db, authenticator, log: (e) => console.log(JSON.stringify(e)) });
+// Demo login: only with an explicit flag, dev tokens, and never in production.
+const demo = demoConfigFromEnv(process.env, authenticator);
+if (demo) {
+  console.warn(JSON.stringify({ level: 'warn', msg: 'DEMO LOGIN ENABLED: anyone can sign in as a demo persona. Never use with real data.' }));
+}
+const staticDir = process.env.MODUS_WEB_DIR ?? (process.env.MODUS_SERVE_WEB === 'true' ? 'web/dist' : undefined);
+const handler = createApp({ db, authenticator, staticDir, demo, log: (e) => console.log(JSON.stringify(e)) });
 const server = createServer((req, res) => void handler(req, res));
 server.listen(port, host, () => console.log(JSON.stringify({ level: 'info', msg: `MODUS FLOW platform API on ${host}:${port}` })));
 
