@@ -73,6 +73,7 @@ npm run web:build        # builds web/dist
 npm run demo:start       # API as modus_api + web app + demo sign-in; refuses NODE_ENV=production
 npm run demo:e2e         # optional: Playwright walks through the main scenario
 ```
+Or all of it in one command (Docker + Node ≥ 22.18): `./scripts/demo-local.sh`.
 
 ### Platform tests
 Integration tests use a real PostgreSQL; each test file creates and drops its own database.
