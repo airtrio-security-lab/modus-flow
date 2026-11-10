@@ -151,6 +151,7 @@ lost, everyone sees the stage, the owner sees what needs attention. Migrations 0
 | POST/PATCH | `/api/v1/orgs/:org/departments[/:id]`, `/categories[/:id]` | org_admin |
 | PATCH | `/api/v1/orgs/:org/settings` | first-response hours, resolution days, stale days, escalation contact |
 | GET | `/api/v1/orgs/:org/analytics?from=&to=` | leads and admins; counts and shares from recorded facts only |
+| GET | `/api/v1/orgs/:org/kingdom` | full members; castles per active department (`towers` = implemented, `building`, `envoys`, `waiting`, `returned`), open items as envoys with a `mine` flag, `wildlands` = open items without a department. Computed under RLS (ADR-0011) |
 
 Escalation of overdue / stale items: `node platform/cli/escalate.ts` (schema owner, run by a
 scheduler; none is bundled). Audit: [`../audit/2026-11-10-feedback-review.md`](../audit/2026-11-10-feedback-review.md).

@@ -27,6 +27,9 @@ export function Overview() {
   return (
     <div className="stack-lg">
       <PageHead title="Обзор" sub="Что требует решения, что забыто и откуда приходят вопросы.">
+        <a className="btn" href="#/kingdom">
+          Королевство
+        </a>
         <div className="segmented" role="group" aria-label="Период">
           {PERIODS.map((x) => (
             <button key={x.id} type="button" aria-pressed={x.id === period} onClick={() => setPeriod(x.id)}>

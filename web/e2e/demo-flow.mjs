@@ -38,6 +38,15 @@ const expectText = async (page, text) => {
   await page.getByText(text, { exact: false }).first().waitFor({ timeout: 5000 });
 };
 const step = (name) => console.log(`✓ ${name}`);
+/** Towers of a castle as the «Королевство» list states them. */
+const towersOf = async (page, castle) => {
+  await page.goto(`${BASE}/#/kingdom`);
+  const row = page.locator('.realm-list button', { hasText: castle });
+  await row.waitFor();
+  const m = /(\d+) башн/.exec((await row.textContent()) ?? '');
+  if (!m) throw new Error(`no tower count for ${castle}`);
+  return Number(m[1]);
+};
 /** HTML5 drag and drop with real DOM events (mouse emulation can land on a neighbour card). */
 const drag = async (page, source, target) => {
   const dt = await page.evaluateHandle(() => new DataTransfer());
@@ -54,7 +63,9 @@ const pick = async (select, text) => {
 
 try {
   // 1. Employee submits a problem; the system routes it and shows the deadline.
+  let towersBefore = 0;
   const number = await as(storekeeper, async (page) => {
+    towersBefore = await towersOf(page, 'Склад и логистика');
     await page.goto(`${BASE}/#/new`);
     await page.getByLabel(/Что происходит/).fill('Принтер этикеток на приёмке печатает пустые листы через раз, этикетки клеим от руки');
     await page.getByLabel('Коротко, одной строкой').fill(`Принтер этикеток печатает пустые листы ${stamp}`);
@@ -127,6 +138,15 @@ try {
     await expectText(page, 'задаёт вопрос автору');
   });
   step('автор видит результат и всю историю');
+
+  // 5a. The department's castle gains a tower only for the implemented item.
+  await as(storekeeper, async (page) => {
+    const after = await towersOf(page, 'Склад и логистика');
+    if (after !== towersBefore + 1) throw new Error(`towers ${towersBefore} → ${after}, expected +1`);
+    await page.locator('.realm-map svg').waitFor();
+    await expectText(page, 'Ваши послы');
+  });
+  step('королевство: замок склада получил башню за реализованную идею');
 
   // 6. A head records a question heard on the phone on behalf of an engineer.
   const n2 = await as(whHead, async (page) => {

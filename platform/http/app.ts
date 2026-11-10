@@ -20,6 +20,7 @@ import { listInbox, markRead } from '../modules/notifications.ts';
 import * as wf from '../modules/workflow.ts';
 import * as admin from '../modules/admin.ts';
 import { analytics, AnalyticsQuery } from '../modules/analytics.ts';
+import { kingdom } from '../modules/kingdom.ts';
 import { downloadAttachment, MAX_ATTACHMENT_BYTES, uploadAttachment } from '../modules/attachments.ts';
 import { SubmitInput, submitItem } from '../modules/intake.ts';
 import { SearchQuery, searchItems, SimilarQuery, similarItems } from '../modules/search.ts';
@@ -284,6 +285,7 @@ export function createApp(config: AppConfig) {
   json('POST', '/categories', admin.CategoryInput, (a, i) => admin.createCategory(db, a, i), 201);
   json('PATCH', `/categories/(?<id>${UUID})`, admin.CategoryInput.partial(), (a, i, p) => admin.updateCategory(db, a, p.id!, i));
   json('PATCH', '/settings', admin.SettingsInput, (a, i) => admin.updateSettings(db, a, i));
+  route('GET', `${ORG}/kingdom`, async (ctx) => ({ status: 200, body: await kingdom(db, await org(ctx)) }));
   route('GET', `${ORG}/analytics`, async (ctx) => ({
     status: 200,
     body: await analytics(db, await org(ctx), AnalyticsQuery.parse(queryObject(ctx.query))),

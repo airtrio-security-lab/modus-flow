@@ -13,6 +13,7 @@ import { ItemPage } from './screens/Item';
 import { Workspace } from './screens/Workspace';
 import { AllItems } from './screens/AllItems';
 import { Overview } from './screens/Overview';
+import { Kingdom } from './screens/Kingdom';
 import { Inbox } from './screens/Inbox';
 import { Settings } from './screens/Settings';
 import { Meeting } from './screens/Meeting';
@@ -87,6 +88,7 @@ function Shell() {
     { href: '#/', label: 'Мои обращения', short: 'Мои', match: (p) => p.length === 0 },
     ...(s.isLead ? [{ href: '#/work', label: 'Рабочее место', short: 'Работа', match: (p: string[]) => p[0] === 'work' }] : []),
     { href: '#/board', label: 'Доска', short: 'Доска', match: (p: string[]) => p[0] === 'board' },
+    { href: '#/kingdom', label: 'Королевство', short: 'Королевство', match: (p: string[]) => p[0] === 'kingdom' },
     { href: '#/meeting', label: 'Разбор совещания', short: 'Совещание', match: (p) => p[0] === 'meeting' },
     { href: '#/all', label: 'Все обращения', short: 'Все', match: (p) => p[0] === 'all' },
     ...(s.isLead || s.isAdmin ? [{ href: '#/overview', label: 'Обзор', short: 'Обзор', match: (p: string[]) => p[0] === 'overview' }] : []),
@@ -102,6 +104,7 @@ function Shell() {
   else if (head === 'items' && route[1]) page = <ItemPage number={Number(route[1])} key={route[1]} />;
   else if (head === 'work' && s.isLead) page = <Workspace tab={route[1]} />;
   else if (head === 'all') page = <AllItems />;
+  else if (head === 'kingdom') page = <Kingdom />;
   else if (head === 'overview' && (s.isLead || s.isAdmin)) page = <Overview />;
   else if (head === 'inbox') page = <Inbox />;
   else if (head === 'settings' && s.isAdmin) page = <Settings />;
@@ -136,7 +139,7 @@ function Shell() {
   // Leads: Работа, Доска | Уведомления, Обзор. Employees: Мои, Доска | Уведомления.
   const pickTab = (h: string) => nav.find((n) => n.href === h);
   const left = (s.isLead ? ['#/work', '#/board'] : ['#/', '#/board']).map(pickTab).filter((n): n is NavItem => !!n);
-  const right = (s.isLead || s.isAdmin ? ['#/inbox', '#/overview'] : ['#/inbox']).map(pickTab).filter((n): n is NavItem => !!n);
+  const right = (s.isLead || s.isAdmin ? ['#/inbox', '#/overview'] : ['#/inbox', '#/kingdom']).map(pickTab).filter((n): n is NavItem => !!n);
 
   return (
     <div className="shell">
@@ -227,7 +230,7 @@ function Shell() {
   );
 }
 
-const TAB_ICON: Record<string, IconName> = { '#/': 'inbox-stack', '#/work': 'briefcase', '#/board': 'columns', '#/inbox': 'bell', '#/overview': 'chart' };
+const TAB_ICON: Record<string, IconName> = { '#/': 'inbox-stack', '#/work': 'briefcase', '#/board': 'columns', '#/inbox': 'bell', '#/overview': 'chart', '#/kingdom': 'castle' };
 
 function Tab({ n, route }: { n: NavItem; route: string[] }) {
   return (

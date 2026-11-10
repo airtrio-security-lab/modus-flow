@@ -36,7 +36,11 @@ export function Workspace({ tab }: { tab?: string }) {
               : 'Первого ответа от вас никто не ждёт.'
             : undefined
         }
-      />
+      >
+        <a className="btn" href="#/kingdom">
+          Королевство
+        </a>
+      </PageHead>
       <nav className="tabs" aria-label="Очереди">
         {TABS.map((t, i) => (
           <a key={t.id} href={`#/work/${t.id}`} aria-current={t === active ? 'page' : undefined}>

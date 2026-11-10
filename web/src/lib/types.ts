@@ -230,3 +230,31 @@ export interface Analytics {
   recurring: { anchorNumber: number; anchorTitle: string; category: string | null; similarNumbers: number[]; size: number }[];
   needsAttention: (Pick<ListItem, 'number' | 'title' | 'status' | 'category' | 'department' | 'maintainer' | 'publishedAt' | 'overdueFirstResponse' | 'overdueResolution' | 'stale'>)[];
 }
+
+/** «Королевство»: castles of departments and envoys (open items). */
+export interface Castle {
+  id: string;
+  name: string;
+  towers: number;
+  building: number;
+  envoys: number;
+  waiting: number;
+  returned: number;
+}
+export interface Envoy {
+  number: number;
+  title: string;
+  status: Status;
+  departmentId: string | null;
+  responded: boolean;
+  overdueFirstResponse: boolean;
+  overdueResolution: boolean;
+  stale: boolean;
+  mine: boolean;
+  publishedAt: string;
+}
+export interface Kingdom {
+  castles: Castle[];
+  envoys: Envoy[];
+  wildlands: number;
+}

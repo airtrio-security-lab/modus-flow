@@ -1,6 +1,7 @@
 /** One icon family: 24×24 grid, 1.75 stroke, round joins. Decorative next to text (aria-hidden). */
-export type IconName = 'inbox-stack' | 'briefcase' | 'columns' | 'bell' | 'chart' | 'plus';
+export type IconName = 'inbox-stack' | 'briefcase' | 'columns' | 'bell' | 'chart' | 'plus' | 'castle';
 const PATHS: Record<IconName, string> = {
+  castle: 'M4 20V9h2.5v2h2V9h2v2h3V9h2v2h2V9H20v11zM10 20v-3.5a2 2 0 0 1 4 0V20M12 4.5V9M12 4.5l3 1-3 1',
   'inbox-stack': 'M4 13h4l1.5 2.5h5L16 13h4M4 13l2.5-7h11L20 13v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1z',
   briefcase: 'M4 8h16v11H4zM9 8V5.5A1.5 1.5 0 0 1 10.5 4h3A1.5 1.5 0 0 1 15 5.5V8M4 13h16',
   columns: 'M4 5h4v14H4zM10 5h4v9h-4zM16 5h4v6h-4z',

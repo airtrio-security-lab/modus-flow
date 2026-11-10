@@ -12,3 +12,4 @@
 | [0008](0008-notifications.md) | Targeted notifications without free-text payload | Accepted |
 | [0009](0009-authentication-boundary-oidc.md) | Authentication boundary; OIDC planned; dev tokens never production | Accepted (owner decision) |
 | [0010](0010-workflow-invariants.md) | Workflow invariants in the database; invited independent reviewers; truthful chronology | Accepted |
+| [0011](0011-kingdom-map.md) | «Королевство»: department castles grow only from implemented items; no personal scores | Accepted (owner decision 2026-11-11) |
