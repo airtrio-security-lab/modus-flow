@@ -38,12 +38,12 @@ const expectText = async (page, text) => {
   await page.getByText(text, { exact: false }).first().waitFor({ timeout: 5000 });
 };
 const step = (name) => console.log(`✓ ${name}`);
-/** Towers of a castle as the «Королевство» list states them. */
+/** Implemented items of a castle as the «Королевство» list states them. */
 const towersOf = async (page, castle) => {
   await page.goto(`${BASE}/#/kingdom`);
   const row = page.locator('.realm-list button', { hasText: castle });
   await row.waitFor();
-  const m = /(\d+) башн/.exec((await row.textContent()) ?? '');
+  const m = /Внедрено: (\d+)/.exec((await row.textContent()) ?? '');
   if (!m) throw new Error(`no tower count for ${castle}`);
   return Number(m[1]);
 };
@@ -144,9 +144,9 @@ try {
     const after = await towersOf(page, 'Склад и логистика');
     if (after !== towersBefore + 1) throw new Error(`towers ${towersBefore} → ${after}, expected +1`);
     await page.locator('.realm-map svg').waitFor();
-    await expectText(page, 'Ваши послы');
+    await expectText(page, 'Мои обращения на карте');
   });
-  step('королевство: замок склада получил башню за реализованную идею');
+  step('королевство: подтверждённое внедрение засчитано замку склада');
 
   // 6. A head records a question heard on the phone on behalf of an engineer.
   const n2 = await as(whHead, async (page) => {

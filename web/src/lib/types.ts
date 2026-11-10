@@ -181,7 +181,7 @@ export interface IdeaDetail {
 }
 
 export interface Directory {
-  departments: { id: string; name: string; active: boolean; headMembershipId: string | null; head: string | null }[];
+  departments: { id: string; name: string; active: boolean; headMembershipId: string | null; head: string | null; headcount?: number | null }[];
   categories: { id: string; name: string; description: string | null; sortOrder: number; active: boolean }[];
   members: { membershipId: string; name: string; department: string | null; jobTitle: string | null; roles: Role[]; access: 'member' | 'guest' }[];
   settings: { defaultFirstResponseHours: number; defaultResolutionDays: number; staleDays: number; escalationMembershipId: string | null } | null;
@@ -240,6 +240,15 @@ export interface Castle {
   envoys: number;
   waiting: number;
   returned: number;
+  xp: number;
+  level: number;
+  levelName: string;
+  levelFloor: number;
+  nextLevelXp: number | null;
+  nextLevelName: string | null;
+  progress: number;
+  effectXp: number;
+  headcount: number | null;
 }
 export interface Envoy {
   number: number;
@@ -257,4 +266,147 @@ export interface Kingdom {
   castles: Castle[];
   envoys: Envoy[];
   wildlands: number;
+  levels: Levels;
+}
+export interface Levels {
+  thresholds: number[];
+  names: string[];
+}
+
+/** Castle progress (0007): XP from confirmed events only. */
+export interface Achievement {
+  key: string;
+  title: string;
+  description: string;
+  earnedAt: string | null;
+}
+export interface CastleDetail {
+  id: string;
+  name: string;
+  headcount: number | null;
+  xp: number;
+  implemented: number;
+  level: number;
+  levelName: string;
+  floor: number;
+  next: number | null;
+  nextName: string | null;
+  progress: number;
+  levels: Levels;
+  history: {
+    kind: 'implementation' | 'effect';
+    xp: number;
+    at: string;
+    number: number;
+    title: string;
+    credited: string;
+    total: number;
+    levelUp: { level: number; name: string } | null;
+  }[];
+  achievements: Achievement[];
+}
+export interface RatingRow {
+  rank: number;
+  departmentId: string;
+  name: string;
+  headcount: number | null;
+  level: number;
+  levelName: string;
+  xpTotal: number;
+  xpPeriod: number;
+  implementedTotal: number;
+  implementedPeriod: number;
+  effectXpTotal: number;
+  effectXpPeriod: number;
+  xpPer10: number | null;
+  implementedPer10: number | null;
+}
+export interface Rating {
+  period: '30' | '90' | '365' | 'all';
+  from: string | null;
+  levels: Levels;
+  rows: RatingRow[];
+}
+export interface IdeaProgress {
+  awards: { kind: 'implementation' | 'effect'; xp: number; at: string }[];
+  effect: { xp: number; rationale: string; at: string; approvedBy: string } | null;
+  effectMax: number;
+  xpPerImplementation: number;
+  canApproveEffect: boolean;
+}
+
+/** «Совет королевства». */
+export type CouncilRole = 'initiator' | 'recorded' | 'maintainer' | 'decision_owner' | 'implementer' | 'department_head' | 'pilot_owner' | 'member';
+export type Recommendation = 'implement' | 'pilot' | 'clarify' | 'reject' | 'rework';
+export type Stance = 'for' | 'against' | 'mixed' | 'none' | 'dissent' | Recommendation;
+export interface CouncilSeat {
+  membershipId: string;
+  name: string;
+  jobTitle: string | null;
+  department: string | null;
+  roles: CouncilRole[];
+  headOf: string[];
+  stance: Stance;
+}
+export interface CouncilEntry {
+  id: string;
+  kind: 'argument_for' | 'argument_against' | 'recommendation' | 'dissent' | 'handoff';
+  recommendation: Recommendation | null;
+  body: string;
+  createdAt: string;
+  author: string;
+  authorMembershipId: string;
+  mine: boolean;
+}
+export interface CouncilView {
+  item: {
+    number: number;
+    kind: Kind;
+    title: string;
+    problem: string;
+    proposal: string | null;
+    stage: Stage;
+    status: Status;
+    category: string | null;
+    department: string | null;
+    author: string;
+    raisedBy: string | null;
+    maintainer: string | null;
+    decisionOwner: string | null;
+    implementer: string | null;
+    publishedAt: string;
+    firstResponseDueAt: string | null;
+    firstResponseAt: string | null;
+    resolutionDueAt: string | null;
+    overdueFirstResponse: boolean;
+    overdueResolution: boolean;
+  };
+  seats: CouncilSeat[];
+  entries: CouncilEntry[];
+  decisions: { outcome: 'merge' | 'reject' | 'close'; rationale: string; createdAt: string; decidedBy: string }[];
+  questions: { body: string; state: string; createdAt: string; author: string }[];
+  similar: { number: number; title: string; status: Status }[];
+  can: { argue: boolean; recommend: boolean; handoff: boolean; askAuthor: boolean; pilot: boolean; decide: boolean };
+}
+export interface CouncilListRow {
+  number: number;
+  title: string;
+  status: Status;
+  department: string | null;
+  initiator: string;
+  maintainer: string | null;
+  decisionOwner: string | null;
+  iDecide: boolean;
+  iLead: boolean;
+  firstResponseDueAt: string | null;
+  resolutionDueAt: string | null;
+  overdueFirstResponse: boolean;
+  overdueResolution: boolean;
+  for: number;
+  against: number;
+  recommendations: number;
+  dissent: number;
+}
+export interface Contribution {
+  items: { number: number; title: string; status: Status; department: string | null; authored: boolean; credited: boolean; xp: number }[];
 }

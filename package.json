@@ -20,7 +20,8 @@
     "web:build": "npm --prefix web ci && npm --prefix web run build",
     "demo:seed": "node platform/cli/seed-modus-demo.ts",
     "demo:start": "node platform/cli/demo-start.ts",
-    "demo:e2e": "node web/e2e/demo-flow.mjs"
+    "demo:e2e": "node web/e2e/demo-flow.mjs",
+    "demo:kingdom": "node web/e2e/kingdom-flow.mjs"
   },
   "engines": {
     "node": ">=22"

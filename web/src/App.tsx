@@ -14,6 +14,9 @@ import { Workspace } from './screens/Workspace';
 import { AllItems } from './screens/AllItems';
 import { Overview } from './screens/Overview';
 import { Kingdom } from './screens/Kingdom';
+import { RatingPage } from './screens/Rating';
+import { CouncilList, RoundTable } from './screens/Council';
+import { Profile } from './screens/Profile';
 import { Inbox } from './screens/Inbox';
 import { Settings } from './screens/Settings';
 import { Meeting } from './screens/Meeting';
@@ -84,17 +87,34 @@ function Shell() {
   const route = useRoute();
   const head = route[0] ?? '';
 
+  // Three views over the same data (owner brief 2026-11-11): the game (Королевство, Совет, Рейтинг)
+  // and the work (Обращения, Доска). Secondary pages stay one click away.
+  const ITEMS = ['', 'all', 'work', 'meeting', 'items'];
   const nav: NavItem[] = [
-    { href: '#/', label: 'Мои обращения', short: 'Мои', match: (p) => p.length === 0 },
-    ...(s.isLead ? [{ href: '#/work', label: 'Рабочее место', short: 'Работа', match: (p: string[]) => p[0] === 'work' }] : []),
-    { href: '#/board', label: 'Доска', short: 'Доска', match: (p: string[]) => p[0] === 'board' },
     { href: '#/kingdom', label: 'Королевство', short: 'Королевство', match: (p: string[]) => p[0] === 'kingdom' },
-    { href: '#/meeting', label: 'Разбор совещания', short: 'Совещание', match: (p) => p[0] === 'meeting' },
-    { href: '#/all', label: 'Все обращения', short: 'Все', match: (p) => p[0] === 'all' },
-    ...(s.isLead || s.isAdmin ? [{ href: '#/overview', label: 'Обзор', short: 'Обзор', match: (p: string[]) => p[0] === 'overview' }] : []),
+    { href: '#/council', label: 'Совет', short: 'Совет', match: (p: string[]) => p[0] === 'council' },
+    { href: '#/', label: 'Обращения', short: 'Обращения', match: (p) => ITEMS.includes(p[0] ?? '') },
+    { href: '#/board', label: 'Доска', short: 'Доска', match: (p: string[]) => p[0] === 'board' },
+    { href: '#/rating', label: 'Рейтинг', short: 'Рейтинг', match: (p: string[]) => p[0] === 'rating' },
+    { href: '#/me', label: 'Мой профиль', short: 'Профиль', match: (p: string[]) => p[0] === 'me' },
+  ];
+  const more: NavItem[] = [
     { href: '#/inbox', label: 'Уведомления', short: 'Уведомления', match: (p) => p[0] === 'inbox', count: s.unread },
+    ...(s.isLead || s.isAdmin ? [{ href: '#/overview', label: 'Обзор для руководства', short: 'Обзор', match: (p: string[]) => p[0] === 'overview' }] : []),
     ...(s.isAdmin ? [{ href: '#/settings', label: 'Настройки', short: 'Настройки', match: (p: string[]) => p[0] === 'settings' }] : []),
   ];
+  const itemTabs: { href: string; label: string; on: boolean }[] = [
+    { href: '#/', label: 'Мои', on: head === '' },
+    { href: '#/all', label: 'Все обращения', on: head === 'all' },
+    ...(s.isLead ? [{ href: '#/work', label: 'Мне на рассмотрение', on: head === 'work' }] : []),
+    { href: '#/board', label: 'Доска', on: head === 'board' },
+    { href: '#/meeting', label: 'Разбор совещания', on: head === 'meeting' },
+  ];
+  const gameTabs = [
+    { href: '#/kingdom', label: 'Карта', on: head === 'kingdom' },
+    { href: '#/rating', label: 'Рейтинг', on: head === 'rating' },
+  ];
+  const subnav = ['', 'all', 'work', 'board', 'meeting'].includes(head) ? itemTabs : ['kingdom', 'rating'].includes(head) ? gameTabs : null;
 
   let page: ReactNode;
   if (head === '') page = <Mine />;
@@ -105,6 +125,10 @@ function Shell() {
   else if (head === 'work' && s.isLead) page = <Workspace tab={route[1]} />;
   else if (head === 'all') page = <AllItems />;
   else if (head === 'kingdom') page = <Kingdom />;
+  else if (head === 'rating') page = <RatingPage />;
+  else if (head === 'council' && route[1]) page = <RoundTable number={Number(route[1])} key={route[1]} />;
+  else if (head === 'council') page = <CouncilList />;
+  else if (head === 'me') page = <Profile />;
   else if (head === 'overview' && (s.isLead || s.isAdmin)) page = <Overview />;
   else if (head === 'inbox') page = <Inbox />;
   else if (head === 'settings' && s.isAdmin) page = <Settings />;
@@ -135,11 +159,10 @@ function Shell() {
   }, [routeKey]);
   const online = useOnline();
 
-  // Mobile tab bar: four or five destinations around the central «+».
-  // Leads: Работа, Доска | Уведомления, Обзор. Employees: Мои, Доска | Уведомления.
+  // Mobile tab bar: Королевство, Обращения | «+» | Совет, Профиль. Notifications: the bell in the header.
   const pickTab = (h: string) => nav.find((n) => n.href === h);
-  const left = (s.isLead ? ['#/work', '#/board'] : ['#/', '#/board']).map(pickTab).filter((n): n is NavItem => !!n);
-  const right = (s.isLead || s.isAdmin ? ['#/inbox', '#/overview'] : ['#/inbox', '#/kingdom']).map(pickTab).filter((n): n is NavItem => !!n);
+  const left = ['#/kingdom', '#/'].map(pickTab).filter((n): n is NavItem => !!n);
+  const right = ['#/council', '#/me'].map(pickTab).filter((n): n is NavItem => !!n);
 
   return (
     <div className="shell">
@@ -164,8 +187,16 @@ function Shell() {
         <a href="#/new" className="btn primary" aria-current={head === 'new' ? 'page' : undefined}>
           Подать обращение
         </a>
-        <nav className="nav">
+        <nav className="nav" aria-label="Основные разделы">
           {nav.map((n) => (
+            <a key={n.href} href={n.href} aria-current={n.match(route) ? 'page' : undefined}>
+              <Icon name={TAB_ICON[n.href] ?? 'inbox-stack'} />
+              <span>{n.label}</span>
+            </a>
+          ))}
+        </nav>
+        <nav className="nav nav-more" aria-label="Ещё">
+          {more.map((n) => (
             <a key={n.href} href={n.href} aria-current={n.match(route) ? 'page' : undefined} aria-label={n.count ? `${n.label}: ${n.count} непрочитанных` : undefined}>
               <span>{n.label}</span>
               {!!n.count && <span className="count alert" aria-hidden="true">{n.count}</span>}
@@ -199,17 +230,28 @@ function Shell() {
             </span>
           </div>
           <div className="row">
-            {s.isAdmin && (
-              <a className="btn quiet small" href="#/settings">
-                Настройки
-              </a>
-            )}
-            <button className="btn quiet small" onClick={s.signOut}>
-              Выйти
-            </button>
+            <a className="btn quiet small bell" href="#/inbox" aria-label={s.unread ? `Уведомления: ${s.unread} непрочитанных` : 'Уведомления'}>
+              <Icon name="bell" />
+              {s.unread ? (
+                <span className="badge" aria-hidden="true">
+                  {s.unread > 99 ? '99+' : s.unread}
+                </span>
+              ) : null}
+            </a>
           </div>
         </div>
-        <div className="page">{page}</div>
+        <div className="page">
+          {subnav ? (
+            <nav className="subnav" aria-label={subnav === gameTabs ? 'Королевство' : 'Обращения'}>
+              {subnav.map((t) => (
+                <a key={t.href} href={t.href} aria-current={t.on ? 'page' : undefined}>
+                  {t.label}
+                </a>
+              ))}
+            </nav>
+          ) : null}
+          {page}
+        </div>
       </main>
 
       <nav className="tabbar" aria-label="Разделы" style={{ gridTemplateColumns: `repeat(${left.length + right.length + 1}, 1fr)` }}>
@@ -230,7 +272,17 @@ function Shell() {
   );
 }
 
-const TAB_ICON: Record<string, IconName> = { '#/': 'inbox-stack', '#/work': 'briefcase', '#/board': 'columns', '#/inbox': 'bell', '#/overview': 'chart', '#/kingdom': 'castle' };
+const TAB_ICON: Record<string, IconName> = {
+  '#/': 'inbox-stack',
+  '#/work': 'briefcase',
+  '#/board': 'columns',
+  '#/inbox': 'bell',
+  '#/overview': 'chart',
+  '#/kingdom': 'castle',
+  '#/council': 'table',
+  '#/rating': 'trophy',
+  '#/me': 'person',
+};
 
 function Tab({ n, route }: { n: NavItem; route: string[] }) {
   return (

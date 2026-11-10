@@ -3,6 +3,7 @@ import { useLoad, useSession } from '../lib/session';
 import { STATUS } from '../lib/status';
 import type { ListItem } from '../lib/types';
 import { ErrorBox, ItemList, Loading, PageHead } from '../components/ui';
+import { HowItWorks } from '../components/HowItWorks';
 
 /** «Мои обращения»: what I raised, what stage it is at, what is waiting for me. */
 export function Mine() {
@@ -23,6 +24,7 @@ export function Mine() {
           Подать обращение
         </a>
       </PageHead>
+      <HowItWorks />
       {error ? <ErrorBox error={error} retry={() => void reload()} /> : null}
       {loading && !data ? <Loading /> : null}
       {waiting.map((i) => (

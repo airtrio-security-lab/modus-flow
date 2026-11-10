@@ -4,8 +4,10 @@ import { App } from './App';
 import './styles.css';
 import { captureShare } from './lib/share';
 import { initTheme } from './lib/env';
+import { initLite } from './lib/lite';
 
 initTheme();
+initLite();
 captureShare();
 
 createRoot(document.getElementById('root')!).render(

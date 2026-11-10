@@ -6,6 +6,8 @@ import type { OrgActor, OrgRole } from '../domain/model.ts';
 import * as admin from '../modules/admin.ts';
 import { submitItem, type SubmitInputT } from '../modules/intake.ts';
 import * as wf from '../modules/workflow.ts';
+import * as progressMod from '../modules/progress.ts';
+import * as council from '../modules/council.ts';
 import { uploadAttachment } from '../modules/attachments.ts';
 import { addMember, createOrganization, createUser } from '../modules/provisioning.ts';
 
@@ -69,6 +71,9 @@ async function main() {
     warehouse: await dep('Склад и логистика', whHead),
     it: await dep('ИТ-разработка', itLead),
   };
+  // Fictional department sizes: only for the normalized rating (XP per 10 people).
+  const sizes: [string, number][] = [[D.mgmt, 4], [D.sales, 12], [D.purchasing, 6], [D.design, 9], [D.service, 15], [D.pnr, 11], [D.warehouse, 18], [D.it, 7]];
+  for (const [id, headcount] of sizes) await admin.updateDepartment(db, sysAdmin, id, { headcount });
   const cat = async (name: string, description: string, sortOrder: number) =>
     (await admin.createCategory(db, sysAdmin, { name, description, sortOrder })).id;
   const C = {
@@ -120,6 +125,11 @@ async function main() {
   await uploadAttachment(db, storekeeper, n1, { fileName: 'план-зон.png', contentType: 'image/png', data: TINY_PNG });
   // The author implemented it, so the head of department (not an originator) confirms completion.
   await wf.completeImplementation(db, whHead, n1, { report: 'Разметка нанесена, таблички висят. Пересортов за неделю не было.' });
+  // The decision owner confirms the documented effect: the warehouse castle has 150 XP (Крепость).
+  await progressMod.approveEffect(db, whHead, n1, {
+    xp: 50,
+    rationale: 'За месяц после разметки пересортов не было (до этого шесть в месяц), акт инвентаризации приложен',
+  });
   age(n1, 24);
 
   // 2. IT problem with a field check: positive result, one negative observation kept.
@@ -230,6 +240,16 @@ async function main() {
     departmentId: D.warehouse,
   });
   await comment(itLead, n8, 'Похоже на ту же причину, что в обращении #' + n2 + '. Включим эти терминалы в обновление.');
+  // The Council discussed it and the IT lead handed it to the operations director for a decision.
+  await council.addEntry(db, buyer, n8, { kind: 'argument_for', body: 'Инвентаризация склада идёт на два часа дольше из-за зависаний' });
+  await council.addEntry(db, whHead, n8, { kind: 'argument_for', body: 'На приёмке та же беда, решать стоит вместе с обращением о ТСД при приёмке' });
+  await council.addEntry(db, pnrHead, n8, { kind: 'argument_against', body: 'Сначала дождаться результата пилота прошивки на приёмке, иначе закупим лишнее' });
+  await council.addEntry(db, svcHead, n8, {
+    kind: 'recommendation',
+    recommendation: 'pilot',
+    body: 'Включить два терминала инвентаризации в текущий пилот прошивки и сравнить число зависаний',
+  });
+  await council.handoff(db, itLead, n8, { summary: 'За: два довода, против: один. Рекомендация Совета: пилот на двух терминалах.' });
   age(n8, 2);
 
   // 9. Safety: implemented by the service head.
@@ -354,7 +374,7 @@ async function main() {
                 ${f('first_response_at')}, ${f('responsible_activity_at')} WHERE id = $1`,
         args,
       );
-      for (const t of ['idea_revisions', 'reviews', 'decisions', 'contributions', 'notifications', 'attachments']) {
+      for (const t of ['idea_revisions', 'reviews', 'decisions', 'contributions', 'notifications', 'attachments', 'xp_awards', 'effect_approvals', 'council_entries']) {
         await c.query(`UPDATE ${t} SET ${f('created_at')} WHERE idea_id = $1`, args);
       }
       await c.query(`UPDATE reviews SET ${f('resolved_at')} WHERE idea_id = $1 AND resolved_at IS NOT NULL`, args);

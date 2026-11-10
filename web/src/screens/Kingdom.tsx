@@ -1,46 +1,46 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { api } from '../lib/api';
 import { plural } from '../lib/format';
+import { LiteToggle, useLite } from '../lib/lite';
 import { useLoad, useSession } from '../lib/session';
-import type { Castle, Envoy, Kingdom as KingdomData } from '../lib/types';
+import type { Castle, CastleDetail, Envoy, Kingdom as KingdomData } from '../lib/types';
 import { ErrorBox, Loading, PageHead, StatusChip } from '../components/ui';
+import { HowItWorks } from '../components/HowItWorks';
+import { IsoCastle, IsoCouncil, P, Scaffold, Tree } from '../components/iso';
 
 /**
- * «Королевство» — the same items as a living map (owner decision 2026-11-11).
- * Every department is a castle. A castle gets a tower only for an implemented
- * item, so sending many envoys does not grow it. Open items are envoys on the
- * road to the council; where an envoy stands is its real status. Castles
- * belong to departments, never to people. The list under the map carries the
- * same facts for screen readers and small screens.
+ * «Королевство» — the same items as a living strategy map (owner decisions
+ * 2026-11-11, ADR-0011, ADR-0012). Each department is an isometric castle whose
+ * level (1 Поселение … 5 Легендарная крепость) comes from XP that the database
+ * awards only for confirmed events. Open items are envoys on the road to the
+ * council, standing where the item really is. Nothing here changes data, and
+ * nothing grows at random: a castle is rebuilt only after the backend says so.
  */
 
-const HERALDRY = ['#a2412f', '#2f4f7a', '#a87818', '#4d7448', '#73466a', '#2b6f6a', '#8a5a2b', '#55606e'];
-const GOLD = '#b8860b';
-const INK = '#3d3022';
-const INK_SOFT = '#6b5a43';
+export const HERALDRY = ['#a2412f', '#2f4f7a', '#9a6d12', '#4d7448', '#73466a', '#2b6f6a', '#8a5a2b', '#55606e'];
 const RED = '#b3261e';
 const POLL_MS = 15000;
 
 type Pt = { x: number; y: number };
-/** `s` scales every drawn mark so that castles and envoys stay legible on the screen's real size. */
-type Layout = { w: number; h: number; capital: Pt; rx: number; ry: number; camp: Pt; s: number; start: number };
-const WIDE: Layout = { w: 1000, h: 760, capital: { x: 500, y: 400 }, rx: 390, ry: 270, camp: { x: 40, y: 80 }, s: 1.2, start: -72 };
-const TALL: Layout = { w: 480, h: 1000, capital: { x: 240, y: 500 }, rx: 150, ry: 360, camp: { x: 30, y: 56 }, s: 1, start: NaN };
+/** `u` is the size of one isometric grid unit; `font` keeps plate labels readable at the map's real size. */
+type Layout = { w: number; h: number; capital: Pt; rx: number; ry: number; camp: Pt; s: number; u: number; font: number; start: number };
+const WIDE: Layout = { w: 1000, h: 800, capital: { x: 500, y: 420 }, rx: 380, ry: 280, camp: { x: 64, y: 40 }, s: 1.25, u: 10, font: 17, start: -72 };
+const TALL: Layout = { w: 480, h: 1100, capital: { x: 240, y: 550 }, rx: 150, ry: 390, camp: { x: 50, y: 30 }, s: 1.05, u: 7, font: 18, start: NaN };
 
 /** Where an envoy stands on its road (0 = home castle, 1 = council gates) and what it means. */
 export function envoyState(e: Envoy): { t: number; label: string; home?: boolean } {
-  if (e.status === 'in_progress') return { t: 0.16, label: 'вернулся с решением — строят', home: true };
+  if (e.status === 'in_progress') return { t: 0.16, label: 'вернулся с решением — идёт внедрение', home: true };
   if (e.status === 'needs_info') return { t: 0.35, label: 'вернулся за уточнением к автору', home: true };
   if (e.overdueFirstResponse) return { t: 0.9, label: 'ждёт у ворот: срок первого ответа прошёл' };
-  if (e.status === 'unrouted') return { t: 0.2, label: 'ищет, кому вручить послание' };
-  if (e.status === 'in_verification') return { t: 0.7, label: 'проходит испытание на практике' };
-  if (e.status === 'decision') return { t: 0.97, label: 'у трона: совет принимает решение' };
-  if (e.responded) return { t: 0.82, label: 'на приёме у совета' };
-  return { t: 0.55, label: 'в пути к совету' };
+  if (e.status === 'unrouted') return { t: 0.2, label: 'ищет, кому вручить обращение' };
+  if (e.status === 'in_verification') return { t: 0.7, label: 'на пилоте: проверка на практике' };
+  if (e.status === 'decision') return { t: 0.97, label: 'у Совета: ждёт решения ответственного' };
+  if (e.responded) return { t: 0.82, label: 'на рассмотрении в Совете' };
+  return { t: 0.55, label: 'в пути к Совету' };
 }
 
-const towersWord = (n: number) => `${n} ${plural(n, 'башня', 'башни', 'башен')}`;
-const envoysWord = (n: number) => `${n} ${plural(n, 'посол', 'посла', 'послов')}`;
+const envoysWord = (n: number) => `${n} ${plural(n, 'обращение', 'обращения', 'обращений')}`;
+const shortDate = (iso: string) => new Date(iso).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
 
 function bezier(a: Pt, c: Pt, b: Pt, t: number): Pt {
   const u = 1 - t;
@@ -67,9 +67,9 @@ function placeCastles(castles: Castle[], L: Layout) {
     const ux = dx / len;
     const uy = dy / len;
     const normal = { x: -uy, y: ux };
-    const from = { x: pos.x + ux * 62 * L.s, y: pos.y + uy * 62 * L.s };
-    const to = { x: L.capital.x - ux * 100 * L.s, y: L.capital.y - uy * 50 * L.s };
-    const bend = (i % 2 ? 1 : -1) * len * 0.16;
+    const from = { x: pos.x + ux * 60 * L.s, y: pos.y + uy * 48 * L.s };
+    const to = { x: L.capital.x - ux * 95 * L.s, y: L.capital.y - uy * 52 * L.s };
+    const bend = (i % 2 ? 1 : -1) * len * 0.14;
     const ctrl = { x: (from.x + to.x) / 2 + normal.x * bend, y: (from.y + to.y) / 2 + normal.y * bend };
     return { castle: c, pos, road: { from, ctrl, to, normal } as Road, color: HERALDRY[i % HERALDRY.length]! };
   });
@@ -82,7 +82,7 @@ export function Kingdom() {
   const [celebrate, setCelebrate] = useState<{ id: string; text: string } | null>(null);
   const seen = useRef<Map<string, number> | null>(null);
 
-  // Live: refresh while the page is visible; a new tower is celebrated and announced.
+  // Live: refresh while the page is visible.
   useEffect(() => {
     const tick = () => {
       if (document.visibilityState === 'visible') void reload();
@@ -95,31 +95,33 @@ export function Kingdom() {
     };
   }, [reload]);
 
+  // A level-up is shown only when the backend reports a higher level than before.
   useEffect(() => {
     if (!data) return;
     const prev = seen.current;
-    const next = new Map(data.castles.map((c) => [c.id, c.towers]));
-    if (prev) {
-      const grown = data.castles.find((c) => c.towers > (prev.get(c.id) ?? c.towers));
-      if (grown) {
-        setCelebrate({ id: grown.id, text: `${grown.name}: построена новая башня — идея реализована` });
-        const t = window.setTimeout(() => setCelebrate(null), 6000);
-        seen.current = next;
-        return () => window.clearTimeout(t);
-      }
-    }
-    seen.current = next;
+    seen.current = new Map(data.castles.map((c) => [c.id, c.level]));
+    if (!prev) return;
+    const grown = data.castles.find((c) => c.level > (prev.get(c.id) ?? c.level));
+    if (!grown) return;
+    setCelebrate({ id: grown.id, text: `${grown.name}: новый уровень — ${grown.levelName}` });
+    setSelected(grown.id);
+    const t = window.setTimeout(() => setCelebrate(null), 7000);
+    return () => window.clearTimeout(t);
   }, [data]);
 
   return (
     <div className="stack-lg">
-      <PageHead
-        title="Королевство"
-        sub="Каждое подразделение — замок. Башня появляется, только когда идея реализована. Открытые обращения — послы на пути к совету."
-      />
-      <p className="sr-only" aria-live="polite">
-        {celebrate?.text ?? ''}
-      </p>
+      <PageHead title="Королевство" sub="Карта подразделений. Замок растёт только после подтверждённого внедрения идеи.">
+        <LiteToggle />
+      </PageHead>
+      <HowItWorks />
+      <div className="realm-toast-slot" aria-live="polite">
+        {celebrate ? (
+          <div className="realm-toast" role="status">
+            <b>Улучшение замка.</b> {celebrate.text}
+          </div>
+        ) : null}
+      </div>
       {error ? <ErrorBox error={error} retry={() => void reload()} /> : null}
       {loading && !data ? <Loading label="Рисуем карту…" rows={3} /> : null}
       {data ? <Realm k={data} selected={selected} onSelect={setSelected} celebrate={celebrate} /> : null}
@@ -152,6 +154,7 @@ function Realm({
   celebrate: { id: string; text: string } | null;
 }) {
   const { ref, wide } = useWide();
+  const [lite] = useLite();
   const L = wide ? WIDE : TALL;
   const placed = useMemo(() => placeCastles(k.castles, L), [k.castles, L]);
   const byId = new Map(placed.map((p) => [p.castle.id, p]));
@@ -176,58 +179,62 @@ function Realm({
     } else {
       const k2 = crowd.get('camp') ?? 0;
       crowd.set('camp', k2 + 1);
-      p = { x: L.camp.x + (44 + (k2 % 4) * 18) * L.s, y: L.camp.y + Math.floor(k2 / 4) * 24 * L.s };
+      p = { x: L.camp.x + (52 + (k2 % 4) * 18) * L.s, y: L.camp.y + 12 + Math.floor(k2 / 4) * 24 * L.s };
     }
     return { e, st, p, color };
   });
 
+  // Painter's order: farther (higher on screen) first.
+  const drawables = [
+    ...placed.map((p) => ({ y: p.pos.y, key: `c-${p.castle.id}`, node: castleNode(p) })),
+    ...figures.map((f) => ({ y: f.p.y, key: `e-${f.e.number}`, node: <EnvoyMark key={`e-${f.e.number}`} e={f.e} at={f.p} s={L.s} color={f.color} label={f.st.label} home={!!f.st.home} /> })),
+  ].sort((a, b) => a.y - b.y);
+
+  function castleNode(p: (typeof placed)[number]) {
+    return (
+      <CastleMark
+        key={`c-${p.castle.id}`}
+        c={p.castle}
+        at={p.pos}
+        L={L}
+        above={p.pos.y < L.capital.y}
+        color={p.color}
+        selected={selected === p.castle.id}
+        celebrate={celebrate?.id === p.castle.id}
+        onSelect={() => onSelect(selected === p.castle.id ? null : p.castle.id)}
+      />
+    );
+  }
+
   return (
     <>
       {mine.length ? (
-        <section className="realm-mine" aria-label="Ваши послы">
-          <span className="realm-mine-title">Ваши послы</span>
+        <section className="realm-mine" aria-label="Мои обращения на карте">
+          <span className="realm-mine-title">Мои обращения на карте</span>
           {mine.map((e) => (
             <a key={e.number} className="realm-mine-chip" href={`#/items/${e.number}`}>
-              <b>№{e.number}</b> {envoyState(e).label}
+              <b>Обращение №{e.number}</b> {envoyState(e).label}
             </a>
           ))}
         </section>
       ) : null}
 
-      <div className="realm" ref={ref}>
+      <div className={`realm${lite ? ' is-lite' : ''}`} ref={ref}>
         <div className="realm-map">
-          <svg viewBox={`0 0 ${L.w} ${L.h}`} role="img" aria-label={`Карта королевства: ${k.castles.length} замков, ${envoysWord(k.envoys.length)} в пути`}>
-            <MapGround L={L} wide={wide} />
+          <svg viewBox={`0 0 ${L.w} ${L.h}`} role="img" aria-label={`Карта королевства: ${k.castles.length} замков подразделений, ${envoysWord(k.envoys.length)} в работе`}>
+            <MapGround L={L} wide={wide} lite={lite} />
             {placed.map((p) => (
-              <path
-                key={`road-${p.castle.id}`}
-                d={`M${p.road.from.x},${p.road.from.y} Q${p.road.ctrl.x},${p.road.ctrl.y} ${p.road.to.x},${p.road.to.y}`}
-                className="realm-road"
-              />
+              <g key={`road-${p.castle.id}`} aria-hidden="true">
+                <path d={`M${p.road.from.x},${p.road.from.y} Q${p.road.ctrl.x},${p.road.ctrl.y} ${p.road.to.x},${p.road.to.y}`} className="realm-road-bed" />
+                <path d={`M${p.road.from.x},${p.road.from.y} Q${p.road.ctrl.x},${p.road.ctrl.y} ${p.road.to.x},${p.road.to.y}`} className="realm-road" />
+              </g>
             ))}
-            <Capital at={L.capital} s={wide ? L.s : 0.85} />
-            {k.wildlands ? <Camp at={L.camp} count={k.wildlands} s={L.s} /> : null}
-            {placed
-              .slice()
-              .sort((a, b) => a.pos.y - b.pos.y)
-              .map((p) => (
-                <CastleMark
-                  key={p.castle.id}
-                  c={p.castle}
-                  at={p.pos}
-                  s={L.s}
-                  color={p.color}
-                  selected={selected === p.castle.id}
-                  celebrate={celebrate?.id === p.castle.id}
-                  onSelect={() => onSelect(selected === p.castle.id ? null : p.castle.id)}
-                />
-              ))}
-            {figures
-              .slice()
-              .sort((a, b) => a.p.y - b.p.y)
-              .map(({ e, st, p, color }) => (
-                <EnvoyMark key={e.number} e={e} at={p} s={L.s} color={color} label={st.label} home={!!st.home} />
-              ))}
+            <g transform={`translate(${L.capital.x},${L.capital.y})`} aria-hidden="true">
+              <IsoCouncil u={L.u * (wide ? 1 : 0.9)} />
+              <LabelPlate y={4.9 * L.u * (wide ? 1 : 0.9) + 12} title="Совет" sub="здесь обсуждают и решают" font={L.font} strong />
+            </g>
+            {k.wildlands ? <Camp at={L.camp} count={k.wildlands} font={L.font} /> : null}
+            {drawables.map((d) => d.node)}
           </svg>
         </div>
 
@@ -237,8 +244,8 @@ function Realm({
           ) : (
             <div className="stack">
               <h2 className="realm-h">Как читать карту</h2>
-              <Legend />
-              <p className="muted small">Нажмите на замок, чтобы увидеть его послов. Карта обновляется сама.</p>
+              <Legend levels={k.levels.names} />
+              <p className="muted small">Выберите замок на карте или в списке ниже. Карта обновляется сама.</p>
             </div>
           )}
         </aside>
@@ -255,9 +262,12 @@ function Realm({
                 <span className="realm-swatch" style={{ background: p.color }} aria-hidden="true" />
                 <span className="realm-list-name">{p.castle.name}</span>
                 <span className="muted small">
-                  {towersWord(p.castle.towers)}
-                  {p.castle.building ? `, строится ${p.castle.building}` : ''}, {envoysWord(p.castle.envoys)} в пути
-                  {p.castle.waiting ? `, ${p.castle.waiting} ждут у ворот` : ''}
+                  Уровень {p.castle.level} · {p.castle.levelName} · {p.castle.xp} XP
+                </span>
+                <span className="muted small">
+                  Внедрено: {p.castle.towers}
+                  {p.castle.building ? `, внедряется: ${p.castle.building}` : ''}, в работе: {p.castle.envoys}
+                  {p.castle.waiting ? `, ждут ответа: ${p.castle.waiting}` : ''}
                 </span>
               </button>
             </li>
@@ -266,8 +276,8 @@ function Realm({
             <li>
               <span className="realm-list-static">
                 <span className="realm-swatch" style={{ background: '#7a6a52' }} aria-hidden="true" />
-                <span className="realm-list-name">Вольные земли</span>
-                <span className="muted small">{envoysWord(k.wildlands)} без подразделения</span>
+                <span className="realm-list-name">Без подразделения</span>
+                <span className="muted small">{envoysWord(k.wildlands)} ждут распределения</span>
               </span>
             </li>
           ) : null}
@@ -277,84 +287,145 @@ function Realm({
   );
 }
 
+function XpBar({ xp, floor, next, nextName, progress }: { xp: number; floor: number; next: number | null; nextName: string | null; progress: number }) {
+  const label = next === null ? `${xp} XP — высший уровень` : `${xp} из ${next} XP до уровня «${nextName}»`;
+  return (
+    <div className="xpbar">
+      <div className="xpbar-track" role="progressbar" aria-label="Опыт до следующего уровня" aria-valuemin={floor} aria-valuemax={next ?? xp} aria-valuenow={xp} aria-valuetext={label}>
+        <span style={{ width: `${Math.round(progress * 100)}%` }} />
+      </div>
+      <span className="small">{label}</span>
+    </div>
+  );
+}
+
 function CastleDetails({ c, color, envoys }: { c: Castle; color: string; envoys: Envoy[] }) {
+  const s = useSession();
+  const { data, error, reload } = useLoad(() => api<CastleDetail>(`/orgs/${s.org}/castles/${c.id}`), [s.org, c.id, c.xp]);
   return (
     <div className="stack">
       <h2 className="realm-h">
         <span className="realm-swatch" style={{ background: color }} aria-hidden="true" /> {c.name}
       </h2>
+      <p className="level-badge">
+        Уровень {c.level} · {c.levelName}
+      </p>
+      <XpBar xp={c.xp} floor={c.levelFloor} next={c.nextLevelXp} nextName={c.nextLevelName} progress={c.progress} />
       <dl className="realm-facts">
         <div>
-          <dt>Башни</dt>
+          <dt>Внедрено</dt>
           <dd>{c.towers}</dd>
         </div>
         <div>
-          <dt>Строится</dt>
-          <dd>{c.building}</dd>
+          <dt>Эффект, XP</dt>
+          <dd>{c.effectXp}</dd>
         </div>
         <div>
-          <dt>Послов в пути</dt>
+          <dt>В работе</dt>
           <dd>{c.envoys}</dd>
         </div>
         <div>
-          <dt>Вернулись с отказом</dt>
-          <dd>{c.returned}</dd>
+          <dt>XP на 10 сотрудников</dt>
+          <dd>{c.headcount ? Math.round((c.xp / c.headcount) * 100) / 10 : '—'}</dd>
         </div>
       </dl>
-      <p className="muted small">Одна башня — одна реализованная идея подразделения.</p>
+      <p className="muted small">Опыт начисляется только за подтверждённое внедрение (+100) и подтверждённый эффект (до +50).</p>
+
+      {error ? <ErrorBox error={error} retry={() => void reload()} /> : null}
+      {data ? (
+        <>
+          <h3 className="realm-sub-h">Достижения</h3>
+          <ul className="achievements">
+            {data.achievements.map((a) => (
+              <li key={a.key} data-earned={a.earnedAt ? 'yes' : 'no'}>
+                <b>{a.title}</b>
+                <span className="small muted">{a.earnedAt ? `получено ${shortDate(a.earnedAt)}` : 'ещё нет'}</span>
+              </li>
+            ))}
+          </ul>
+          <h3 className="realm-sub-h">История опыта</h3>
+          {data.history.length ? (
+            <ol className="xp-history">
+              {data.history.slice(0, 8).map((h, i) => (
+                <li key={`${h.number}-${h.kind}-${i}`}>
+                  <span className="xp-plus">+{h.xp} XP</span>
+                  <span>
+                    <a href={`#/items/${h.number}`}>Обращение №{h.number}</a> {h.title}
+                    <span className="small muted">
+                      {' '}
+                      — {h.kind === 'implementation' ? 'внедрение' : 'подтверждённый эффект'}, автор {h.credited}, {shortDate(h.at)}
+                    </span>
+                    {h.levelUp ? <span className="level-up-note">Новый уровень: {h.levelUp.name}</span> : null}
+                  </span>
+                </li>
+              ))}
+            </ol>
+          ) : (
+            <p className="muted small">Опыта пока нет: ни одно внедрение подразделения ещё не подтверждено.</p>
+          )}
+        </>
+      ) : null}
+
+      <h3 className="realm-sub-h">Обращения в работе</h3>
       {envoys.length ? (
         <ul className="realm-envoys">
           {envoys.map((e) => (
             <li key={e.number}>
               <a href={`#/items/${e.number}`}>
-                <span className="num">№{e.number}</span> {e.title}
+                <span className="num">Обращение №{e.number}</span> {e.title}
               </a>
               <span className="row">
                 <StatusChip status={e.status} />
-                {e.overdueFirstResponse ? <span className="flag red">ждёт у ворот</span> : null}
+                {e.overdueFirstResponse ? <span className="flag red">срок ответа прошёл</span> : null}
                 {e.stale ? <span className="flag">нет движения</span> : null}
               </span>
             </li>
           ))}
         </ul>
       ) : (
-        <p className="muted small">Сейчас послов в пути нет.</p>
+        <p className="muted small">Сейчас обращений в работе нет.</p>
       )}
     </div>
   );
 }
 
-function Legend() {
+function Legend({ levels }: { levels: string[] }) {
   const rows: { t: string; fig: JSX.Element }[] = [
-    { t: 'Посол в пути к совету', fig: <EnvoyBody color={HERALDRY[1]!} /> },
-    { t: 'Ждёт у ворот: срок ответа прошёл', fig: <EnvoyBody color={HERALDRY[1]!} pennant={RED} /> },
-    { t: 'Ваш посол', fig: <EnvoyBody color={HERALDRY[1]!} mine /> },
-    { t: 'Нет движения', fig: <EnvoyBody color={HERALDRY[1]!} stale /> },
+    { t: 'Обращение в пути к Совету', fig: <EnvoyBody color={HERALDRY[1]!} /> },
+    { t: 'Срок первого ответа прошёл', fig: <EnvoyBody color={HERALDRY[1]!} pennant={RED} /> },
+    { t: 'Ваше обращение', fig: <EnvoyBody color={HERALDRY[1]!} mine /> },
   ];
   return (
-    <ul className="realm-legend">
-      {rows.map((r) => (
-        <li key={r.t}>
-          <svg viewBox="-14 -32 28 36" width="22" height="28" aria-hidden="true">
-            {r.fig}
+    <div className="stack">
+      <ul className="realm-legend">
+        {rows.map((r) => (
+          <li key={r.t}>
+            <svg viewBox="-14 -32 28 36" width="22" height="28" aria-hidden="true">
+              {r.fig}
+            </svg>
+            {r.t}
+          </li>
+        ))}
+        <li>
+          <svg viewBox="-14 -26 28 30" width="22" height="24" aria-hidden="true">
+            <Scaffold x={0} y={0} u={3.4} />
           </svg>
-          {r.t}
+          Леса: решение принято, идёт внедрение
         </li>
-      ))}
-      <li>
-        <svg viewBox="-14 -24 28 28" width="22" height="22" aria-hidden="true">
-          <rect x="-5" y="-16" width="10" height="16" fill="#e6dcc6" stroke={INK} strokeWidth="1.5" />
-          <path d="M-8,-16 L0,-26 L8,-16 Z" fill={HERALDRY[0]} stroke={INK} strokeWidth="1.5" />
-        </svg>
-        Башня — реализованная идея
-      </li>
-      <li>
-        <svg viewBox="-14 -24 28 28" width="22" height="22" aria-hidden="true">
-          <Scaffold />
-        </svg>
-        Леса — решение принято, идёт внедрение
-      </li>
-    </ul>
+      </ul>
+      <ol className="level-legend">
+        {levels.map((n, i) => (
+          <li key={n}>
+            <svg viewBox="-40 -48 80 60" width="44" height="34" aria-hidden="true">
+              <IsoCastle level={i + 1} color={HERALDRY[0]!} u={3.4} />
+            </svg>
+            <span>
+              <b>{i + 1}</b> {n}
+            </span>
+          </li>
+        ))}
+      </ol>
+    </div>
   );
 }
 
@@ -362,134 +433,87 @@ function Legend() {
 // Drawing
 // ---------------------------------------------------------------------------
 
-function MapGround({ L, wide }: { L: Layout; wide: boolean }) {
-  const trees = (wide
-    ? [
-        [0.36, 0.12], [0.39, 0.15], [0.33, 0.16], [0.7, 0.86], [0.73, 0.83], [0.76, 0.87], [0.06, 0.55], [0.09, 0.6], [0.94, 0.15], [0.91, 0.12], [0.5, 0.92], [0.53, 0.9],
-      ]
-    : [
-        [0.12, 0.3], [0.16, 0.33], [0.84, 0.66], [0.88, 0.7], [0.5, 0.06], [0.54, 0.08], [0.14, 0.92], [0.18, 0.95], [0.86, 0.94],
-      ]
+function MapGround({ L, wide, lite }: { L: Layout; wide: boolean; lite: boolean }) {
+  const trees = (
+    wide
+      ? [
+          [0.33, 0.1], [0.37, 0.12], [0.3, 0.14], [0.68, 0.9], [0.72, 0.88], [0.06, 0.52], [0.09, 0.57], [0.95, 0.12], [0.92, 0.09], [0.47, 0.95], [0.53, 0.94], [0.15, 0.92],
+        ]
+      : [
+          [0.1, 0.27], [0.15, 0.3], [0.88, 0.64], [0.9, 0.68], [0.5, 0.05], [0.55, 0.07], [0.12, 0.93], [0.17, 0.95], [0.86, 0.95],
+        ]
   ).map(([x, y]) => ({ x: x! * L.w, y: y! * L.h }));
   const river = wide
-    ? `M${L.w * 0.97},0 C${L.w * 0.86},${L.h * 0.25} ${L.w * 0.99},${L.h * 0.45} ${L.w * 0.9},${L.h * 0.62} S${L.w * 0.8},${L.h * 0.9} ${L.w * 0.86},${L.h}`
-    : `M${L.w},${L.h * 0.18} C${L.w * 0.8},${L.h * 0.22} ${L.w * 0.95},${L.h * 0.34} ${L.w * 0.78},${L.h * 0.4}`;
+    ? `M${L.w * 0.98},0 C${L.w * 0.86},${L.h * 0.25} ${L.w * 0.99},${L.h * 0.45} ${L.w * 0.9},${L.h * 0.62} S${L.w * 0.8},${L.h * 0.9} ${L.w * 0.86},${L.h}`
+    : `M${L.w},${L.h * 0.16} C${L.w * 0.8},${L.h * 0.2} ${L.w * 0.95},${L.h * 0.32} ${L.w * 0.78},${L.h * 0.38}`;
+  const tile = 46;
   return (
     <g aria-hidden="true">
       <defs>
-        <radialGradient id="realm-vignette" cx="50%" cy="50%" r="70%">
-          <stop offset="60%" stopColor="#efe3c6" stopOpacity="0" />
-          <stop offset="100%" stopColor="#b89a64" stopOpacity="0.45" />
+        <linearGradient id="realm-meadow" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#b9cc98" />
+          <stop offset="100%" stopColor="#9db97c" />
+        </linearGradient>
+        <pattern id="realm-tiles" width={tile * 2 * 0.866} height={tile} patternUnits="userSpaceOnUse">
+          <path d={`M0,${tile / 2} L${tile * 0.866},0 L${tile * 2 * 0.866},${tile / 2} L${tile * 0.866},${tile} Z`} fill="none" stroke="#8aa86c" strokeWidth="0.8" opacity="0.55" />
+        </pattern>
+        <radialGradient id="realm-glow" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stopColor="#f3d27a" stopOpacity="0.55" />
+          <stop offset="100%" stopColor="#f3d27a" stopOpacity="0" />
         </radialGradient>
-        <filter id="realm-grain" x="0" y="0" width="100%" height="100%">
-          <feTurbulence type="fractalNoise" baseFrequency="0.8" numOctaves="2" seed="7" />
-          <feColorMatrix values="0 0 0 0 0.42  0 0 0 0 0.33  0 0 0 0 0.2  0 0 0 0.09 0" />
-        </filter>
+        <radialGradient id="realm-vignette" cx="50%" cy="50%" r="72%">
+          <stop offset="65%" stopColor="#000" stopOpacity="0" />
+          <stop offset="100%" stopColor="#2d3a22" stopOpacity="0.28" />
+        </radialGradient>
       </defs>
-      <rect width={L.w} height={L.h} fill="#efe3c6" />
-      <rect width={L.w} height={L.h} filter="url(#realm-grain)" />
-      <path d={river} fill="none" stroke="#8fb0bd" strokeWidth="14" strokeLinecap="round" opacity="0.7" />
-      <path d={river} fill="none" stroke="#c9dde2" strokeWidth="4" strokeLinecap="round" opacity="0.8" />
-      {trees.map((t, i) => (
-        <g key={i} transform={`translate(${t.x},${t.y})`}>
-          <line x1="0" y1="0" x2="0" y2="6" stroke={INK_SOFT} strokeWidth="1.5" />
-          <circle r="8" fill="#8aa56c" stroke="#566e44" strokeWidth="1.2" />
-        </g>
+      <rect width={L.w} height={L.h} fill="url(#realm-meadow)" />
+      {lite ? null : <rect width={L.w} height={L.h} fill="url(#realm-tiles)" />}
+      <path d={river} fill="none" stroke="#6f9db0" strokeWidth="16" strokeLinecap="round" opacity="0.8" />
+      {lite ? null : <path d={river} fill="none" stroke="#bfdbe4" strokeWidth="4" strokeLinecap="round" opacity="0.9" />}
+      {(lite ? trees.slice(0, 5) : trees).map((t, i) => (
+        <Tree key={i} x={t.x} y={t.y} u={wide ? 7 : 5.6} k={i % 3 === 0 ? 1.15 : 1} />
       ))}
-      <Compass at={wide ? { x: L.w - 70, y: L.h - 70 } : { x: L.w - 56, y: 60 }} />
-      <rect width={L.w} height={L.h} fill="url(#realm-vignette)" />
-      <rect x="8" y="8" width={L.w - 16} height={L.h - 16} fill="none" stroke={INK} strokeWidth="2" />
-      <rect x="14" y="14" width={L.w - 28} height={L.h - 28} fill="none" stroke={INK} strokeWidth="0.8" />
+      {/* Decorative parchment cartouche: the only parchment on the map. */}
+      <g transform={`translate(${L.w - (wide ? 236 : 196)}, ${L.h - (wide ? 76 : 70)})`}>
+        <rect width={wide ? 212 : 176} height="50" rx="8" fill="#f1e6cc" stroke="#9c8661" strokeWidth="1.5" />
+        <text x={wide ? 106 : 88} y="31" textAnchor="middle" className="realm-cartouche">
+          Королевство Модус
+        </text>
+      </g>
+      {lite ? null : <rect width={L.w} height={L.h} fill="url(#realm-vignette)" />}
     </g>
   );
 }
 
-function Compass({ at }: { at: Pt }) {
+/** A solid plate under every label: text never sits on the busy map. */
+function LabelPlate({ y, title, sub, font, strong = false }: { y: number; title: string; sub?: string; font: number; strong?: boolean }) {
+  const chars = Math.max(title.length * (strong ? 1.1 : 1), (sub?.length ?? 0) * 0.82);
+  const w = chars * font * 0.56 + 26;
+  const h = sub ? font * 2.45 + 10 : font * 1.4 + 10;
   return (
-    <g transform={`translate(${at.x},${at.y})`} opacity="0.8">
-      <circle r="22" fill="none" stroke={INK_SOFT} strokeWidth="1" />
-      <path d="M0,-28 L5,0 L0,28 L-5,0 Z" fill={INK_SOFT} />
-      <path d="M-28,0 L0,4 L28,0 L0,-4 Z" fill="#b8a27c" />
-      <text y="-32" textAnchor="middle" className="realm-tiny">
-        С
+    <g>
+      <rect x={-w / 2} y={y} width={w} height={h} rx="8" className={strong ? 'realm-plate strong' : 'realm-plate'} />
+      <text x="0" y={y + font + 5} textAnchor="middle" className="realm-plate-title" style={{ fontSize: strong ? font * 1.15 : font }}>
+        {title}
       </text>
+      {sub ? (
+        <text x="0" y={y + font * 2.15 + 6} textAnchor="middle" className="realm-plate-sub" style={{ fontSize: font * 0.82 }}>
+          {sub}
+        </text>
+      ) : null}
     </g>
   );
 }
 
-function Capital({ at, s }: { at: Pt; s: number }) {
+function Camp({ at, count, font }: { at: Pt; count: number; font: number }) {
   return (
-    <g transform={`translate(${at.x},${at.y}) scale(${s})`} aria-hidden="true">
-      <ellipse cy="6" rx="96" ry="22" fill="#d2bf8f" stroke="#a8977a" strokeWidth="1.5" />
-      {[-46, 46].map((x) => (
-        <g key={x}>
-          <rect x={x - 11} y={-62} width="22" height="62" fill="#ece3cf" stroke={INK} strokeWidth="1.5" />
-          <path d={`M${x - 15},-62 L${x},-90 L${x + 15},-62 Z`} fill={GOLD} stroke={INK} strokeWidth="1.5" />
-        </g>
-      ))}
-      <rect x="-60" y="-28" width="120" height="28" fill="#e6dcc6" stroke={INK} strokeWidth="1.5" />
-      <rect x="-26" y="-84" width="52" height="84" fill="#ece3cf" stroke={INK} strokeWidth="1.5" />
-      {[-26, -13, 0, 13].map((x) => (
-        <rect key={x} x={x} y="-92" width="9" height="8" fill="#ece3cf" stroke={INK} strokeWidth="1.5" />
-      ))}
-      <path d="M-10,0 L-10,-16 A10,10 0 0 1 10,-16 L10,0 Z" fill="#6b5a43" />
-      <line x1="0" y1="-92" x2="0" y2="-124" stroke={INK} strokeWidth="1.5" />
-      <path className="realm-flag" d="M0,-124 L30,-117 L0,-110 Z" fill={GOLD} stroke={INK} strokeWidth="1" />
-      <text y="40" textAnchor="middle" className="realm-label realm-label-lg">
-        Совет
-      </text>
-      <text y="58" textAnchor="middle" className="realm-sub">
-        здесь решают
-      </text>
-    </g>
-  );
-}
-
-function Camp({ at, count, s }: { at: Pt; count: number; s: number }) {
-  return (
-    <g transform={`translate(${at.x},${at.y}) scale(${s})`} aria-hidden="true">
+    <g transform={`translate(${at.x},${at.y})`} aria-hidden="true">
       {[0, 22].map((x) => (
-        <path key={x} d={`M${x - 12},0 L${x},-20 L${x + 12},0 Z`} fill="#d9c49a" stroke={INK} strokeWidth="1.3" />
+        <path key={x} d={`M${x + 8},20 L${x + 20},0 L${x + 32},20 Z`} fill="#e3d2a8" stroke="#4a4034" strokeWidth="1.2" />
       ))}
-      <text x="-12" y="22" className="realm-label">
-        Вольные земли
-      </text>
-      <text x="-12" y="38" className="realm-sub">
-        {count} без подразделения
-      </text>
-    </g>
-  );
-}
-
-const SLOTS = [
-  { x: -36, h: 40, back: false },
-  { x: 36, h: 40, back: false },
-  { x: -20, h: 66, back: true },
-  { x: 20, h: 66, back: true },
-  { x: -56, h: 30, back: false },
-  { x: 56, h: 30, back: false },
-  { x: -72, h: 22, back: false },
-  { x: 72, h: 22, back: false },
-];
-
-function Tower({ x, h, color, fresh }: { x: number; h: number; color: string; fresh: boolean }) {
-  return (
-    <g className={fresh ? 'realm-rise' : undefined}>
-      <rect x={x - 8} y={-h} width="16" height={h} fill="#e9dfca" stroke={INK} strokeWidth="1.5" />
-      <rect x={x - 2} y={-h + 10} width="4" height="7" fill={INK_SOFT} />
-      <path d={`M${x - 11},${-h} L${x},${-h - 20} L${x + 11},${-h} Z`} fill={color} stroke={INK} strokeWidth="1.5" />
-    </g>
-  );
-}
-
-function Scaffold({ x = 0 }: { x?: number }) {
-  return (
-    <g stroke="#8a6a3d" strokeWidth="1.6" fill="none">
-      <line x1={x - 8} y1="0" x2={x - 8} y2="-22" />
-      <line x1={x + 8} y1="0" x2={x + 8} y2="-22" />
-      <line x1={x - 10} y1="-7" x2={x + 10} y2="-7" />
-      <line x1={x - 10} y1="-15" x2={x + 10} y2="-15" />
-      <line x1={x - 8} y1="0" x2={x + 8} y2="-15" />
+      <g transform="translate(46, 28)">
+        <LabelPlate y={0} title="Без подразделения" sub={`${count} ждут распределения`} font={font * 0.9} />
+      </g>
     </g>
   );
 }
@@ -497,7 +521,8 @@ function Scaffold({ x = 0 }: { x?: number }) {
 function CastleMark({
   c,
   at,
-  s,
+  L,
+  above,
   color,
   selected,
   celebrate,
@@ -505,25 +530,26 @@ function CastleMark({
 }: {
   c: Castle;
   at: Pt;
-  s: number;
+  L: Layout;
+  /** Labels sit on the side away from the council, so roads and envoys never cross them. */
+  above: boolean;
   color: string;
   selected: boolean;
   celebrate: boolean;
   onSelect: () => void;
 }) {
-  const shown = Math.min(c.towers, SLOTS.length);
-  const slots = SLOTS.slice(0, shown).map((s, i) => ({ ...s, i }));
-  const reach = shown ? Math.max(...slots.map((s) => Math.abs(s.x))) + 8 : 0;
   const onKey = (e: KeyboardEvent) => {
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
       onSelect();
     }
   };
-  const name = `${c.name}: ${towersWord(c.towers)}, ${envoysWord(c.envoys)} в пути${c.building ? `, строится ${c.building}` : ''}`;
+  const plate = [2.6, 3.2, 3.8, 4.4, 5][c.level - 1]!;
+  const bottom = P(plate, plate, 0, L.u).y;
+  const name = `${c.name}: уровень ${c.level}, ${c.levelName}, ${c.xp} XP; в работе ${envoysWord(c.envoys)}`;
   return (
     <g
-      transform={`translate(${at.x},${at.y}) scale(${s})`}
+      transform={`translate(${at.x},${at.y})`}
       className={`realm-castle${selected ? ' is-selected' : ''}${celebrate ? ' is-celebrating' : ''}`}
       role="button"
       tabIndex={0}
@@ -533,72 +559,56 @@ function CastleMark({
       onKeyDown={onKey}
     >
       <title>{name}</title>
-      <ellipse cy="5" rx={Math.max(48, reach + 18)} ry="15" fill="#d6c497" stroke="#a8977a" strokeWidth="1.2" />
-      {selected ? <ellipse cy="5" rx={Math.max(58, reach + 28)} ry="24" fill="none" stroke={INK} strokeWidth="1.5" strokeDasharray="5 4" /> : null}
-      {slots.filter((s) => s.back).map((s) => <Tower key={s.i} x={s.x} h={s.h} color={color} fresh={celebrate && s.i === shown - 1} />)}
-      {shown ? <rect x={-reach} y="-16" width={reach * 2} height="16" fill="#e2d7bf" stroke={INK} strokeWidth="1.5" /> : null}
-      <rect x="-15" y="-50" width="30" height="50" fill="#ece3cf" stroke={INK} strokeWidth="1.5" />
-      {[-15, -6, 3, 12].map((x) => (
-        <rect key={x} x={x} y="-56" width="6" height="6" fill="#ece3cf" stroke={INK} strokeWidth="1.2" />
-      ))}
-      <path d="M-6,0 L-6,-10 A6,6 0 0 1 6,-10 L6,0 Z" fill={INK_SOFT} />
-      <line x1="0" y1="-56" x2="0" y2="-82" stroke={INK} strokeWidth="1.5" />
-      <path className="realm-flag" d="M0,-82 L24,-76 L0,-70 Z" fill={color} stroke={INK} strokeWidth="1" />
-      {slots.filter((s) => !s.back).map((s) => <Tower key={s.i} x={s.x} h={s.h} color={color} fresh={celebrate && s.i === shown - 1} />)}
-      {c.towers > SLOTS.length ? (
-        <text x={reach + 6} y="-30" className="realm-sub">
-          +{c.towers - SLOTS.length}
-        </text>
-      ) : null}
-      {c.building ? <Scaffold x={reach + 22} /> : null}
+      {selected ? <ellipse cy={L.u * 0.2} rx={plate * 2 * 0.866 * L.u + 14} ry={plate * L.u + 10} className="realm-ring" /> : null}
+      <IsoCastle level={c.level} color={color} u={L.u} rising={celebrate} />
+      {c.building ? <Scaffold x={plate + 1.4} y={-0.5} u={L.u} /> : null}
       {celebrate ? (
-        <g className="realm-sparks" aria-hidden="true">
-          {[-30, 0, 30].map((x, i) => (
-            <circle key={x} cx={x} cy={-100 + (i % 2) * 10} r="3" fill={GOLD} />
+        <g className="realm-dust" aria-hidden="true">
+          {[-26, -8, 12, 28].map((x, i) => (
+            <circle key={x} cx={x} cy={bottom - 6 - (i % 2) * 6} r="6" fill="#efe6d2" />
           ))}
+          <text y={-plate * L.u * 2.2} textAnchor="middle" className="realm-xp-float">
+            Новый уровень
+          </text>
         </g>
       ) : null}
-      <text y="32" textAnchor="middle" className="realm-label">
-        {c.name}
-      </text>
-      <text y="48" textAnchor="middle" className="realm-sub">
-        {towersWord(c.towers)}
-      </text>
+      <LabelPlate y={above ? -CASTLE_HEIGHT[c.level - 1]! * L.u - L.font * 2.45 - 18 : bottom + 10} title={c.name} sub={`Ур. ${c.level} · ${c.levelName}`} font={L.font} />
     </g>
   );
 }
 
-function EnvoyBody({ color, pennant, mine, stale }: { color: string; pennant?: string; mine?: boolean; stale?: boolean }) {
+/** Height of the drawing above the ground per level, in grid units (banners included). */
+const CASTLE_HEIGHT = [5, 5.6, 5.6, 8.4, 11];
+
+function EnvoyBody({ color, pennant, mine }: { color: string; pennant?: string; mine?: boolean }) {
   return (
     <g>
-      {mine ? <circle cy="-12" r="14" fill="#f3e2a6" fillOpacity="0.7" stroke={GOLD} strokeWidth="2" /> : null}
-      <ellipse cy="1" rx="7" ry="2" fill="#5a4a33" opacity="0.25" />
-      <path d="M-6,0 L0,-15 L6,0 Z" fill={color} stroke={INK} strokeWidth="1" />
-      <circle cy="-18" r="4" fill="#f2dfc2" stroke={INK} strokeWidth="1" />
-      <line x1="7" y1="1" x2="7" y2="-25" stroke={INK} strokeWidth="1.3" />
-      <path d="M7,-25 L17,-22 L7,-19 Z" fill={pennant ?? color} stroke={INK} strokeWidth="0.8" />
-      {stale ? (
-        <text x="-14" y="-24" className="realm-tiny">
-          z
-        </text>
-      ) : null}
+      {mine ? <circle cy="-12" r="14" fill="#fff4cf" fillOpacity="0.85" stroke="#b8860b" strokeWidth="2" /> : null}
+      <ellipse cy="1" rx="7" ry="2.4" fill="#2d3a22" opacity="0.3" />
+      <path d="M-6,0 L0,-15 L6,0 Z" fill={color} stroke="#2d2a24" strokeWidth="1" />
+      <circle cy="-18" r="4" fill="#f2dfc2" stroke="#2d2a24" strokeWidth="1" />
+      <line x1="7" y1="1" x2="7" y2="-25" stroke="#2d2a24" strokeWidth="1.3" />
+      <path d="M7,-25 L17,-22 L7,-19 Z" fill={pennant ?? color} stroke="#2d2a24" strokeWidth="0.8" />
     </g>
   );
 }
 
 function EnvoyMark({ e, at, s, color, label, home }: { e: Envoy; at: Pt; s: number; color: string; label: string; home: boolean }) {
-  const text = `№${e.number} «${e.title}»: ${label}${e.mine ? ' (ваш посол)' : ''}`;
+  const text = `Обращение №${e.number} «${e.title}»: ${label}${e.mine ? ' (ваше)' : ''}`;
   return (
     <g className="realm-envoy" style={{ transform: `translate(${at.x}px, ${at.y}px) scale(${s})` }}>
       <a href={`#/items/${e.number}`} aria-label={text}>
         <title>{text}</title>
         <g className="realm-walk" transform={home ? 'scale(-1,1)' : undefined}>
-          <EnvoyBody color={color} pennant={e.overdueFirstResponse || e.overdueResolution ? RED : undefined} mine={e.mine} stale={e.stale} />
+          <EnvoyBody color={color} pennant={e.overdueFirstResponse || e.overdueResolution ? RED : undefined} mine={e.mine} />
         </g>
         {e.mine ? (
-          <text y="-32" textAnchor="middle" className="realm-tag">
-            №{e.number}
-          </text>
+          <g>
+            <rect x="-22" y="-50" width="44" height="18" rx="5" className="realm-plate" />
+            <text y="-36" textAnchor="middle" className="realm-tag">
+              №{e.number}
+            </text>
+          </g>
         ) : null}
       </a>
     </g>
