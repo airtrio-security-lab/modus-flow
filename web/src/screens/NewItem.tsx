@@ -7,7 +7,8 @@ import { CHANNEL } from '../lib/status';
 import type { Channel, Kind, Status } from '../lib/types';
 import { PageHead, StatusChip } from '../components/ui';
 import { uploadFile, ACCEPT } from './files';
-import { takeShared } from '../lib/share';
+import { takeShared, takeSharedPeek } from '../lib/share';
+import { clearDraft, loadDraft, saveDraft } from '../lib/draft';
 
 interface Created {
   item: { number: number; routed: boolean; maintainer: string | null; firstResponseDueAt: string | null; status: Status };
@@ -43,6 +44,24 @@ export function NewItem() {
   const [similar, setSimilar] = useState<Similar[]>([]);
   const fileInput = useRef<HTMLInputElement>(null);
   const [shared, setShared] = useState(false);
+  const [touched, setTouched] = useState<Record<string, boolean>>({});
+  const [restored, setRestored] = useState(false);
+  const touch = (f: string) => setTouched((t) => ({ ...t, [f]: true }));
+
+  // Draft on this device: an idea typed on the phone survives a closed tab or a lost connection.
+  useEffect(() => {
+    const d = loadDraft();
+    if (!d || takeSharedPeek()) return;
+    setKind(d.kind);
+    setTitle(d.title);
+    setProblem(d.problem);
+    setProposal(d.proposal);
+    setCriteria(d.criteria);
+    setRestored(!!(d.title || d.problem || d.proposal));
+  }, []);
+  useEffect(() => {
+    saveDraft({ kind, title, problem, proposal, criteria });
+  }, [kind, title, problem, proposal, criteria]);
 
   // Text shared from WhatsApp / another app (Android «Поделиться»): prefill and
   // assume it is a colleague's message from a chat; the user can change both.
@@ -83,10 +102,23 @@ export function NewItem() {
   if (kind === 'idea' && proposal.trim().length < 20) problems.push('опишите предложение (не меньше 20 символов)');
   if (onBehalf && !raisedBy) problems.push('выберите, со слов кого записываете');
   const ready = problems.length === 0;
+  const fieldError: Record<string, string | null> = {
+    problem: problem.trim().length < 20 ? (problem.trim() ? `Ещё ${20 - problem.trim().length} симв.: опишите, что именно происходит` : 'Опишите, что происходит') : null,
+    proposal: kind === 'idea' && proposal.trim().length < 20 ? 'Опишите предложение — не меньше 20 символов' : null,
+    title: title.trim().length < 3 ? 'Назовите вопрос одной строкой' : null,
+    raisedBy: onBehalf && !raisedBy ? 'Выберите сотрудника, чей это вопрос' : null,
+  };
+  const show = (f: string): string | null => (touched[f] ? (fieldError[f] ?? null) : null);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (!ready || busy) return;
+    if (busy) return;
+    if (!ready) {
+      setTouched({ problem: true, proposal: true, title: true, raisedBy: true });
+      const first = ['problem', 'proposal', 'title', 'raisedBy'].find((f) => fieldError[f]);
+      if (first) document.getElementById(first)?.focus();
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
@@ -118,6 +150,7 @@ export function NewItem() {
           : `Обращение №${n} зарегистрировано и передано руководителям для распределения.`,
       );
       if (failed.length) s.toast(`Обращение создано, но не все файлы приложены: ${failed.join('; ')}`);
+      clearDraft();
       go(`/items/${n}`);
     } catch (err) {
       setError(errorText(err));
@@ -134,6 +167,26 @@ export function NewItem() {
           Несколько вопросов с совещания или из чата
         </a>
       </PageHead>
+      {restored && !shared && (
+        <div className="notice" role="status">
+          Восстановлен черновик, который вы не отправили.{' '}
+          <button
+            type="button"
+            className="btn quiet small"
+            onClick={() => {
+              setTitle('');
+              setProblem('');
+              setProposal('');
+              setCriteria('');
+              setRestored(false);
+              setTouched({});
+              clearDraft();
+            }}
+          >
+            Начать заново
+          </button>
+        </div>
+      )}
       {shared && (
         <div className="notice" role="status">
           Текст из сообщения вставлен. Укажите, чей это вопрос, и коротко назовите его.
@@ -151,34 +204,60 @@ export function NewItem() {
 
       <div className="stack">
         <div className="field">
-          <label htmlFor="problem">{kind === 'problem' ? 'Что происходит?' : 'Что сейчас не так или можно сделать лучше?'}</label>
+          <label htmlFor="problem">
+            {kind === 'problem' ? 'Что происходит?' : 'Что сейчас не так или можно сделать лучше?'}
+            <span className="req">обязательно</span>
+          </label>
           <textarea
             id="problem"
             className="textarea"
             rows={4}
             value={problem}
             onChange={(e) => setProblem(e.target.value)}
+            onBlur={() => touch('problem')}
+            aria-invalid={!!show('problem')}
+            aria-describedby={show('problem') ? 'problem-err' : undefined}
             placeholder="Например: при приёмке большой партии терминалы зависают, коды приходится вводить вручную"
             maxLength={5000}
           />
+          <FieldError id="problem-err" text={show('problem')} />
         </div>
         {kind === 'idea' && (
           <div className="field">
-            <label htmlFor="proposal">Что предлагаете?</label>
+            <label htmlFor="proposal">
+              Что предлагаете?<span className="req">обязательно</span>
+            </label>
             <textarea
               id="proposal"
               className="textarea"
               rows={4}
               value={proposal}
               onChange={(e) => setProposal(e.target.value)}
+              onBlur={() => touch('proposal')}
+              aria-invalid={!!show('proposal')}
+              aria-describedby={show('proposal') ? 'proposal-err' : undefined}
               placeholder="Что сделать, кому и примерно какими силами"
               maxLength={5000}
             />
+            <FieldError id="proposal-err" text={show('proposal')} />
           </div>
         )}
         <div className="field">
-          <label htmlFor="title">Коротко, одной строкой</label>
-          <input id="title" className="input" value={title} onChange={(e) => setTitle(e.target.value)} maxLength={160} placeholder="Терминалы зависают при приёмке" />
+          <label htmlFor="title">
+            Коротко, одной строкой<span className="req">обязательно</span>
+          </label>
+          <input
+            id="title"
+            className="input"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            onBlur={() => touch('title')}
+            aria-invalid={!!show('title')}
+            aria-describedby={show('title') ? 'title-err' : undefined}
+            maxLength={160}
+            placeholder="Терминалы зависают при приёмке"
+          />
+          <FieldError id="title-err" text={show('title')} />
         </div>
       </div>
 
@@ -254,7 +333,15 @@ export function NewItem() {
             <div className="grid-2">
               <div className="field">
                 <label htmlFor="raisedBy">Чей это вопрос</label>
-                <select id="raisedBy" className="select" value={raisedBy} onChange={(e) => setRaisedBy(e.target.value)}>
+                <select
+                  id="raisedBy"
+                  className="select"
+                  value={raisedBy}
+                  onChange={(e) => setRaisedBy(e.target.value)}
+                  onBlur={() => touch('raisedBy')}
+                  aria-invalid={!!show('raisedBy')}
+                  aria-describedby={show('raisedBy') ? 'raisedBy-err' : undefined}
+                >
                   <option value="">Выберите сотрудника</option>
                   {colleagues.map((m) => (
                     <option key={m.membershipId} value={m.membershipId}>
@@ -263,6 +350,7 @@ export function NewItem() {
                     </option>
                   ))}
                 </select>
+                <FieldError id="raisedBy-err" text={show('raisedBy')} />
               </div>
               <div className="field">
                 <label htmlFor="channel">Откуда вопрос</label>
@@ -322,12 +410,21 @@ export function NewItem() {
         </div>
       )}
       <div className="submit-bar">
-        <button type="submit" className="btn primary" disabled={!ready || busy}>
+        <button type="submit" className="btn primary" disabled={busy}>
           {busy ? 'Отправляем…' : 'Отправить обращение'}
         </button>
         {!ready && <span className="small muted">Осталось: {problems.join(', ')}.</span>}
         {ready && <span className="small muted">После отправки текст правится только новой версией — история сохраняется.</span>}
       </div>
     </form>
+  );
+}
+
+function FieldError({ id, text }: { id: string; text: string | null }) {
+  if (!text) return null;
+  return (
+    <span className="field-error" id={id}>
+      {text}
+    </span>
   );
 }

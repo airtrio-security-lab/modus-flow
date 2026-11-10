@@ -4,16 +4,17 @@ import { useLoad, useSession } from '../lib/session';
 import { CHANNEL, STATUS } from '../lib/status';
 import type { Channel, ListItem, Status } from '../lib/types';
 import { ErrorBox, ItemList, Loading, PageHead } from '../components/ui';
+import { useRemembered } from '../lib/remember';
 
 /** Search and filters over every item: history is open, so duplicates are easy to find. */
 export function AllItems() {
   const s = useSession();
-  const [q, setQ] = useState('');
-  const [query, setQuery] = useState('');
-  const [status, setStatus] = useState<Status | ''>('');
-  const [category, setCategory] = useState('');
-  const [department, setDepartment] = useState('');
-  const [channel, setChannel] = useState<Channel | ''>('');
+  const [q, setQ] = useRemembered('all.q', '');
+  const [query, setQuery] = useState(q.trim().length >= 2 ? q.trim() : '');
+  const [status, setStatus] = useRemembered<Status | ''>('all.status', '');
+  const [category, setCategory] = useRemembered('all.category', '');
+  const [department, setDepartment] = useRemembered('all.department', '');
+  const [channel, setChannel] = useRemembered<Channel | ''>('all.channel', '');
 
   useEffect(() => {
     const t = window.setTimeout(() => setQuery(q.trim().length >= 2 ? q.trim() : ''), 300);

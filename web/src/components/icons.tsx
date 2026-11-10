@@ -1,0 +1,17 @@
+/** One icon family: 24×24 grid, 1.75 stroke, round joins. Decorative next to text (aria-hidden). */
+export type IconName = 'inbox-stack' | 'briefcase' | 'columns' | 'bell' | 'chart' | 'plus';
+const PATHS: Record<IconName, string> = {
+  'inbox-stack': 'M4 13h4l1.5 2.5h5L16 13h4M4 13l2.5-7h11L20 13v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1z',
+  briefcase: 'M4 8h16v11H4zM9 8V5.5A1.5 1.5 0 0 1 10.5 4h3A1.5 1.5 0 0 1 15 5.5V8M4 13h16',
+  columns: 'M4 5h4v14H4zM10 5h4v9h-4zM16 5h4v6h-4z',
+  bell: 'M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15zM10 20a2 2 0 0 0 4 0',
+  chart: 'M4 20h16M7 16v-5M12 16V7M17 16v-8',
+  plus: 'M12 5v14M5 12h14',
+};
+export function Icon({ name }: { name: IconName }) {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d={PATHS[name]} />
+    </svg>
+  );
+}

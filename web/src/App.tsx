@@ -1,9 +1,11 @@
-import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { api, getToken, setToken } from './lib/api';
 import { useRoute } from './lib/router';
 import { SessionProvider, useSession } from './lib/session';
 import type { Me } from './lib/types';
 import { ErrorBox, Loading } from './components/ui';
+import { Icon, type IconName } from './components/icons';
+import { ThemeToggle, useOnline } from './lib/env';
 import { Login } from './screens/Login';
 import { Mine } from './screens/Mine';
 import { NewItem } from './screens/NewItem';
@@ -106,12 +108,29 @@ function Shell() {
   else
     page = (
       <div className="empty">
-        Такой страницы нет.{' '}
+        {['work', 'overview', 'settings'].includes(head)
+          ? head === 'settings'
+            ? 'Настройки доступны администраторам системы.'
+            : 'Этот раздел доступен руководителям, которые ведут обращения или принимают решения.'
+          : 'Такой страницы нет.'}{' '}
         <a href="#/" className="btn">
           К моим обращениям
         </a>
       </div>
     );
+
+  // Screen readers and keyboard users land on the new page, not on the old link.
+  const mainRef = useRef<HTMLElement>(null);
+  const first = useRef(true);
+  const routeKey = route.join('/');
+  useEffect(() => {
+    if (first.current) {
+      first.current = false;
+      return;
+    }
+    mainRef.current?.focus({ preventScroll: true });
+  }, [routeKey]);
+  const online = useOnline();
 
   // Mobile tab bar: four or five destinations around the central «+».
   // Leads: Работа, Доска | Уведомления, Обзор. Employees: Мои, Доска | Уведомления.
@@ -121,6 +140,16 @@ function Shell() {
 
   return (
     <div className="shell">
+      <a
+        className="skip-link"
+        href="#main"
+        onClick={(e) => {
+          e.preventDefault();
+          mainRef.current?.focus();
+        }}
+      >
+        Перейти к содержимому
+      </a>
       <aside className="rail" aria-label="Навигация">
         <div className="brand">
           <img src="/icon.svg" alt="" />
@@ -134,22 +163,30 @@ function Shell() {
         </a>
         <nav className="nav">
           {nav.map((n) => (
-            <a key={n.href} href={n.href} aria-current={n.match(route) ? 'page' : undefined}>
+            <a key={n.href} href={n.href} aria-current={n.match(route) ? 'page' : undefined} aria-label={n.count ? `${n.label}: ${n.count} непрочитанных` : undefined}>
               <span>{n.label}</span>
-              {!!n.count && <span className="count alert">{n.count}</span>}
+              {!!n.count && <span className="count alert" aria-hidden="true">{n.count}</span>}
             </a>
           ))}
         </nav>
         <div className="who">
           <div>{s.me.displayName}</div>
           <div className="faint xs">{roleLine(s.roles)}</div>
-          <button className="btn quiet small" onClick={s.signOut}>
-            Сменить сотрудника
-          </button>
+          <div className="row">
+            <button className="btn quiet small" onClick={s.signOut}>
+              Сменить сотрудника
+            </button>
+            <ThemeToggle />
+          </div>
         </div>
       </aside>
 
-      <main className="main" id="main">
+      <main className="main" id="main" ref={mainRef} tabIndex={-1}>
+        {!online && (
+          <div className="notice warn offline" role="status">
+            Нет связи с сервером. Можно продолжать писать — черновик обращения сохраняется на этом устройстве; отправьте, когда связь вернётся.
+          </div>
+        )}
         <div className="mobile-head">
           <div className="brand">
             <img src="/icon.svg" alt="" />
@@ -178,7 +215,7 @@ function Shell() {
         ))}
         <a href="#/new" aria-current={head === 'new' ? 'page' : undefined}>
           <span className="plus" aria-hidden="true">
-            +
+            <Icon name="plus" />
           </span>
           Подать
         </a>
@@ -190,13 +227,18 @@ function Shell() {
   );
 }
 
+const TAB_ICON: Record<string, IconName> = { '#/': 'inbox-stack', '#/work': 'briefcase', '#/board': 'columns', '#/inbox': 'bell', '#/overview': 'chart' };
+
 function Tab({ n, route }: { n: NavItem; route: string[] }) {
   return (
-    <a href={n.href} aria-current={n.match(route) ? 'page' : undefined}>
-      <span className={`tab-mark${n.count ? ' alert' : ''}`} aria-hidden="true">
-        {n.count ? n.count : ''}
-      </span>
-      {n.short}
+    <a href={n.href} aria-current={n.match(route) ? 'page' : undefined} aria-label={n.count ? `${n.label}: ${n.count} непрочитанных` : n.label}>
+      <Icon name={TAB_ICON[n.href] ?? 'inbox-stack'} />
+      {!!n.count && (
+        <span className="badge" aria-hidden="true">
+          {n.count > 99 ? '99+' : n.count}
+        </span>
+      )}
+      <span aria-hidden="true">{n.short}</span>
     </a>
   );
 }

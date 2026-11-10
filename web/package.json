@@ -5,9 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -p . && vite build",
+    "build": "node scripts/contrast.mjs && tsc -p . && vite build",
     "typecheck": "tsc -p .",
-    "e2e": "node e2e/demo-flow.mjs"
+    "e2e": "node e2e/demo-flow.mjs",
+    "contrast": "node scripts/contrast.mjs"
   },
   "dependencies": {
     "@fontsource/ibm-plex-sans": "5.1.1",

@@ -18,6 +18,10 @@ export function captureShare(): boolean {
   return true;
 }
 let memory: string | null = null;
+let took = false;
+
+/** True if this page load received shared text (the draft must not overwrite it). */
+export const takeSharedPeek = () => took;
 
 export function takeShared(): string | null {
   let t: string | null = memory;
@@ -28,5 +32,6 @@ export function takeShared(): string | null {
   } catch {
     /* private mode: the in-memory copy is used */
   }
+  if (t) took = true;
   return t;
 }

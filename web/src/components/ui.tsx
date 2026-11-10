@@ -85,10 +85,16 @@ export function ItemList({ items, empty, showAuthor = true }: { items: ListItem[
   );
 }
 
-export function Loading({ label = 'Загружаем…' }: { label?: string }) {
+/** Skeleton rows instead of a blocking spinner; the label is announced, the shapes are not. */
+export function Loading({ label = 'Загружаем…', rows = 4 }: { label?: string; rows?: number }) {
   return (
-    <div className="empty" role="status">
-      {label}
+    <div role="status" aria-live="polite">
+      <span className="sr-only">{label}</span>
+      <div className="skeleton" aria-hidden="true">
+        {Array.from({ length: rows }, (_, i) => (
+          <span key={i} />
+        ))}
+      </div>
     </div>
   );
 }

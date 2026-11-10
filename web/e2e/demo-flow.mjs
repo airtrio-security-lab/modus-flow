@@ -56,7 +56,7 @@ try {
   // 1. Employee submits a problem; the system routes it and shows the deadline.
   const number = await as(storekeeper, async (page) => {
     await page.goto(`${BASE}/#/new`);
-    await page.getByLabel('Что происходит?').fill('Принтер этикеток на приёмке печатает пустые листы через раз, этикетки клеим от руки');
+    await page.getByLabel(/Что происходит/).fill('Принтер этикеток на приёмке печатает пустые листы через раз, этикетки клеим от руки');
     await page.getByLabel('Коротко, одной строкой').fill(`Принтер этикеток печатает пустые листы ${stamp}`);
     await page.getByLabel('Тема').selectOption({ label: 'ИТ и инструменты' });
     await page.getByRole('button', { name: 'Отправить обращение' }).click();
@@ -131,7 +131,7 @@ try {
   // 6. A head records a question heard on the phone on behalf of an engineer.
   const n2 = await as(whHead, async (page) => {
     await page.goto(`${BASE}/#/new`);
-    await page.getByLabel('Что происходит?').fill('Инженеры не знают, где на складе забирать комплекты для объектов, ищут по полчаса');
+    await page.getByLabel(/Что происходит/).fill('Инженеры не знают, где на складе забирать комплекты для объектов, ищут по полчаса');
     await page.getByLabel('Коротко, одной строкой').fill(`Где забирать комплекты для объектов ${stamp}`);
     await page.getByText('Записываю со слов коллеги').click();
     await pick(page.getByLabel('Чей это вопрос'), engineer.name);
@@ -169,7 +169,7 @@ try {
     const text = `Ребята, в зоне отгрузки опять нет стрейч-плёнки, ждём со вчера ${stamp}`;
     await page.goto(`${BASE}/share?text=${encodeURIComponent(text)}`);
     await expectText(page, 'Текст из сообщения вставлен');
-    if ((await page.getByLabel('Что происходит?').inputValue()) !== text) throw new Error('shared text was not prefilled');
+    if ((await page.getByLabel(/Что происходит/).inputValue()) !== text) throw new Error('shared text was not prefilled');
     await page.getByLabel('Коротко, одной строкой').fill(`Нет стрейч-плёнки в отгрузке ${stamp}`);
     await pick(page.getByLabel('Чей это вопрос'), storekeeper.name);
     await page.getByRole('button', { name: 'Отправить обращение' }).click();
@@ -198,7 +198,22 @@ try {
   });
   step('канбан: перетаскивание открывает нужный шаг, запрещённый переход объяснён');
 
-  // 10. Owner overview loads with facts.
+  // 10. Forms keep work and explain errors (UI UX Pro Max: form-autosave, error-placement, focus-management).
+  await as(storekeeper, async (page) => {
+    await page.goto(`${BASE}/#/new`);
+    await page.getByLabel(/Что происходит/).fill(`Черновик: в раздевалке не работает вентиляция ${stamp}`);
+    await page.reload();
+    await page.waitForSelector('.shell');
+    await expectText(page, 'Восстановлен черновик');
+    await page.getByRole('button', { name: 'Начать заново' }).click();
+    await page.getByRole('button', { name: 'Отправить обращение' }).click();
+    const focused = await page.evaluate(() => document.activeElement?.id);
+    if (focused !== 'problem') throw new Error(`focus went to ${focused}, expected the first invalid field`);
+    await expectText(page, 'Опишите, что происходит');
+  });
+  step('черновик переживает перезагрузку; пустая отправка ведёт к первому полю с ошибкой');
+
+  // 11. Owner overview loads with facts.
   await as(by('Собственник компании'), async (page) => {
     await page.goto(`${BASE}/#/overview`);
     await expectText(page, 'Откуда приходят вопросы');

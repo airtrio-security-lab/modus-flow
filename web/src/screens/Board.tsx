@@ -5,6 +5,7 @@ import { ago, plural } from '../lib/format';
 import { useLoad, useSession } from '../lib/session';
 import type { IdeaDetail, ListItem, Status } from '../lib/types';
 import { ErrorBox, Flags, Loading, PageHead, StatusChip } from '../components/ui';
+import { useRemembered } from '../lib/remember';
 
 /**
  * Kanban board over the same five stages the author sees. Moving a card is not
@@ -13,12 +14,12 @@ import { ErrorBox, Flags, Loading, PageHead, StatusChip } from '../components/ui
  * explanation in the history. Moves the rules do not allow are explained.
  */
 type ColId = 'new' | 'review' | 'decision' | 'progress' | 'done';
-const COLUMNS: { id: ColId; title: string; statuses: Status[]; hint: string }[] = [
-  { id: 'new', title: 'Новые', statuses: ['unrouted'], hint: 'Ждут ответственного' },
-  { id: 'review', title: 'Рассмотрение', statuses: ['in_review', 'needs_info', 'in_verification'], hint: 'Изучают, уточняют, проверяют' },
-  { id: 'decision', title: 'Решение', statuses: ['decision'], hint: 'После проверки ждут вывода' },
-  { id: 'progress', title: 'Реализация', statuses: ['in_progress'], hint: 'Решено, внедряется' },
-  { id: 'done', title: 'Итог', statuses: ['implemented', 'rejected', 'closed'], hint: 'Реализовано, отклонено, закрыто' },
+const COLUMNS: { id: ColId; title: string; short: string; statuses: Status[]; hint: string }[] = [
+  { id: 'new', title: 'Новые', short: 'Новые', statuses: ['unrouted'], hint: 'Ждут ответственного' },
+  { id: 'review', title: 'Рассмотрение', short: 'Рассмотр.', statuses: ['in_review', 'needs_info', 'in_verification'], hint: 'Изучают, уточняют, проверяют' },
+  { id: 'decision', title: 'Решение', short: 'Решение', statuses: ['decision'], hint: 'После проверки ждут вывода' },
+  { id: 'progress', title: 'Реализация', short: 'Реализ.', statuses: ['in_progress'], hint: 'Решено, внедряется' },
+  { id: 'done', title: 'Итог', short: 'Итог', statuses: ['implemented', 'rejected', 'closed'], hint: 'Реализовано, отклонено, закрыто' },
 ];
 const columnOf = (s: Status): ColId => COLUMNS.find((c) => c.statuses.includes(s))!.id;
 const ORDER: ColId[] = ['new', 'review', 'decision', 'progress', 'done'];
@@ -61,8 +62,9 @@ function moveFor(from: ColId, to: ColId, f: Facts, item: IdeaDetail): Move {
 
 export function Board() {
   const s = useSession();
-  const [scope, setScope] = useState<'mine' | 'all'>(s.isLead ? 'mine' : 'all');
-  const [category, setCategory] = useState('');
+  const [scope, setScope] = useRemembered<'mine' | 'all'>('board.scope', s.isLead ? 'mine' : 'all');
+  const [category, setCategory] = useRemembered('board.category', '');
+  const [activeCol, setActiveCol] = useRemembered<ColId>('board.column', 'review');
   const [showOldDone, setShowOldDone] = useState(false);
   const query = scope === 'mine' ? (s.isLead ? { assigned: true } : { mine: true }) : {};
   const { data, error, loading, reload } = useLoad(
@@ -110,6 +112,16 @@ export function Board() {
       {loading && !data ? (
         <Loading />
       ) : (
+        <>
+        <nav className="segmented board-switch" aria-label="Колонка">
+          {columns.map((c) => (
+            <button key={c.id} type="button" aria-pressed={c.id === activeCol} aria-label={`${c.title}: ${c.list.length}`} onClick={() => setActiveCol(c.id)}>
+              {c.short}
+              <br />
+              {c.list.length}
+            </button>
+          ))}
+        </nav>
         <div className="board" role="list">
           {columns.map((c) => (
             <section
@@ -117,6 +129,7 @@ export function Board() {
               role="listitem"
               aria-label={`${c.title}: ${c.list.length}`}
               className={`column${over === c.id ? ' over' : ''}`}
+              data-active={c.id === activeCol || undefined}
               onDragOver={(e) => {
                 if (!dragging) return;
                 e.preventDefault();
@@ -181,6 +194,7 @@ export function Board() {
             </section>
           ))}
         </div>
+        </>
       )}
       {data && data.length >= 200 && <p className="xs faint">Показаны первые 200 обращений — уточните тему или выберите «Мне».</p>}
       {pending && (
@@ -253,13 +267,22 @@ function MoveDialog({ item, initialTo, onClose, onDone }: { item: ListItem; init
     }
   }
 
+  /** Typed explanations are not thrown away silently (sheet-dismiss-confirm). */
+  const confirmDiscard = () => !text.trim() || window.confirm('Закрыть? Введённый текст не сохранится.');
   const needsText = move && (move.kind === 'merge' || move.kind === 'reject' || move.kind === 'complete');
   const ok = move && move.kind !== 'blocked' && (!needsText || text.trim().length >= 10) && (move.kind !== 'take' || !!person);
   const members = (s.directory?.members ?? []).filter((m) => m.access === 'member');
   const exclude = detail ? [detail.author.membershipId, detail.raisedByMembershipId] : [];
 
   return (
-    <dialog ref={ref} onClose={onClose} aria-labelledby="move-title">
+    <dialog
+      ref={ref}
+      onClose={onClose}
+      onCancel={(e) => {
+        if (!confirmDiscard()) e.preventDefault();
+      }}
+      aria-labelledby="move-title"
+    >
       <form
         method="dialog"
         onSubmit={(e) => {
@@ -344,7 +367,7 @@ function MoveDialog({ item, initialTo, onClose, onDone }: { item: ListItem; init
           <a className="btn quiet" href={`#/items/${item.number}`} onClick={() => ref.current?.close()}>
             Открыть обращение
           </a>
-          <button type="button" className="btn" onClick={() => ref.current?.close()}>
+          <button type="button" className="btn" onClick={() => confirmDiscard() && ref.current?.close()}>
             {move?.kind === 'blocked' ? 'Понятно' : 'Отмена'}
           </button>
           {move && move.kind !== 'blocked' && (
