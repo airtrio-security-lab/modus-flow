@@ -140,7 +140,37 @@ try {
   });
   step(`вопрос со звонка записан за инженером (№${n2}), он его видит и получил уведомление`);
 
-  // 7. Owner overview loads with facts.
+  // 7. Meeting review: two questions from one planning meeting, each with its own raiser.
+  await as(whHead, async (page) => {
+    await page.goto(`${BASE}/#/meeting`);
+    await page.getByLabel('Какая встреча').fill(`Планёрка склада ${stamp}`);
+    await page.getByLabel('Вопрос 1').fill('Погрузчик №2 третью неделю стоит без зарядного устройства, работаем одним');
+    await pick(page.getByLabel('Кто поднял').first(), storekeeper.name);
+    await page.getByLabel('Вопрос 2').fill('Предлагаю вешать график отгрузок на неделю у ворот, водители постоянно спрашивают');
+    await pick(page.getByLabel('Кто поднял').nth(1), engineer.name);
+    await page.getByRole('button', { name: 'Зарегистрировать 2 обращения' }).click();
+    await expectText(page, 'Готово: 2');
+  });
+  await as(storekeeper, async (page) => {
+    await expectText(page, 'Погрузчик №2 третью неделю стоит без зарядного устройства');
+  });
+  step('разбор совещания: два вопроса зарегистрированы, каждый за своим автором');
+
+  // 8. Shared from WhatsApp (Android share target): the form opens with the text.
+  await as(whHead, async (page) => {
+    const text = `Ребята, в зоне отгрузки опять нет стрейч-плёнки, ждём со вчера ${stamp}`;
+    await page.goto(`${BASE}/share?text=${encodeURIComponent(text)}`);
+    await expectText(page, 'Текст из сообщения вставлен');
+    if ((await page.getByLabel('Что происходит?').inputValue()) !== text) throw new Error('shared text was not prefilled');
+    await page.getByLabel('Коротко, одной строкой').fill(`Нет стрейч-плёнки в отгрузке ${stamp}`);
+    await pick(page.getByLabel('Чей это вопрос'), storekeeper.name);
+    await page.getByRole('button', { name: 'Отправить обращение' }).click();
+    await page.waitForURL(/#\/items\/\d+/);
+    await expectText(page, 'Мессенджер');
+  });
+  step('сообщение из WhatsApp через «Поделиться» стало обращением с источником «Мессенджер»');
+
+  // 9. Owner overview loads with facts.
   await as(by('Собственник компании'), async (page) => {
     await page.goto(`${BASE}/#/overview`);
     await expectText(page, 'Откуда приходят вопросы');

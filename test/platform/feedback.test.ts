@@ -296,3 +296,20 @@ test('the author of a problem answers a clarifying question with a new version w
     'an idea cannot lose its proposal',
   );
 });
+
+test('a message forwarded from WhatsApp is recorded with the messenger source and credited to the colleague', async () => {
+  const r = await submit(db, f.head, {
+    title: 'В чате склада: не хватает сканеров на второй смене',
+    problem: 'Анна написала в общий чат склада: на второй смене два сканера на шесть человек, очередь у стола',
+    sourceChannel: 'messenger',
+    sourceNote: 'Чат «Склад», WhatsApp',
+    raisedBy: w.colleague.membershipId,
+  });
+  const n = r.body.item.number;
+  const full = (await getIdea(db, w.colleague.actor, n)) as unknown as { sourceChannel: string; sourceNote: string; raisedBy: string };
+  assert.equal(full.sourceChannel, 'messenger');
+  assert.equal(full.sourceNote, 'Чат «Склад», WhatsApp');
+  assert.equal(full.raisedBy, 'Анна Коллега');
+  assert.ok((await inboxFor(w.colleague, n)).some((x) => x.event === 'raised_on_behalf'));
+  await assert.rejects(sql(w.author, `UPDATE ideas SET source_channel = 'whatsapp' WHERE number = $1`, [n]), codes('forbidden', 'validation_failed'));
+});

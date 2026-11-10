@@ -26,11 +26,16 @@ export MIGRATION_DATABASE_URL="postgres://modus:modus-local-only@127.0.0.1:$PORT
 export DATABASE_URL="postgres://modus_api:modus-api-local-only@127.0.0.1:$PORT/modus"
 
 [ -d node_modules ] || npm ci
+# Apply new migrations to an existing demo database (safe to repeat).
+npm run -s platform:migrate >/dev/null
 if [ "$(docker compose exec -T postgres psql -U modus -d modus -Atc "SELECT to_regclass('public.organizations') IS NOT NULL AND EXISTS (SELECT 1 FROM organizations WHERE slug = 'modus-demo')" 2>/dev/null || true)" != "t" ] || [ ! -f .demo/personas.json ]; then
   echo "Заполняем демо-данные…"
   npm run -s demo:seed
 fi
-[ -f web/dist/index.html ] || npm run web:build
+# Build the web app if it is missing or older than its sources (e.g. after git pull).
+if [ ! -f web/dist/index.html ] || [ -n "$(find web/src web/public web/index.html -newer web/dist/index.html -print -quit)" ]; then
+  npm run web:build
+fi
 
 ( sleep 2; command -v open >/dev/null && open http://127.0.0.1:3100 ) &
 echo "Откройте http://127.0.0.1:3100 — остановить: Ctrl+C"

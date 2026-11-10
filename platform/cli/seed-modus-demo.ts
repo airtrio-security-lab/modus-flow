@@ -309,6 +309,19 @@ async function main() {
     categoryId: C.knowledge,
   });
 
+  // 16. Forwarded from the warehouse WhatsApp chat by the head, credited to the storekeeper.
+  const n16 = await submit(whHead, {
+    kind: 'problem',
+    title: 'На второй смене не хватает сканеров',
+    problem: 'В чате склада написали: на второй смене два сканера на шесть человек, у стола приёмки очередь.',
+    categoryId: C.it,
+    departmentId: D.warehouse,
+    sourceChannel: 'messenger',
+    sourceNote: 'Чат «Склад» в WhatsApp',
+    raisedBy: storekeeper.membershipId,
+  });
+  age(n16, 2);
+
   // ---- shift each item's history back in time, then run escalations -------
   await withAdminTx(db, async (c) => {
     await c.query(`SET LOCAL session_replication_role = replica`); // demo data only: skip triggers for the time shift

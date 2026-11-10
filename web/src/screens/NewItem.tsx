@@ -7,6 +7,7 @@ import { CHANNEL } from '../lib/status';
 import type { Channel, Kind, Status } from '../lib/types';
 import { PageHead, StatusChip } from '../components/ui';
 import { uploadFile, ACCEPT } from './files';
+import { takeShared } from '../lib/share';
 
 interface Created {
   item: { number: number; routed: boolean; maintainer: string | null; firstResponseDueAt: string | null; status: Status };
@@ -41,6 +42,18 @@ export function NewItem() {
   const [error, setError] = useState<string | null>(null);
   const [similar, setSimilar] = useState<Similar[]>([]);
   const fileInput = useRef<HTMLInputElement>(null);
+  const [shared, setShared] = useState(false);
+
+  // Text shared from WhatsApp / another app (Android «Поделиться»): prefill and
+  // assume it is a colleague's message from a chat; the user can change both.
+  useEffect(() => {
+    const t = takeShared();
+    if (!t) return;
+    setProblem(t);
+    setOnBehalf(true);
+    setChannel('messenger');
+    setShared(true);
+  }, []);
 
   // Default department: the employee's own, if it exists in the directory.
   const myDept = useMemo(() => {
@@ -116,7 +129,16 @@ export function NewItem() {
 
   return (
     <form className="stack-lg new-item" onSubmit={(e) => void submit(e)} noValidate>
-      <PageHead title="Новое обращение" sub="Своими словами. Ответственного и срок ответа система назначит сама — вы увидите их сразу после отправки." />
+      <PageHead title="Новое обращение" sub="Своими словами. Ответственного и срок ответа система назначит сама — вы увидите их сразу после отправки.">
+        <a className="btn quiet" href="#/meeting">
+          Несколько вопросов с совещания или из чата
+        </a>
+      </PageHead>
+      {shared && (
+        <div className="notice" role="status">
+          Текст из сообщения вставлен. Укажите, чей это вопрос, и коротко назовите его.
+        </div>
+      )}
 
       <div className="segmented" role="group" aria-label="Что вы хотите сделать">
         <button type="button" aria-pressed={kind === 'problem'} onClick={() => setKind('problem')}>

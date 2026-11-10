@@ -11,6 +11,8 @@ the service worker caches the shell only, never API responses.
 | sign-in | everyone | Demo only: pick a fictional employee. **Imitation of SSO**; production uses OIDC (ADR-0009) |
 | `#/` Мои обращения | everyone | What I raised (or what was recorded from my words), its stage, and what is waiting for my answer |
 | `#/new` Новое обращение | everyone | Problem or idea in plain words; topic and department; similar existing items while typing; «записываю со слов коллеги» (channel, colleague, note); files |
+| `#/meeting` Разбор совещания | everyone | Owner's pain «идеи теряются в WhatsApp, на совещаниях, в почте»: all questions from one meeting, chat or e-mail at once; each becomes its own item with its own raiser, topic, owner and deadline; source note «встреча, дата». Each row has its own Idempotency-Key, so a retry never duplicates and one failure does not lose the others |
+| `/share?text=…` | Android | PWA share target: «Поделиться» from WhatsApp → the submission form opens with the message text, source «Мессенджер», «записываю со слов коллеги» preset. iOS does not support share targets for web apps: copy and paste there |
 | `#/items/:n` Обращение | everyone | Title, status, five-stop signal line (registration → review → decision → implementation → result), what happens now and who is next, the current text, contextual actions, full history, passport (people, source, deadlines, credit, files) |
 | `#/work` Рабочее место | maintainers, decision owners | Queues: assigned to me, without an owner, overdue, no movement |
 | `#/all` Все обращения | everyone | Russian full-text search and filters (status, topic, department, source) |
@@ -47,7 +49,8 @@ stop names collapse to the status chip and the «what happens now» line.
 * `npm --prefix web run build` — TypeScript (strict) + production build.
 * `npm run demo:e2e` — Playwright drives the real UI against the seeded demo: submit → question to the
   author → new version → question closed → decision with implementer → progress → implemented → the
-  author sees the result; a phone question recorded on behalf of an engineer; owner overview. Needs
+  author sees the result; a phone question recorded on behalf of an engineer; a meeting review with two
+  questions from different people; a WhatsApp message shared into the form; owner overview. Needs
   Playwright installed locally; it is not in CI yet.
 
 ## Known limitations
@@ -57,4 +60,8 @@ stop names collapse to the status chip and the «what happens now» line.
   completed the item).
 * Suggested revisions by colleagues, verification cancel and contribution confirmation have API
   support but no screens yet.
+* Share target works only after the PWA is installed on Android (Chrome «Установить приложение»); it was checked
+  with a direct `/share?text=` request, not on a real phone.
+* No WhatsApp / e-mail intake bot: WhatsApp Business API is a paid service and needs the owner's approval;
+  a Telegram bot or an `ideas@` mailbox are the free alternatives (plan).
 * Accessibility: keyboard focus, labels and reduced motion are handled; no screen-reader audit yet.

@@ -24,6 +24,7 @@ export const CHANNEL: Record<Channel, string> = {
   email: 'Почта',
   phone: 'Звонок',
   conversation: 'Устно',
+  messenger: 'Мессенджер',
   other: 'Другое',
 };
 

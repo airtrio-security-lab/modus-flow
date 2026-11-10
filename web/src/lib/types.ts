@@ -11,7 +11,7 @@ export type Status =
   | 'rejected'
   | 'closed';
 export type Stage = 'published' | 'review' | 'development' | 'verification' | 'decision' | 'adoption' | 'impact_verification' | 'closed';
-export type Channel = 'app' | 'meeting' | 'email' | 'phone' | 'conversation' | 'other';
+export type Channel = 'app' | 'meeting' | 'email' | 'phone' | 'conversation' | 'messenger' | 'other';
 export type Kind = 'idea' | 'problem';
 
 export interface Me {

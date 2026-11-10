@@ -35,7 +35,7 @@ export class ApiError extends Error {
   }
 }
 
-const newKey = () => (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`);
+export const newKey = () => (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`);
 
 interface Opts {
   method?: string;
@@ -43,6 +43,8 @@ interface Opts {
   body?: Blob | ArrayBuffer;
   headers?: Record<string, string>;
   idempotent?: boolean;
+  /** A fixed key: a retry of the same logical action replays instead of duplicating. */
+  key?: string;
 }
 
 export async function api<T = unknown>(path: string, opts: Opts = {}): Promise<T> {
@@ -55,7 +57,7 @@ export async function api<T = unknown>(path: string, opts: Opts = {}): Promise<T
     body = JSON.stringify(opts.json);
   } else if (opts.body) body = opts.body;
   const method = opts.method ?? (body ? 'POST' : 'GET');
-  if (method !== 'GET' && opts.idempotent !== false) headers['idempotency-key'] = newKey();
+  if (method !== 'GET' && opts.idempotent !== false) headers['idempotency-key'] = opts.key ?? newKey();
 
   let res: Response;
   try {

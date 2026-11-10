@@ -20,7 +20,7 @@ export type IdeaStage = (typeof IDEA_STAGES)[number];
 export const REVIEW_KINDS = ['comment', 'request_changes', 'objection', 'approval', 'progress'] as const;
 
 /** How the item reached the system (the owner's "chaotic channels"). */
-export const SOURCE_CHANNELS = ['app', 'meeting', 'email', 'phone', 'conversation', 'other'] as const;
+export const SOURCE_CHANNELS = ['app', 'meeting', 'email', 'phone', 'conversation', 'messenger', 'other'] as const;
 export type SourceChannel = (typeof SOURCE_CHANNELS)[number];
 export type ReviewKind = (typeof REVIEW_KINDS)[number];
 

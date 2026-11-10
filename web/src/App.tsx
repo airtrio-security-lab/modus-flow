@@ -13,6 +13,7 @@ import { AllItems } from './screens/AllItems';
 import { Overview } from './screens/Overview';
 import { Inbox } from './screens/Inbox';
 import { Settings } from './screens/Settings';
+import { Meeting } from './screens/Meeting';
 
 export function App() {
   const [me, setMe] = useState<Me | null>(null);
@@ -82,6 +83,7 @@ function Shell() {
   const nav: NavItem[] = [
     { href: '#/', label: 'Мои обращения', short: 'Мои', match: (p) => p.length === 0 },
     ...(s.isLead ? [{ href: '#/work', label: 'Рабочее место', short: 'Работа', match: (p: string[]) => p[0] === 'work' }] : []),
+    { href: '#/meeting', label: 'Разбор совещания', short: 'Совещание', match: (p) => p[0] === 'meeting' },
     { href: '#/all', label: 'Все обращения', short: 'Все', match: (p) => p[0] === 'all' },
     ...(s.isLead || s.isAdmin ? [{ href: '#/overview', label: 'Обзор', short: 'Обзор', match: (p: string[]) => p[0] === 'overview' }] : []),
     { href: '#/inbox', label: 'Уведомления', short: 'Уведомления', match: (p) => p[0] === 'inbox', count: s.unread },
@@ -91,6 +93,7 @@ function Shell() {
   let page: ReactNode;
   if (head === '') page = <Mine />;
   else if (head === 'new') page = <NewItem />;
+  else if (head === 'meeting') page = <Meeting />;
   else if (head === 'items' && route[1]) page = <ItemPage number={Number(route[1])} key={route[1]} />;
   else if (head === 'work' && s.isLead) page = <Workspace tab={route[1]} />;
   else if (head === 'all') page = <AllItems />;

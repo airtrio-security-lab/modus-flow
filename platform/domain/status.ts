@@ -37,5 +37,6 @@ export const CHANNEL_LABELS = {
   email: 'Почта',
   phone: 'Звонок',
   conversation: 'Устно',
+  messenger: 'Мессенджер',
   other: 'Другое',
 } as const;
