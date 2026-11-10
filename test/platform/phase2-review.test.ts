@@ -26,14 +26,20 @@ const sql = (p: P, text: string, params: unknown[] = []) =>
 const ideaId = async (n: number) => (await ownerQuery<{ id: string }>(db, 'SELECT id FROM ideas WHERE number = $1', [n]))[0]!.id;
 const codes = (...c: string[]) => (e: { code?: string }) => c.includes(e.code ?? '');
 
-test('#1 one person cannot be both maintainer and decision owner', async () => {
+test('#1 (hybrid, owner decision 2026-11-10) one head may lead and decide, but never verify alone', async () => {
   const both = await person(db, w.acmeId, 'Двойная Роль', ['employee', 'maintainer', 'decision_owner'], 'Склад');
   const n = await publishIdea(db, w);
-  await assert.rejects(wf.assign(db, both.actor, n, { maintainer: both.membershipId, decisionOwner: both.membershipId }), codes('validation_failed'));
+  await wf.assign(db, both.actor, n, { maintainer: both.membershipId, decisionOwner: both.membershipId });
+  const plan = { plan: 'Пилот две недели на рампе', successCriteria: 'Ожидание меньше 40 минут', owner: w.colleague.membershipId };
+  await assert.rejects(wf.startVerification(db, both.actor, n, plan), codes('validation_failed'));
   await assert.rejects(
-    sql(both, 'UPDATE ideas SET maintainer_membership_id = $2, decision_owner_membership_id = $2 WHERE id = $1', [await ideaId(n), both.membershipId]),
-    codes('validation_failed'),
+    sql(both, `INSERT INTO verifications (organization_id, idea_id, revision_number, purpose, owner_membership_id, created_by_membership_id, plan, success_criteria)
+               VALUES ($1, $2, 1, 'hypothesis', $3, $4, 'план пилота', 'критерий успеха')`, [w.acmeId, await ideaId(n), w.colleague.membershipId, both.membershipId]),
+    codes('forbidden'),
+    'the database also refuses a one-person verification',
   );
+  const d = await wf.decide(db, both.actor, n, { outcome: 'reject', rationale: 'Простое обращение: решено без пилота' });
+  assert.equal(d.body.stage, 'closed');
 });
 
 test('#1 the decision owner neither runs nor owns the verification they judge', async () => {

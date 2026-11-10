@@ -152,9 +152,8 @@ export function assign(db: Database, actor: OrgActor, number: number, input: z.i
     }
     const maintainer = input.maintainer ?? idea.maintainer_membership_id;
     const decisionOwner = input.decisionOwner ?? idea.decision_owner_membership_id;
-    if (maintainer && maintainer === decisionOwner) {
-      throw new AppError('validation_failed', 'Ведущий и ответственный за решение должны быть разными людьми');
-    }
+    // Hybrid powers (owner decision 2026-11-10): one head of department may lead
+    // and decide a simple item; a field verification needs two people (see startVerification).
     const active = await c.query(`SELECT 1 FROM verifications WHERE idea_id = $1 AND status IN ('planned','running')`, [idea.id]);
     if (active.rowCount) throw conflict('Назначения нельзя менять во время проверки');
     await c.query(
@@ -380,6 +379,9 @@ export function startVerification(
     authorize(actor, 'verification.start', accessFacts(idea));
     if (idea.stage !== 'review') throw conflict('Проверку запускают на стадии обсуждения, без открытых доработок');
     await requireChecks(c, idea, 'start_verification');
+    if (!idea.decision_owner_membership_id || idea.decision_owner_membership_id === idea.maintainer_membership_id) {
+      throw new AppError('validation_failed', 'Для полевой проверки нужен отдельный ответственный за решение — назначьте его');
+    }
     if (input.owner === idea.author_membership_id) {
       throw new AppError('validation_failed', 'Автор не может проводить проверку собственной идеи');
     }
