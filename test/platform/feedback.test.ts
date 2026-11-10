@@ -179,7 +179,10 @@ test('simple path: head asks a question → author clarifies → head decides wi
 
   await assert.rejects(wf.completeImplementation(db, w.author.actor, n, { report: 'Сделал сам, честно' }), codes('forbidden'));
   await wf.addReview(db, w.colleague.actor, n, { kind: 'progress', body: 'Краска закуплена, работы в субботу' });
-  const done = await wf.completeImplementation(db, w.colleague.actor, n, { report: 'Разметка нанесена, таблички висят, фото приложены' });
+  // The colleague raised the question and implements it: they report progress,
+  // but the head (not an originator) confirms that it is done.
+  await assert.rejects(wf.completeImplementation(db, w.colleague.actor, n, { report: 'Готово, сам проверил' }), codes('forbidden'));
+  const done = await wf.completeImplementation(db, f.head.actor, n, { report: 'Разметка нанесена, таблички висят, фото приложены' });
   assert.equal(done.body.status, 'implemented');
 
   const full = (await getIdea(db, w.author.actor, n)) as unknown as { status: string; contributions: { kind: string; member: string }[] };
@@ -203,9 +206,15 @@ test('progress reports come only from the responsible people', async () => {
 test('overdue and stale items are escalated once to the owner contact and the responsible person', async () => {
   const routed = (await submit(db, w.author, { title: 'Просроченный вопрос по ИТ', categoryId: f.categories.it })).body.item.number;
   const orphan = (await submit(db, f.head, { title: 'Забытый вопрос без ответственного', categoryId: f.categories.logistics })).body.item.number;
-  await withAdminTx(db, (c) =>
-    c.query(`UPDATE ideas SET first_response_due_at = now() - interval '1 hour', updated_at = now() - interval '30 days' WHERE number = ANY($1)`, [[routed, orphan]]),
-  );
+  // Stale is measured from the responsible people's last activity (or publication), not from updated_at.
+  await withAdminTx(db, async (c) => {
+    await c.query('SET LOCAL session_replication_role = replica');
+    await c.query(
+      `UPDATE ideas SET first_response_due_at = now() - interval '1 hour', published_at = now() - interval '30 days',
+                        responsible_activity_at = NULL WHERE number = ANY($1)`,
+      [[routed, orphan]],
+    );
+  });
   const [{ n: first }] = (await ownerQuery<{ n: number }>(db, 'SELECT escalate_overdue() AS n')) as [{ n: number }];
   assert.ok(first >= 4, `first response + stale for two items, got ${first}`);
   const [{ n: again }] = (await ownerQuery<{ n: number }>(db, 'SELECT escalate_overdue() AS n')) as [{ n: number }];

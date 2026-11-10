@@ -67,7 +67,9 @@ export async function getDirectory(db: Database, actor: OrgActor) {
               stale_days AS "staleDays", escalation_membership_id AS "escalationMembershipId"
          FROM organizations WHERE id = app_org_id()`,
     );
-    return { departments: departments.rows, categories: categories.rows, members: members.rows, settings: settings.rows[0] ?? null };
+    // Guests (invited reviewers) do not need organization settings.
+    const full = actor.access === 'member';
+    return { departments: departments.rows, categories: categories.rows, members: members.rows, settings: full ? (settings.rows[0] ?? null) : null };
   });
 }
 

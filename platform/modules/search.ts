@@ -48,8 +48,9 @@ export async function searchItems(db: Database, actor: OrgActor, f: SearchQueryT
     };
     if (f.q) {
       const q = p(f.q);
+      const like = p(f.q.replace(/[\\%_]/g, (m) => `\\${m}`));
       where.push(`(to_tsvector('russian', o.title || ' ' || o.problem || ' ' || coalesce(o.proposal, '')) @@ websearch_to_tsquery('russian', ${q})
-                   OR o.title ILIKE '%' || ${q} || '%')`);
+                   OR o.title ILIKE '%' || ${like} || '%')`);
     }
     if (f.status) where.push(`o.status = ${p(f.status)}`);
     if (f.stage) where.push(`o.stage = ${p(f.stage)}`);

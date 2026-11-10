@@ -39,7 +39,9 @@ export function validateFile(contentType: string, data: Buffer, fileName: string
   if (data.length === 0) throw new AppError('validation_failed', 'Пустой файл');
   if (data.length > MAX_ATTACHMENT_BYTES) throw new AppError('payload_too_large', 'Файл больше 5 МБ');
   if (!check(data)) throw new AppError('validation_failed', 'Содержимое файла не соответствует его типу');
-  if (!/^[^/\\\u0000-\u001f]{1,200}$/u.test(fileName)) throw new AppError('validation_failed', 'Некорректное имя файла');
+  if (!/^[^/\\\u0000-\u001f]{1,200}$/u.test(fileName) || /\p{Cf}/u.test(fileName)) {
+    throw new AppError('validation_failed', 'Некорректное имя файла');
+  }
 }
 
 export async function uploadAttachment(
@@ -51,13 +53,23 @@ export async function uploadAttachment(
   validateFile(file.contentType, file.data, file.fileName);
   return withTx(db, orgTx(actor), async (c) => {
     const idea = await loadIdea(c, number);
+    const participants = [
+      idea.author_membership_id,
+      idea.raised_by_membership_id,
+      idea.maintainer_membership_id,
+      idea.decision_owner_membership_id,
+      idea.implementer_membership_id,
+    ];
+    const owner = await c.query('SELECT 1 FROM verifications WHERE idea_id = $1 AND owner_membership_id = $2', [idea.id, actor.membershipId]);
+    if (!participants.includes(actor.membershipId) && !owner.rowCount) {
+      throw new AppError('forbidden', 'Файлы прикладывают автор, ответственные и исполнитель');
+    }
     const { rows } = await c.query<{ id: string; size_bytes: number; sha256: string; created_at: Date }>(
       `INSERT INTO attachments (organization_id, idea_id, uploaded_by_membership_id, file_name, content_type, size_bytes, sha256, data)
        VALUES ($1, $2, $3, $4, $5, 0, '', $6) RETURNING id, size_bytes, sha256, created_at`,
       [actor.orgId, idea.id, actor.membershipId, file.fileName, file.contentType, file.data],
     );
     const a = rows[0]!;
-    await c.query('UPDATE ideas SET updated_at = clock_timestamp() WHERE id = $1', [idea.id]);
     await audit(c, {
       orgId: actor.orgId,
       actorUserId: actor.userId,

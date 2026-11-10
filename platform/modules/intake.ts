@@ -161,7 +161,7 @@ export async function submitItem(
   key?: string,
 ): Promise<IdempotentResult<{ item: CreatedItem }>> {
   return withTx(db, orgTx(actor), (c) =>
-    idempotent(c, actor.userId, 'idea.submit', key, hashRequest(input), async () => ({
+    idempotent(c, actor.userId, `idea.submit:${actor.orgId}`, key, hashRequest(input), async () => ({
       status: 201,
       body: {
         item: await createItem(c, actor, {

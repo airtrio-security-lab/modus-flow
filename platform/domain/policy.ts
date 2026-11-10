@@ -76,7 +76,7 @@ export function can(actor: OrgActor, action: IdeaAction, idea: IdeaAccessFacts, 
     case 'idea.comment':
       return open;
     case 'idea.approve':
-      return open && !isAuthor(actor, idea);
+      return open && !isOriginator(actor, idea);
     case 'idea.request_changes':
       return open && leadsReview(actor, idea);
     case 'idea.object':
@@ -113,7 +113,12 @@ export function can(actor: OrgActor, action: IdeaAction, idea: IdeaAccessFacts, 
     case 'idea.report_progress':
       return open && (isMaintainer(actor, idea) || isDecisionOwner(actor, idea) || isImplementer(actor, idea));
     case 'idea.complete_implementation':
-      return idea.stage === 'adoption' && (isImplementer(actor, idea) || isMaintainer(actor, idea) || isDecisionOwner(actor, idea));
+      // Whoever raised the item never certifies it as done themselves.
+      return (
+        idea.stage === 'adoption' &&
+        !isOriginator(actor, idea) &&
+        (isImplementer(actor, idea) || isMaintainer(actor, idea) || isDecisionOwner(actor, idea))
+      );
     case 'contribution.confirm':
       return (
         ctx.contributorMembershipId !== undefined &&

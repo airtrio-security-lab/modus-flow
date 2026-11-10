@@ -67,7 +67,8 @@ export async function analytics(db: Database, actor: OrgActor, q: z.infer<typeof
     const recurring = await c.query(
       `WITH open_items AS (
          SELECT o.id, o.number, o.title, o.category FROM idea_overview o
-          WHERE ${scope} AND o.stage NOT IN ('closed','impact_verification'))
+          WHERE ${scope} AND o.stage NOT IN ('closed','impact_verification')
+          ORDER BY o.published_at DESC LIMIT 500)
        SELECT a.number AS "anchorNumber", a.title AS "anchorTitle", a.category,
               array_agg(b.number ORDER BY b.number) AS "similarNumbers", count(*)::int + 1 AS size
          FROM open_items a JOIN open_items b ON b.id <> a.id AND b.number > a.number

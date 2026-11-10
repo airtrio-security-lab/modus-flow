@@ -98,11 +98,12 @@ async function mutate<T>(
 async function moveStage(c: Client, idea: IdeaRow, to: IdeaStage): Promise<void> {
   if (idea.stage === to) return;
   assertStageTransition(idea.stage, to);
-  await c.query('UPDATE ideas SET stage = $2, updated_at = clock_timestamp() WHERE id = $1', [idea.id, to]);
+  await c.query('UPDATE ideas SET stage = $2 WHERE id = $1', [idea.id, to]);
   idea.stage = to;
 }
 
-const touch = (c: Client, idea: IdeaRow) => c.query('UPDATE ideas SET updated_at = clock_timestamp() WHERE id = $1', [idea.id]);
+// updated_at is set by the database (trigger a05_ideas_touch); a no-op update records the activity time.
+const touch = (c: Client, idea: IdeaRow) => c.query('UPDATE ideas SET stage = stage WHERE id = $1', [idea.id]);
 
 async function requireChecks(c: Client, idea: IdeaRow, gate: CheckGate): Promise<void> {
   const failing = failingForGate(await computeChecks(c, idea), gate);
@@ -162,7 +163,7 @@ export function assign(db: Database, actor: OrgActor, number: number, input: z.i
     const active = await c.query(`SELECT 1 FROM verifications WHERE idea_id = $1 AND status IN ('planned','running')`, [idea.id]);
     if (active.rowCount) throw conflict('Назначения нельзя менять во время проверки');
     await c.query(
-      'UPDATE ideas SET maintainer_membership_id = $2, decision_owner_membership_id = $3, updated_at = clock_timestamp() WHERE id = $1',
+      'UPDATE ideas SET maintainer_membership_id = $2, decision_owner_membership_id = $3 WHERE id = $1',
       [idea.id, maintainer, decisionOwner],
     );
     idea.maintainer_membership_id = maintainer;
@@ -299,7 +300,7 @@ function assertBase(idea: IdeaRow, base: number): void {
 async function promote(c: Client, idea: IdeaRow, revisionNumber: number): Promise<void> {
   await c.query(`UPDATE idea_revisions SET status = 'superseded' WHERE idea_id = $1 AND status = 'current'`, [idea.id]);
   await c.query(`UPDATE idea_revisions SET status = 'current' WHERE idea_id = $1 AND number = $2`, [idea.id, revisionNumber]);
-  await c.query('UPDATE ideas SET current_revision_number = $2, updated_at = clock_timestamp() WHERE id = $1', [idea.id, revisionNumber]);
+  await c.query('UPDATE ideas SET current_revision_number = $2 WHERE id = $1', [idea.id, revisionNumber]);
   idea.current_revision_number = revisionNumber;
   if (idea.stage === 'development') await moveStage(c, idea, 'review');
 }
@@ -317,7 +318,7 @@ export function revise(db: Database, actor: OrgActor, number: number, input: z.i
        VALUES ($1, $2, $3, $4, 'author_update', $5, $6, $7, $8, $9, $10, 'current')`,
       [actor.orgId, idea.id, n, actor.membershipId, input.baseRevision, input.title, input.problem, input.proposal, input.successCriteria ?? null, input.rationale ?? null],
     );
-    await c.query('UPDATE ideas SET current_revision_number = $2, updated_at = clock_timestamp() WHERE id = $1', [idea.id, n]);
+    await c.query('UPDATE ideas SET current_revision_number = $2 WHERE id = $1', [idea.id, n]);
     idea.current_revision_number = n;
     if (idea.stage === 'development') await moveStage(c, idea, 'review');
     await log(c, actor, 'idea.revised', 'idea', idea.id, { revision: n, basedOn: input.baseRevision });
@@ -546,7 +547,7 @@ async function setImplementer(c: Client, actor: OrgActor, idea: IdeaRow, impleme
     [implementer],
   );
   if (!ok.rowCount) throw new AppError('validation_failed', 'Исполнитель должен быть действующим сотрудником');
-  await c.query('UPDATE ideas SET implementer_membership_id = $2, updated_at = clock_timestamp() WHERE id = $1', [idea.id, implementer]);
+  await c.query('UPDATE ideas SET implementer_membership_id = $2 WHERE id = $1', [idea.id, implementer]);
   idea.implementer_membership_id = implementer;
   await log(c, actor, 'idea.assigned', 'idea', idea.id, { implementer });
   await ping(c, actor, 'assigned', idea, [implementer], `${idea.id}:impl:${implementer}`);
@@ -593,5 +594,27 @@ export function completeImplementation(
       `${idea.id}:implemented`,
     );
     return { number: idea.number, stage: idea.stage, status: 'implemented', reportId: rows[0]!.id };
+  });
+}
+
+/**
+ * The colleague named as "raised by" can decline the attribution (e.g. it was
+ * recorded wrongly). The credit is revoked with a reason and they may then be
+ * assigned to the item like anyone else. History keeps both facts.
+ */
+export function declineAttribution(db: Database, actor: OrgActor, number: number, key?: string) {
+  return mutate(db, actor, number, 'idea.decline_attribution', {}, key, async (c, idea) => {
+    if (idea.raised_by_membership_id !== actor.membershipId) {
+      throw new AppError('forbidden', 'Отказаться от авторства вопроса может только тот, на кого он записан');
+    }
+    await c.query('UPDATE ideas SET raised_by_membership_id = NULL WHERE id = $1', [idea.id]);
+    await c.query(
+      `UPDATE contributions SET status = 'revoked', revoked_reason = 'Сотрудник отказался от авторства вопроса'
+        WHERE idea_id = $1 AND kind = 'issue_found' AND membership_id = $2 AND status <> 'revoked'`,
+      [idea.id, actor.membershipId],
+    );
+    await log(c, actor, 'idea.attribution_declined', 'idea', idea.id, {});
+    idea.raised_by_membership_id = null;
+    return { number: idea.number, raisedBy: null };
   });
 }
