@@ -152,6 +152,16 @@ lost, everyone sees the stage, the owner sees what needs attention. Migrations 0
 | PATCH | `/api/v1/orgs/:org/settings` | first-response hours, resolution days, stale days, escalation contact |
 | GET | `/api/v1/orgs/:org/analytics?from=&to=` | leads and admins; counts and shares from recorded facts only |
 | GET | `/api/v1/orgs/:org/kingdom` | full members; castles per active department (`towers` = implemented, `building`, `envoys`, `waiting`, `returned`), open items as envoys with a `mine` flag, `wildlands` = open items without a department. Computed under RLS (ADR-0011) |
+| GET | `/api/v1/orgs/:org/rating?period=30\|90\|365\|all` | full members; per department: `xpPeriod`, `xpTotal`, level, implemented and effect XP for the period and all time, `xpPer10` / `implementedPer10` only when `headcount` is set; rank by period XP. No personal fields (ADR-0012) |
+| GET | `/api/v1/orgs/:org/castles/:id` | full members; level, XP, XP history (item, credited author, kind, XP, running total, level-ups), achievements with dates |
+| GET | `/api/v1/orgs/:org/me/contribution` | the caller's items and the XP each implemented one brought to its castle (no personal total) |
+| PATCH | `/api/v1/orgs/:org/settings/progress` | org_admin: `xpPerImplementation`, `xpEffectMax`, `levelThresholds` (5, from 0, strictly increasing), `levelNames` |
+| GET | `/api/v1/orgs/:org/council` | items under consideration the caller may see, with argument / recommendation / dissent counts |
+| GET | `/api/v1/orgs/:org/ideas/:n/council` | the round table: item, seats with real roles and stance, entries, decisions, questions to the author, similar items, `can` flags for the caller |
+| POST | `…/ideas/:n/council/entries` | `{kind: argument_for\|argument_against\|recommendation\|dissent, recommendation?, body}`; originators argue but never recommend; open stages only; append-only |
+| POST | `…/ideas/:n/council/handoff` | maintainer (not an originator) → stage `decision`, the decision owner is notified |
+| GET | `…/ideas/:n/progress` | XP awarded for the item, effect approval, whether the caller may approve it |
+| POST | `…/ideas/:n/effect` | decision owner, not an originator, after a confirmed implementation: `{xp ≤ xpEffectMax, rationale ≥ 20}`, once |
 
 Escalation of overdue / stale items: `node platform/cli/escalate.ts` (schema owner, run by a
 scheduler; none is bundled). Audit: [`../audit/2026-11-10-feedback-review.md`](../audit/2026-11-10-feedback-review.md).

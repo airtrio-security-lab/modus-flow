@@ -68,11 +68,13 @@ SSO; all people and items are invented. Details: [`docs/architecture/PHASE3-UI.m
 npm ci
 docker compose up -d postgres
 export MIGRATION_DATABASE_URL=postgres://modus:modus-local-only@127.0.0.1:5432/modus
-npm run demo:seed        # fresh database only: 15 items in every status, writes .demo/personas.json
+npm run demo:seed        # fresh database only: 16 items in every status, castles, a Council session; writes .demo/personas.json
 npm run web:build        # builds web/dist
 npm run demo:start       # API as modus_api + web app + demo sign-in; refuses NODE_ENV=production
 npm run demo:e2e         # optional: Playwright walks through the main scenario
+npm run demo:kingdom     # optional, on a fresh seed: the 90-second kingdom scenario (Council → XP → level → rating)
 ```
+The 90-second click path for a live demo: [`docs/demo/kingdom-90s.md`](docs/demo/kingdom-90s.md).
 Or all of it in one command (Docker + Node ≥ 22.18): `./scripts/demo-local.sh`.
 
 ### Platform tests

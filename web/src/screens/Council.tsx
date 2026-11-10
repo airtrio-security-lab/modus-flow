@@ -134,17 +134,17 @@ export function CouncilList() {
 // ---------------------------------------------------------------------------
 // The round table
 // ---------------------------------------------------------------------------
+/** Width of an element that may appear after loading (callback ref, so it is measured whenever it mounts). */
 function useWidth() {
-  const ref = useRef<HTMLDivElement>(null);
-  const [w, setW] = useState(800);
+  const [el, setEl] = useState<HTMLDivElement | null>(null);
+  const [w, setW] = useState(() => (typeof window !== 'undefined' ? window.innerWidth : 800));
   useEffect(() => {
-    const el = ref.current;
     if (!el || typeof ResizeObserver === 'undefined') return;
     const ro = new ResizeObserver(([e]) => setW(e?.contentRect.width ?? 800));
     ro.observe(el);
     return () => ro.disconnect();
-  }, []);
-  return { ref, w };
+  }, [el]);
+  return { ref: setEl, w };
 }
 
 export function RoundTable({ number }: { number: number }) {
@@ -263,7 +263,7 @@ export function RoundTable({ number }: { number: number }) {
 
 function TableScene({ view, selected, onSelect }: { view: CouncilView; selected: string | null; onSelect: (id: string | null) => void }) {
   const W = 760;
-  const H = 640;
+  const H = 660;
   const cx = W / 2;
   const cy = H / 2 + 6;
   const n = view.seats.length;
@@ -299,8 +299,8 @@ function TableScene({ view, selected, onSelect }: { view: CouncilView; selected:
       </g>
       {view.seats.map((seat, i) => {
         const a = ((-90 + (360 * i) / n) * Math.PI) / 180;
-        const x = cx + 290 * Math.cos(a);
-        const y = cy - 20 + 222 * Math.sin(a);
+        const x = cx + 286 * Math.cos(a);
+        const y = cy - 34 + 216 * Math.sin(a);
         return <SeatMark key={seat.membershipId} seat={seat} x={x} y={y} selected={selected === seat.membershipId} onSelect={() => onSelect(selected === seat.membershipId ? null : seat.membershipId)} />;
       })}
     </svg>
@@ -341,16 +341,16 @@ function SeatMark({ seat, x, y, selected, onSelect }: { seat: CouncilSeat; x: nu
       {decider ? (
         <path d="M-12,-40 l5,-9 l7,6 l7,-6 l5,9 z" className="seat-crown" aria-hidden="true" />
       ) : null}
-      <rect x="-74" y="16" width="148" height="44" rx="8" className="seat-plate" />
-      <text y="33" textAnchor="middle" className="seat-name">
+      <rect x="-84" y="16" width="168" height="52" rx="8" className="seat-plate" />
+      <text y="37" textAnchor="middle" className="seat-name">
         {short.length > 18 ? `${short.slice(0, 17)}…` : short}
       </text>
-      <text y="51" textAnchor="middle" className="seat-role">
-        {role.length > 22 ? `${role.slice(0, 21)}…` : role}
+      <text y="58" textAnchor="middle" className="seat-role">
+        {role.length > 21 ? `${role.slice(0, 20)}…` : role}
       </text>
-      <g transform="translate(0, 72)">
-        <rect x="-40" y="-11" width="80" height="22" rx="11" className={`seat-stance tone-${st.tone}`} />
-        <text y="5" textAnchor="middle" className="seat-stance-text">
+      <g transform="translate(0, 82)">
+        <rect x="-48" y="-13" width="96" height="26" rx="13" className={`seat-stance tone-${st.tone}`} />
+        <text y="5.5" textAnchor="middle" className="seat-stance-text">
           {st.short}
         </text>
       </g>

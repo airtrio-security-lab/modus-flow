@@ -12,7 +12,11 @@ the service worker caches the shell only, never API responses.
 | `#/` Мои обращения | everyone | What I raised (or what was recorded from my words), its stage, and what is waiting for my answer |
 | `#/new` Новое обращение | everyone | Problem or idea in plain words; topic and department; similar existing items while typing; «записываю со слов коллеги» (channel, colleague, note); files |
 | `#/board` Доска (канбан) | everyone | Columns are the five author-facing stages (Новые, Рассмотрение, Решение, Реализация, Итог). Dragging a card (or «Перевести» on touch / keyboard) opens the workflow step that move means: take over, decide with a reason and implementer, reject / close with a reason, confirm implementation. Backward moves and moves the rules forbid are explained, never applied silently. «Мне / Все», topic filter; finished items older than 14 days folded |
-| `#/kingdom` Королевство | members | The same items as an illustrated map (ADR-0011). Each active department is a castle; it gains a tower **only** for an implemented item, so sending many items does not grow it. Open items are envoys on the road to «Совет»; where an envoy stands is its real status (in the road, «на приёме», «ждёт у ворот» when the first-response deadline passed — red pennant, «у трона» at decision, back home when more information is needed or work is in progress — scaffolding). «Ваши послы» on top; refreshes every 15 s and celebrates a new tower (announced to screen readers). A plain list of castles under the map carries the same facts. Phones get a portrait layout. Employees reach it from the tab bar, leads from «Рабочее место» and «Обзор» |
+| `#/kingdom` Королевство | members | The same items as a living strategy map (ADR-0011, ADR-0012). Each active department is an **isometric castle** whose level comes from XP the database awards only for confirmed events: 1 Поселение (timber palisade) → 2 Крепость (stone keep and walls) → 3 Цитадель (corner towers) → 4 Королевский замок (roofs, rear tower, more banners) → 5 Легендарная крепость (golden spire, glow). Nothing grows at random: when a refresh shows a higher level, the new parts rise in a short construction animation, a notice names the castle and level, and the castle's history records which item brought it. Open items are envoys labelled «Обращение №…» standing where the item really is. The side panel shows level, XP bar, achievements, XP history (item, author, date) and the department's open items. Labels sit on solid plates; parchment is only a decorative cartouche. Phones get a two-column layout. «Облегчённая графика» removes textures and animation (automatic on slow devices or with reduced motion) |
+| `#/rating` Рейтинг | members | Departments, never people: XP for a period (30 days, quarter, year) and all time, implemented items, confirmed effect, and — separately — XP per 10 employees where the admin entered the department size. Table on desktop, cards on phones |
+| `#/council` Совет | members | Sessions grouped by stage (ждут решения, пилот, рассмотрение, уточнение) with initiator, decision owner, argument counts and deadline. «Мне решать» / «Я веду» filters for leads |
+| `#/council/:n` Круглый стол | members (guests: their items) | A wooden round table with the real participants: initiator (gold ring), recorder, maintainer, decision owner (crown), implementer, pilot owner, department heads and anyone who spoke. Selecting a seat opens that person's position. The right panel holds the subject, status, decision owner and deadline, arguments for/against, recommendations and dissent, the person's own form, and the real actions of those the rules name: ask the author, start a pilot, hand off to the decision owner, decide. «Рекомендации Совета — это совет, а не решение». Journal with times and authors. More than 10 participants or a narrow screen: a compact list instead of the circle. Similar items come from text search; the AI advisor is not connected and the page says so |
+| `#/me` Мой профиль | everyone | Roles, quick links (submit, my items, notifications, overview and settings for leads/admins), what each of my implemented ideas brought to its castle — credit, no personal total — and device settings (theme, lite graphics, sign out) |
 | `#/meeting` Разбор совещания | everyone | Owner's pain «идеи теряются в WhatsApp, на совещаниях, в почте»: all questions from one meeting, chat or e-mail at once; each becomes its own item with its own raiser, topic, owner and deadline; source note «встреча, дата». Each row has its own Idempotency-Key, so a retry never duplicates and one failure does not lose the others |
 | `/share?text=…` | Android | PWA share target: «Поделиться» from WhatsApp → the submission form opens with the message text, source «Мессенджер», «записываю со слов коллеги» preset. iOS does not support share targets for web apps: copy and paste there |
 | `#/items/:n` Обращение | everyone | Title, status, five-stop signal line (registration → review → decision → implementation → result), what happens now and who is next, the current text, contextual actions, full history, passport (people, source, deadlines, credit, files) |
@@ -46,6 +50,16 @@ only for state. One typeface (IBM Plex Sans, bundled so the demo runs offline). 
 is the signal line; everything else stays quiet. Mobile: bottom tab bar around a central «Подать»;
 stop names collapse to the status chip and the «what happens now» line.
 
+## Navigation (2026-11-11)
+
+Three views over the same data: **Королевство** (map and rating), **Совет** (discussion and decisions),
+**Работа** (Обращения with tabs Мои / Все / Мне на рассмотрение / Доска / Разбор совещания). The rail
+lists Королевство, Совет, Обращения, Доска, Рейтинг, Мой профиль; then Уведомления, Обзор (leads),
+Настройки (admins). Phones: Королевство, Обращения, «+», Совет, Профиль; the bell sits in the header.
+Fantasy words never replace the business ones: every envoy is «Обращение №…», every decision is named.
+A «Как это работает» strip (hideable) answers where to submit, where the status is, where it is
+discussed, who decides and what grows the castle.
+
 ## Checks
 
 * `npm --prefix web run build` — TypeScript (strict) + production build.
@@ -55,6 +69,10 @@ stop names collapse to the status chip and the «what happens now» line.
   questions from different people; a WhatsApp message shared into the form; Kanban take-over by drag and drop and an explained forbidden move;
   owner overview. Needs
   Playwright installed locally; it is not in CI yet.
+* `npm run demo:kingdom` — the 90-second kingdom scenario on a fresh demo database: a warehouse idea →
+  envoy on the map → Council (argument for, argument against, recommendation, hand-off) → the operations
+  director decides → progress and confirmation → the warehouse castle goes 150 → 250 XP and becomes
+  «Цитадель» → effect +50 → the rating shows 300. Every number is read from the screen.
 
 ## Known limitations
 
@@ -68,3 +86,6 @@ stop names collapse to the status chip and the «what happens now» line.
 * No WhatsApp / e-mail intake bot: WhatsApp Business API is a paid service and needs the owner's approval;
   a Telegram bot or an `ideas@` mailbox are the free alternatives (plan).
 * Accessibility: keyboard focus, labels and reduced motion are handled; no screen-reader audit yet.
+* Kingdom refreshes by polling every 15 s while visible; there is no push channel.
+* The AI advisor (summary, risks, questions for the Council) is not implemented: no AI service is
+  connected and none was approved; the Council shows similar items from plain text search instead.

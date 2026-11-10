@@ -25,7 +25,12 @@ type Pt = { x: number; y: number };
 /** `u` is the size of one isometric grid unit; `font` keeps plate labels readable at the map's real size. */
 type Layout = { w: number; h: number; capital: Pt; rx: number; ry: number; camp: Pt; s: number; u: number; font: number; start: number };
 const WIDE: Layout = { w: 1000, h: 800, capital: { x: 500, y: 420 }, rx: 380, ry: 280, camp: { x: 64, y: 40 }, s: 1.25, u: 10, font: 17, start: -72 };
-const TALL: Layout = { w: 480, h: 1100, capital: { x: 240, y: 550 }, rx: 150, ry: 390, camp: { x: 50, y: 30 }, s: 1.05, u: 7, font: 18, start: NaN };
+const TALL: Layout = { w: 480, h: 1160, capital: { x: 240, y: 560 }, rx: 150, ry: 390, camp: { x: 64, y: 1080 }, s: 1.05, u: 7, font: 18, start: NaN };
+/** Phones: two columns around the council instead of a tight ring, so labels never collide (up to 8 castles). */
+const TALL_SLOTS: Pt[] = [
+  { x: 120, y: 190 }, { x: 360, y: 190 }, { x: 120, y: 390 }, { x: 360, y: 390 },
+  { x: 120, y: 760 }, { x: 360, y: 760 }, { x: 120, y: 960 }, { x: 360, y: 960 },
+];
 
 /** Where an envoy stands on its road (0 = home castle, 1 = council gates) and what it means. */
 export function envoyState(e: Envoy): { t: number; label: string; home?: boolean } {
@@ -60,7 +65,8 @@ function placeCastles(castles: Castle[], L: Layout) {
     // Portrait: no castle sits level with the council, which would crowd it.
     const start = Number.isNaN(L.start) ? -90 + 180 / Math.max(n, 1) : L.start;
     const a = ((start + (360 * i) / Math.max(n, 1)) * Math.PI) / 180;
-    const pos = { x: L.capital.x + L.rx * Math.cos(a), y: L.capital.y + L.ry * Math.sin(a) };
+    const slot = L === TALL && n <= TALL_SLOTS.length ? TALL_SLOTS[i] : undefined;
+    const pos = slot ?? { x: L.capital.x + L.rx * Math.cos(a), y: L.capital.y + L.ry * Math.sin(a) };
     const dx = L.capital.x - pos.x;
     const dy = L.capital.y - pos.y;
     const len = Math.hypot(dx, dy) || 1;
