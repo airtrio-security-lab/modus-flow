@@ -273,3 +273,26 @@ test('only admins manage reference data; rule assignees must hold their roles; i
   const guest = await person(db, w.acmeId, 'Гость Правил', ['maintainer'], 'Внешний', 'guest');
   assert.equal((await sql(guest, 'SELECT id FROM routing_rules')).rows.length, 0, 'guests do not see routing rules');
 });
+
+test('the author of a problem answers a clarifying question with a new version without a proposal; an idea still needs one', async () => {
+  const n = (await submit(db, w.author, { title: 'Пыльно в зоне упаковки', departmentId: f.departments.sklad })).body.item.number;
+  const q = await wf.addReview(db, f.head.actor, n, { kind: 'request_changes', body: 'В какую смену и где именно?' });
+  const r = await wf.revise(db, w.author.actor, n, {
+    baseRevision: 1,
+    title: 'Пыльно в зоне упаковки',
+    problem: 'В ночную смену у ворот №3 пыль от картона, к утру всё в пыли',
+    rationale: 'Уточнил смену и место',
+  });
+  assert.equal(r.body.revision, 2);
+  await wf.resolveReview(db, f.head.actor, n, q.body.id, { outcome: 'resolved', note: 'Ясно, проверим вытяжку' });
+  assert.equal(((await getIdea(db, w.author.actor, n)) as unknown as { status: string }).status, 'in_review');
+
+  const idea = (
+    await submit(db, w.author, { kind: 'idea', title: 'Вытяжка у ворот', proposal: 'Поставить вытяжку у ворот №3 над столами упаковки', departmentId: f.departments.sklad })
+  ).body.item.number;
+  await assert.rejects(
+    wf.revise(db, w.author.actor, idea, { baseRevision: 1, title: 'Вытяжка у ворот', problem: problemText }),
+    codes('validation_failed'),
+    'an idea cannot lose its proposal',
+  );
+});

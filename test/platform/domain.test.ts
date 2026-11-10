@@ -151,3 +151,13 @@ test('authenticator selection: explicit mode, dev tokens refused in production, 
   assert.deepEqual(await a.authenticate(issueToken(secret, uid)), { userId: uid });
   assert.equal(await a.authenticate('garbage'), null);
 });
+
+test('recurring problems: a group of similar items is shown once, not again from each member', async () => {
+  const { distinctClusters } = await import('../../platform/modules/analytics.ts');
+  const rows = [
+    { anchorNumber: 16, similarNumbers: [17, 18] },
+    { anchorNumber: 2, similarNumbers: [8] },
+    { anchorNumber: 17, similarNumbers: [18] },
+  ];
+  assert.deepEqual(distinctClusters(rows).map((r) => r.anchorNumber), [16, 2]);
+});

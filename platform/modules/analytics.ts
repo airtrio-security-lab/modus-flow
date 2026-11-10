@@ -99,8 +99,25 @@ export async function analytics(db: Database, actor: OrgActor, q: z.infer<typeof
       byChannel: byChannel.rows,
       byCategory: byCategory.rows,
       byDepartment: byDepartment.rows,
-      recurring: recurring.rows,
+      recurring: distinctClusters(recurring.rows as { anchorNumber: number; similarNumbers: number[] }[]),
       needsAttention: attention.rows,
     };
   });
+}
+
+/**
+ * The pair query returns one row per anchor, so a group of three similar items
+ * appears again from its second member. Keep a cluster only if its anchor is
+ * not already part of a cluster kept before (rows are ordered by size).
+ */
+export function distinctClusters<T extends { anchorNumber: number; similarNumbers: number[] }>(rows: T[]): T[] {
+  const seen = new Set<number>();
+  const out: T[] = [];
+  for (const r of rows) {
+    if (seen.has(r.anchorNumber)) continue;
+    out.push(r);
+    seen.add(r.anchorNumber);
+    for (const n of r.similarNumbers) seen.add(n);
+  }
+  return out;
 }

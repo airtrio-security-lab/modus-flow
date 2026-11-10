@@ -45,7 +45,8 @@ const RevisionBody = {
   baseRevision: z.number().int().positive(),
   title: text(3, 160),
   problem: text(20, 5000),
-  proposal: text(20, 5000),
+  // Optional: a reported problem may have no proposal; the database requires one for ideas.
+  proposal: text(20, 5000).optional(),
   successCriteria: text(10, 3000).optional(),
 };
 export const ReviseInput = z.object({ ...RevisionBody, rationale: text(5, 3000).optional() }).strict();
@@ -316,7 +317,7 @@ export function revise(db: Database, actor: OrgActor, number: number, input: z.i
       `INSERT INTO idea_revisions (organization_id, idea_id, number, author_membership_id, origin, based_on_number,
                                    title, problem, proposal, success_criteria, rationale, status)
        VALUES ($1, $2, $3, $4, 'author_update', $5, $6, $7, $8, $9, $10, 'current')`,
-      [actor.orgId, idea.id, n, actor.membershipId, input.baseRevision, input.title, input.problem, input.proposal, input.successCriteria ?? null, input.rationale ?? null],
+      [actor.orgId, idea.id, n, actor.membershipId, input.baseRevision, input.title, input.problem, input.proposal ?? null, input.successCriteria ?? null, input.rationale ?? null],
     );
     await c.query('UPDATE ideas SET current_revision_number = $2 WHERE id = $1', [idea.id, n]);
     idea.current_revision_number = n;
@@ -336,7 +337,7 @@ export function suggest(db: Database, actor: OrgActor, number: number, input: z.
       `INSERT INTO idea_revisions (organization_id, idea_id, number, author_membership_id, origin, based_on_number,
                                    title, problem, proposal, success_criteria, rationale, status)
        VALUES ($1, $2, $3, $4, 'suggestion', $5, $6, $7, $8, $9, $10, 'proposed')`,
-      [actor.orgId, idea.id, n, actor.membershipId, input.baseRevision, input.title, input.problem, input.proposal, input.successCriteria ?? null, input.rationale],
+      [actor.orgId, idea.id, n, actor.membershipId, input.baseRevision, input.title, input.problem, input.proposal ?? null, input.successCriteria ?? null, input.rationale],
     );
     await touch(c, idea);
     await log(c, actor, 'idea.suggestion_submitted', 'idea', idea.id, { revision: n, basedOn: input.baseRevision });

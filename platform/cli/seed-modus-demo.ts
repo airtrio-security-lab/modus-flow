@@ -313,28 +313,43 @@ async function main() {
   await withAdminTx(db, async (c) => {
     await c.query(`SET LOCAL session_replication_role = replica`); // demo data only: skip triggers for the time shift
     for (const { n, days } of shifts) {
-      const interval = `${days} days`;
+      // Spread the item's real history (milliseconds long) over its demo age:
+      // t' = start + age·0.85·((t - p0) / real)², so first responses and decisions get
+      // realistic gaps. Deadlines keep their SLA distance from publication.
       const id = (await c.query<{ id: string }>('SELECT id FROM ideas WHERE organization_id = $1 AND number = $2', [orgId, n])).rows[0]!.id;
+      const span = await c.query<{ p0: Date; e: Date }>(
+        `SELECT i.published_at AS p0, greatest(i.published_at + interval '1 millisecond',
+                  (SELECT max(t) FROM (SELECT created_at t FROM reviews WHERE idea_id = i.id
+                    UNION ALL SELECT resolved_at FROM reviews WHERE idea_id = i.id
+                    UNION ALL SELECT created_at FROM decisions WHERE idea_id = i.id
+                    UNION ALL SELECT completed_at FROM verifications WHERE idea_id = i.id) x)) AS e
+           FROM ideas i WHERE i.id = $1`,
+        [id],
+      );
+      const { p0, e } = span.rows[0]!;
+      const start = new Date(Date.now() - days * 86400e3);
+      // Activity fills ~85 % of the item's age; an item with no activity is only shifted.
+      const real = (e.getTime() - p0.getTime()) / 1000;
+      const target = real > 0.005 ? days * 86400 * 0.85 : 0;
+      // Quadratic: early steps (first answer) stay hours after publication, later ones spread out.
+      const f = (col: string) =>
+        `${col} = CASE WHEN ${col} IS NULL THEN NULL ELSE $2::timestamptz + make_interval(secs => $4::float8 * power(least(1.0, greatest(0.0, extract(epoch FROM ${col} - $3::timestamptz)::float8 / $5::float8)), 2)) END`;
+      const sh = (col: string) => `${col} = ${col} + ($2::timestamptz - $3::timestamptz)`;
+      const args = [id, start, p0, target, Math.max(real, 0.001)];
       await c.query(
-        `UPDATE ideas SET published_at = published_at - $2::interval, updated_at = updated_at - $2::interval,
-                first_response_due_at = first_response_due_at - $2::interval, resolution_due_at = resolution_due_at - $2::interval,
-                first_response_at = first_response_at - $2::interval,
-                responsible_activity_at = responsible_activity_at - $2::interval WHERE id = $1`,
-        [id, interval],
+        `UPDATE ideas SET ${f('published_at')}, ${f('updated_at')}, ${sh('first_response_due_at')}, ${sh('resolution_due_at')},
+                ${f('first_response_at')}, ${f('responsible_activity_at')} WHERE id = $1`,
+        args,
       );
       for (const t of ['idea_revisions', 'reviews', 'decisions', 'contributions', 'notifications', 'attachments']) {
-        await c.query(`UPDATE ${t} SET created_at = created_at - $2::interval WHERE idea_id = $1`, [id, interval]);
+        await c.query(`UPDATE ${t} SET ${f('created_at')} WHERE idea_id = $1`, args);
       }
-      await c.query(`UPDATE reviews SET resolved_at = resolved_at - $2::interval WHERE idea_id = $1 AND resolved_at IS NOT NULL`, [id, interval]);
+      await c.query(`UPDATE reviews SET ${f('resolved_at')} WHERE idea_id = $1 AND resolved_at IS NOT NULL`, args);
+      await c.query(`UPDATE verifications SET ${f('created_at')}, ${f('started_at')}, ${f('completed_at')} WHERE idea_id = $1`, args);
       await c.query(
-        `UPDATE verifications SET created_at = created_at - $2::interval, started_at = started_at - $2::interval,
-                completed_at = completed_at - $2::interval WHERE idea_id = $1`,
-        [id, interval],
-      );
-      await c.query(
-        `UPDATE verification_evidence e SET created_at = e.created_at - $2::interval
+        `UPDATE verification_evidence e SET ${f('e.created_at').replace('e.created_at =', 'created_at =')}
            FROM verifications v WHERE v.id = e.verification_id AND v.idea_id = $1`,
-        [id, interval],
+        args,
       );
     }
   });
