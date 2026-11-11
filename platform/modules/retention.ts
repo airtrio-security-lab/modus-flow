@@ -87,5 +87,7 @@ export async function setLegalHold(db: Database, actor: OrgActor, meetingId: str
 /** Scheduled job, run with the schema-owner connection (see platform/cli/retention.ts). */
 export async function sweep(db: Database, at?: Date): Promise<number> {
   const { rows } = await db.pool.query<{ n: number }>('SELECT app_retention_sweep($1) AS n', [at ?? new Date()]);
-  return rows[0]!.n;
+  // Erasures of personal data in knowledge (ADR-0018) are re-applied the same way after a restore.
+  const k = await db.pool.query<{ n: number }>('SELECT app_knowledge_reapply_erasures() AS n');
+  return rows[0]!.n + k.rows[0]!.n;
 }

@@ -314,7 +314,7 @@ export async function inbox(c: Client, limit = 80): Promise<InboxItem[]> {
     created_at: Date;
     read_at: Date | null;
   }>(
-    `SELECT n.id, n.event_type, u.display_name AS actor_name, n.actor_membership_id AS actor_id, r.title, i.number, n.meeting_id, k.id AS knowledge_id, k.title AS k_title,
+    `SELECT n.id, n.event_type, CASE WHEN n.event_type LIKE 'knowledge\_%' THEN app_knowledge_person(n.actor_membership_id) ELSE u.display_name END AS actor_name, n.actor_membership_id AS actor_id, r.title, i.number, n.meeting_id, k.id AS knowledge_id, k.title AS k_title,
             CASE WHEN k.kind = 'method' THEN 'метода' ELSE 'знания' END AS k_noun,
             mt.title AS m_title, mt.scope AS m_scope, mt.scheduled_at AS m_scheduled, mt.cancelled_at AS m_cancelled,
             mt.cancel_reason AS m_cancel_reason, ou.display_name AS m_organizer, mi.number AS m_idea_number, mr.title AS m_idea_title,

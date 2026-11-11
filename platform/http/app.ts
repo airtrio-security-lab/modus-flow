@@ -27,6 +27,7 @@ import * as council from '../modules/council.ts';
 import * as advisor from '../modules/advisor.ts';
 import * as meetings from '../modules/meetings.ts';
 import * as legacy from '../modules/legacy.ts';
+import * as kprivacy from '../modules/knowledge-privacy.ts';
 import * as titles from '../modules/titles.ts';
 import * as retention from '../modules/retention.ts';
 import type { TranscribeConfig } from '../modules/transcribe.ts';
@@ -459,6 +460,10 @@ export function createApp(config: AppConfig) {
   json('POST', `${KN}/actions`, legacy.ActInput, (a, i, p) => legacy.act(db, a, p.id!, i));
   route('GET', `${IDEA}/knowledge-draft`, async (ctx) => ({ status: 200, body: await legacy.draftFromItem(db, await org(ctx), NumberParam.parse(ctx.params.number)) }));
   json('POST', `/members/(?<id>${UUID})/archivist`, legacy.ArchivistInput, (a, i, p) => legacy.setArchivist(db, a, p.id!, i.grant));
+  // Personal data in knowledge (0013, ADR-0018): admin-only scan, erasure, pseudonymization.
+  route('GET', `${ORG}/privacy/knowledge`, async (ctx) => ({ status: 200, body: await kprivacy.scan(db, await org(ctx)) }));
+  json('POST', `${KN}/erasure`, kprivacy.EraseInput, (a, i, p) => kprivacy.erase(db, a, p.id!, i));
+  json('POST', `/members/(?<id>${UUID})/pseudonymize`, kprivacy.PseudonymizeInput, (a, i, p) => kprivacy.pseudonymize(db, a, p.id!, i));
   route('GET', `${ORG}/analytics`, async (ctx) => ({
     status: 200,
     body: await analytics(db, await org(ctx), AnalyticsQuery.parse(queryObject(ctx.query))),

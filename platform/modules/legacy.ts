@@ -21,6 +21,7 @@ import {
 } from '../domain/legacy.ts';
 import type { OrgActor } from '../domain/model.ts';
 import { STATUS_INFO, type ItemStatus } from '../domain/status.ts';
+import { CONFIDENTIAL_KINDS, findSensitive, kindsText, meetingOverlap, OVERLAP_LABEL } from '../domain/privacy.ts';
 import { withTx, type Client, type Database } from '../db/pool.ts';
 import { audit } from './audit.ts';
 import { orgTx } from './context.ts';
@@ -143,6 +144,45 @@ async function assertPeople(c: Client, card: CardT) {
   if (rows[0]!.n !== ids.length) throw new AppError('validation_failed', 'Автор инициативы и ответственные — сотрудники этой организации');
 }
 
+// ---------------------------------------------------------------------------
+// Personal and confidential data (ADR-0018): checked at any length, on every text that
+// enters knowledge. Messages name the place and the kind, never the data.
+// ---------------------------------------------------------------------------
+export const FIELD_TITLE: Record<string, string> = {
+  title: 'Название', change_reason: 'Причина изменения', problem: 'Исходная проблема', options: 'Рассмотренные варианты',
+  argumentsFor: 'Аргументы за', argumentsAgainst: 'Аргументы против', decision: 'Принятое решение', reasons: 'Причины выбора',
+  actions: 'Действия и сроки', results: 'Результаты', positive: 'Положительный опыт', negative: 'Отрицательный опыт',
+  evidence: 'Доказательства', proof: 'Доказанность', applicability: 'Область применимости', basis: 'Основания включения',
+  reason: 'Причина', note: 'Примечание',
+};
+export async function orgPeople(c: Client): Promise<string[]> {
+  const { rows } = await c.query<{ n: string }>('SELECT display_name AS n FROM employees WHERE organization_id = app_org_id()');
+  return rows.map((r) => r.n);
+}
+export function cardTexts(title: string, card: CardT): [string, string][] {
+  const out: [string, string][] = [['title', title]];
+  for (const [k, v] of Object.entries(card)) if (typeof v === 'string' && FIELD_TITLE[k]) out.push([k, v]);
+  if (card.actions?.length) out.push(['actions', card.actions.map((a) => a.what).join('\n')]);
+  return out;
+}
+/** Refuses personal data in new text; confidentiality markers are refused only where the text would be organization-wide. */
+async function assertNoPersonalData(c: Client, texts: [string, string | null | undefined][], opts: { organizationWide?: boolean } = {}) {
+  const people = await orgPeople(c);
+  const hits: string[] = [];
+  for (const [field, text] of texts) {
+    if (!text) continue;
+    const fs = findSensitive(text, { people }).filter((f) => opts.organizationWide || !CONFIDENTIAL_KINDS.includes(f.kind));
+    if (fs.length) hits.push(`«${FIELD_TITLE[field] ?? field}»: ${kindsText(fs)}`);
+  }
+  if (hits.length) {
+    throw new AppError(
+      'validation_failed',
+      `Уберите персональные или конфиденциальные сведения — ${hits.join('; ')}. Людей указывайте в полях «Автор инициативы» и «Ответственные»: ` +
+        'так их можно обезличить, а текст карточки остаётся без персональных данных.',
+    );
+  }
+}
+
 const cleanCard = (card: CardT): CardT => Object.fromEntries(Object.entries(card).filter(([, v]) => v !== '' && v !== undefined && !(Array.isArray(v) && !v.length))) as CardT;
 
 // ---------------------------------------------------------------------------
@@ -166,6 +206,7 @@ export async function register(db: Database, actor: OrgActor, input: z.infer<typ
     for (const s of input.sources) sources.push(await resolveSource(c, s));
     await assertPeople(c, card);
     await assertNoTranscriptCopy(c, input.title, card, sources);
+    await assertNoPersonalData(c, [...cardTexts(input.title, card), ['reason', input.reason], ...sources.map((s): [string, string | null] => ['note', s.note])]);
     const { rows } = await db_(() =>
       c.query<{ id: string }>('SELECT app_knowledge_register($1, $2, $3::jsonb, $4::jsonb, $5) AS id', [
         input.kind,
@@ -189,6 +230,8 @@ export async function revise(db: Database, actor: OrgActor, id: string, input: z
     const src = await c.query<{ type: string; id: string }>('SELECT source_type AS type, source_id AS id FROM knowledge_sources WHERE knowledge_id = $1', [id]);
     await assertPeople(c, card);
     await assertNoTranscriptCopy(c, input.title, card, src.rows);
+    const open = (await c.query<{ v: string }>('SELECT visibility AS v FROM knowledge_items WHERE id = $1', [id])).rows[0]?.v === 'organization';
+    await assertNoPersonalData(c, [...cardTexts(input.title, card), ['change_reason', input.reason]], { organizationWide: open });
     const { rows } = await db_(() => c.query<{ v: number }>('SELECT app_knowledge_revise($1, $2, $3::jsonb, $4) AS v', [id, input.title, JSON.stringify(card), input.reason]));
     await audit(c, { orgId: actor.orgId, actorUserId: actor.userId, action: 'knowledge.revised', entityType: 'knowledge', entityId: id, data: { version: rows[0]!.v } });
     return { version: rows[0]!.v };
@@ -199,6 +242,7 @@ export const SourceInput = SourceRef;
 export async function addSource(db: Database, actor: OrgActor, id: string, input: SourceRefT) {
   return withTx(db, orgTx(actor), async (c) => {
     const s = await resolveSource(c, input);
+    await assertNoPersonalData(c, [['note', s.note]]);
     await db_(() => c.query('SELECT app_knowledge_add_source($1, $2, $3, $4)', [id, s.type, s.id, s.note]));
     return { added: true };
   });
@@ -209,6 +253,7 @@ export const ApplicationInput = z.object({ ideaNumber: z.number().int().positive
 export async function addApplication(db: Database, actor: OrgActor, id: string, input: z.infer<typeof ApplicationInput>) {
   return withTx(db, orgTx(actor), async (c) => {
     const s = await resolveSource(c, { type: 'idea', number: input.ideaNumber });
+    await assertNoPersonalData(c, [['note', input.note]]);
     await db_(() => c.query('SELECT app_knowledge_add_application($1, $2, $3)', [id, s.id, input.note]));
     await audit(c, { orgId: actor.orgId, actorUserId: actor.userId, action: 'knowledge.application_added', entityType: 'knowledge', entityId: id, data: { idea: input.ideaNumber } });
     return { added: true };
@@ -237,6 +282,48 @@ async function owners(c: Client, id: string): Promise<string[]> {
   return rows.map((r) => r.m);
 }
 
+/** Stable order of places: versions (by number, then card order), then transitions, sources, applications. */
+export function locOrder(loc: { t: string; v?: number; f?: string }): number {
+  const fields = Object.keys(FIELD_TITLE);
+  if (loc.t === 'version') return loc.v! * 100 + Math.max(0, fields.indexOf(loc.f!));
+  return 1e6 + ['transition', 'source', 'application'].indexOf(loc.t);
+}
+
+/** Human-readable place of a text location: «версия 2, «Исходная проблема»». */
+export function placeOf(loc: { t: string; v?: number; f?: string }): string {
+  if (loc.t === 'version') return `версия ${loc.v}, «${FIELD_TITLE[loc.f!] ?? loc.f}»`;
+  if (loc.t === 'transition') return 'причина в истории переходов';
+  if (loc.t === 'source') return 'примечание к источнику';
+  return 'примечание к повторному применению';
+}
+
+/**
+ * Before knowledge is opened to the whole organization, EVERY version and note is checked —
+ * old versions stay readable in the history. Refused if any contains personal data, a
+ * confidentiality marker, or content of a closed source meeting (numbers, sensitive details or
+ * a 6+ word phrase), whatever its length.
+ */
+async function assertReadyForOrganization(c: Client, id: string) {
+  const people = await orgPeople(c);
+  const all = (await c.query<{ loc: { t: string; v?: number; f?: string }; body: string }>('SELECT loc, body FROM app_knowledge_all_text($1)', [id])).rows
+  all.sort((a, b) => locOrder(a.loc) - locOrder(b.loc));
+  const material = (await c.query<{ body: string }>('SELECT body FROM app_knowledge_meeting_material($1)', [id])).rows.map((r) => r.body).join('\n');
+  const hits: string[] = [];
+  for (const r of all) {
+    if (!r.body || r.loc.f === 'change_reason' && /^\[удалено/.test(r.body)) continue;
+    const kinds = new Set(findSensitive(r.body, { people }).map((f) => f.kind as string));
+    if (material && r.loc.t === 'version') for (const k of meetingOverlap(r.body, material, people)) kinds.add(k);
+    if (kinds.size) hits.push(`${placeOf(r.loc)}: ${[...kinds].map((k) => OVERLAP_LABEL[k]).join(', ')}`);
+  }
+  if (hits.length) {
+    throw new AppError(
+      'validation_failed',
+      `Нельзя открыть всей организации: ${hits.slice(0, 6).join('; ')}${hits.length > 6 ? ` и ещё ${hits.length - 6}` : ''}. ` +
+        'Перескажите без этих сведений в новой версии; прежние версии с ними удаляет администратор по законному основанию.',
+    );
+  }
+}
+
 async function notifyKnowledge(c: Client, actor: OrgActor, event: string, id: string, recipients: string[], dedupe: string) {
   const targets = [...new Set(recipients.filter((r) => r && r !== actor.membershipId))];
   if (!targets.length) return 0;
@@ -246,6 +333,10 @@ async function notifyKnowledge(c: Client, actor: OrgActor, event: string, id: st
 
 export async function act(db: Database, actor: OrgActor, id: string, input: z.infer<typeof ActInput>) {
   return withTx(db, orgTx(actor), async (c) => {
+    await assertNoPersonalData(c, [['reason', input.reason]]);
+    // Rights first: the content check must not tell an unauthorized person what the knowledge contains.
+    if (input.action === 'opened_to_organization' && !isApprover(actor)) throw forbidden('Открыть знание всей организации может ответственный за решения или администратор');
+    if (input.action === 'opened_to_organization') await assertReadyForOrganization(c, id);
     const { rows } = await db_(() => c.query<{ level: Level }>('SELECT app_knowledge_act($1, $2, $3) AS level', [id, input.action, input.reason ?? null]));
     const level = rows[0]!.level;
     const tr = (await c.query<{ id: string }>('SELECT id FROM knowledge_transitions WHERE knowledge_id = $1 ORDER BY created_at DESC LIMIT 1', [id])).rows[0]!.id;
@@ -361,7 +452,7 @@ interface TimelineEvent {
 
 async function sourceDetails(c: Client, id: string) {
   const { rows } = await c.query<{ id: string; source_type: string; source_id: string; note: string | null; created_at: Date; added_by: string }>(
-    `SELECT s.id, s.source_type, s.source_id, s.note, s.created_at, e.display_name AS added_by
+    `SELECT s.id, s.source_type, s.source_id, s.note, s.created_at, app_knowledge_person(e.membership_id) AS added_by
        FROM knowledge_sources s JOIN employees e ON e.membership_id = s.added_by_membership_id
       WHERE s.knowledge_id = $1 ORDER BY s.created_at`,
     [id],
@@ -372,7 +463,7 @@ async function sourceDetails(c: Client, id: string) {
     if (s.source_type === 'idea') {
       const i = (
         await c.query<{ number: number; title: string; status: string; stage: string; author: string; published_at: Date }>(
-          `SELECT o.number, o.title, o.status, o.stage, o.author, o.published_at FROM idea_overview o WHERE o.id = $1`,
+          `SELECT o.number, o.title, o.status, o.stage, app_knowledge_person(o.author_membership_id) AS author, o.published_at FROM idea_overview o WHERE o.id = $1`,
           [s.source_id],
         )
       ).rows[0];
@@ -385,19 +476,19 @@ async function sourceDetails(c: Client, id: string) {
       sources.push({ type: 'idea', label: `№${i.number} «${i.title}»`, detail: STATUS_INFO[i.status as ItemStatus]?.label ?? i.status, available: true, note: s.note, addedBy: s.added_by, link });
       timeline.push({ at: i.published_at.toISOString(), what: `Поднят вопрос «${i.title}»`, who: i.author, source: src, link });
       const facts = await c.query<{ at: Date; what: string; who: string | null }>(
-        `SELECT ce.created_at AS at, CASE ce.kind WHEN 'recommendation' THEN 'Рекомендация Совета' WHEN 'argument_for' THEN 'Довод «за» в Совете' WHEN 'argument_against' THEN 'Довод «против» в Совете' WHEN 'dissent' THEN 'Особое мнение в Совете' ELSE 'Совет передал решение' END AS what, e.display_name AS who
+        `SELECT ce.created_at AS at, CASE ce.kind WHEN 'recommendation' THEN 'Рекомендация Совета' WHEN 'argument_for' THEN 'Довод «за» в Совете' WHEN 'argument_against' THEN 'Довод «против» в Совете' WHEN 'dissent' THEN 'Особое мнение в Совете' ELSE 'Совет передал решение' END AS what, app_knowledge_person(e.membership_id) AS who
            FROM council_entries ce JOIN employees e ON e.membership_id = ce.author_membership_id WHERE ce.idea_id = $1
          UNION ALL
-         SELECT d.created_at, CASE d.outcome WHEN 'merge' THEN 'Решение: внедрять' WHEN 'reject' THEN 'Решение: не внедрять' ELSE 'Решение: закрыть' END, e.display_name
+         SELECT d.created_at, CASE d.outcome WHEN 'merge' THEN 'Решение: внедрять' WHEN 'reject' THEN 'Решение: не внедрять' ELSE 'Решение: закрыть' END, app_knowledge_person(e.membership_id)
            FROM decisions d JOIN employees e ON e.membership_id = d.decided_by_membership_id WHERE d.idea_id = $1
          UNION ALL
-         SELECT r.created_at, 'Отчёт о внедрении', e.display_name
+         SELECT r.created_at, 'Отчёт о внедрении', app_knowledge_person(e.membership_id)
            FROM reviews r JOIN employees e ON e.membership_id = r.author_membership_id WHERE r.idea_id = $1 AND r.kind = 'progress'
          UNION ALL
-         SELECT ea.created_at, 'Эффект подтверждён ответственным', e.display_name
+         SELECT ea.created_at, 'Эффект подтверждён ответственным', app_knowledge_person(e.membership_id)
            FROM effect_approvals ea JOIN employees e ON e.membership_id = ea.approved_by_membership_id WHERE ea.idea_id = $1
          UNION ALL
-         SELECT coalesce(m.scheduled_at, m.created_at), 'Заседание «' || m.title || '»', e.display_name
+         SELECT coalesce(m.scheduled_at, m.created_at), 'Заседание «' || m.title || '»', app_knowledge_person(e.membership_id)
            FROM meetings m JOIN employees e ON e.membership_id = m.organizer_membership_id WHERE m.idea_id = $1`,
         [s.source_id],
       );
@@ -406,7 +497,7 @@ async function sourceDetails(c: Client, id: string) {
       // RLS on meetings: only participants see the title. Others see that a closed meeting exists.
       const m = (
         await c.query<{ title: string; at: Date; purged: boolean; organizer: string }>(
-          `SELECT m.title, coalesce(m.scheduled_at, m.created_at) AS at, e.display_name AS organizer,
+          `SELECT m.title, coalesce(m.scheduled_at, m.created_at) AS at, app_knowledge_person(e.membership_id) AS organizer,
                   EXISTS (SELECT 1 FROM meeting_transcripts t WHERE t.meeting_id = m.id AND t.purged_at IS NOT NULL) AS purged
              FROM meetings m JOIN employees e ON e.membership_id = m.organizer_membership_id WHERE m.id = $1`,
           [s.source_id],
@@ -472,7 +563,7 @@ export async function get(db: Database, actor: OrgActor, id: string) {
         created_at: Date;
         creator: string;
       }>(
-        `SELECT k.id, k.level, k.status, k.review, k.kind, k.title, k.visibility, k.current_version, k.last_verified_at, k.created_at, e.display_name AS creator
+        `SELECT k.id, k.level, k.status, k.review, k.kind, k.title, k.visibility, k.current_version, k.last_verified_at, k.created_at, app_knowledge_person(e.membership_id) AS creator
            FROM knowledge_items k JOIN employees e ON e.membership_id = k.created_by_membership_id
           WHERE k.id = $1 AND k.organization_id = app_org_id()`,
         [id],
@@ -481,7 +572,7 @@ export async function get(db: Database, actor: OrgActor, id: string) {
     if (!k) throw notFound('Знание не найдено или недоступно вам');
     const versions = (
       await c.query<{ version: number; title: string; card: CardT; change_reason: string; author: string; created_at: Date }>(
-        `SELECT v.version, v.title, v.card, v.change_reason, e.display_name AS author, v.created_at
+        `SELECT v.version, v.title, v.card, v.change_reason, app_knowledge_person(e.membership_id) AS author, v.created_at
            FROM knowledge_versions v JOIN employees e ON e.membership_id = v.author_membership_id
           WHERE v.knowledge_id = $1 ORDER BY v.version DESC`,
         [id],
@@ -489,7 +580,7 @@ export async function get(db: Database, actor: OrgActor, id: string) {
     ).rows;
     const transitions = (
       await c.query<{ id: string; action: keyof typeof ACTION_TITLE; from_level: Level | null; to_level: Level | null; to_status: string | null; version: number; reason: string | null; actor: string; actor_id: string; created_at: Date }>(
-        `SELECT t.id, t.action, t.from_level, t.to_level, t.to_status, t.version, t.reason, e.display_name AS actor, t.actor_membership_id AS actor_id, t.created_at
+        `SELECT t.id, t.action, t.from_level, t.to_level, t.to_status, t.version, t.reason, app_knowledge_person(e.membership_id) AS actor, t.actor_membership_id AS actor_id, t.created_at
            FROM knowledge_transitions t JOIN employees e ON e.membership_id = t.actor_membership_id
           WHERE t.knowledge_id = $1 ORDER BY t.created_at`,
         [id],
@@ -497,7 +588,7 @@ export async function get(db: Database, actor: OrgActor, id: string) {
     ).rows;
     const applications = (
       await c.query<{ number: number; title: string; note: string | null; recorded_by: string; implemented: boolean; created_at: Date }>(
-        `SELECT o.number, o.title, a.note, e.display_name AS recorded_by, app_idea_implemented(a.idea_id) AS implemented, a.created_at
+        `SELECT o.number, o.title, a.note, app_knowledge_person(e.membership_id) AS recorded_by, app_idea_implemented(a.idea_id) AS implemented, a.created_at
            FROM knowledge_applications a JOIN idea_overview o ON o.id = a.idea_id JOIN employees e ON e.membership_id = a.recorded_by_membership_id
           WHERE a.knowledge_id = $1 ORDER BY a.created_at`,
         [id],
@@ -507,7 +598,7 @@ export async function get(db: Database, actor: OrgActor, id: string) {
     const card = versions[0]!.card;
     const people = card.initiator || card.responsible?.length
       ? (
-          await c.query<{ id: string; name: string }>('SELECT membership_id AS id, display_name AS name FROM employees WHERE membership_id = ANY ($1::uuid[])', [
+          await c.query<{ id: string; name: string }>('SELECT membership_id AS id, app_knowledge_person(membership_id) AS name FROM employees WHERE membership_id = ANY ($1::uuid[])', [
             [card.initiator, ...(card.responsible ?? [])].filter(Boolean),
           ])
         ).rows

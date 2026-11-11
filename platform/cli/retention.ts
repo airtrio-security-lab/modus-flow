@@ -12,7 +12,12 @@ const url = process.env.MIGRATION_DATABASE_URL;
 if (!url) throw new Error('MIGRATION_DATABASE_URL (schema owner) is required');
 const db = createDatabase(url, 1);
 try {
-  console.log(JSON.stringify({ level: 'info', purged: await sweep(db) }));
+  const purged = await sweep(db);
+  // Physically drop old row versions of overwritten content (dead tuples) instead of waiting for autovacuum.
+  for (const t of ['meeting_recordings', 'meeting_transcripts', 'meeting_protocols', 'protocol_candidates', 'knowledge_versions', 'knowledge_transitions', 'knowledge_sources', 'knowledge_applications', 'knowledge_items']) {
+    await db.pool.query(`VACUUM ${t}`);
+  }
+  console.log(JSON.stringify({ level: 'info', purged, vacuumed: true }));
 } finally {
   await db.close();
 }

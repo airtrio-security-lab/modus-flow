@@ -202,6 +202,10 @@ lost, everyone sees the stage, the owner sees what needs attention. Migrations 0
 | GET | `…/knowledge/:id/helper` | «Помощник Архивариуса» without AI: similar knowledge and items by word similarity, possible contradictions, a template note — all labelled; `ai.connected = false` |
 | GET | `…/ideas/:n/knowledge-draft` | a draft card from the item's own fields (problem, proposal, council arguments, decision, report, effect); nothing is saved |
 | POST | `…/members/:id/archivist` | org admin: `{grant}` — the archivist role; audited; opens no material |
+| GET | `/api/v1/orgs/:org/privacy/knowledge` | org admin: scan of every version and note for personal / confidential data by patterns — places and kinds only, no text; titles only of readable knowledge; the erasure log (ADR-0018) |
+| POST | `…/knowledge/:id/erasure` | org admin: `{basis, ref, places[]}` → places overwritten with a marker; refused under a legal hold; logged without content |
+| POST | `…/members/:id/pseudonymize` | org admin: `{basis, ref}` → references removed from all cards, text places with the surname erased, «Сотрудник (обезличен)» on display; once |
+| — | `npm run platform:ledger -- export\|import <file>` | schema owner: the erasure ledger kept outside backups; import after a restore re-applies erasures |
 
 Escalation of overdue / stale items: `node platform/cli/escalate.ts` (schema owner, run by a
 scheduler; none is bundled). Audit: [`../audit/2026-11-10-feedback-review.md`](../audit/2026-11-10-feedback-review.md).
