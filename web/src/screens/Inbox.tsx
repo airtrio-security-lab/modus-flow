@@ -75,6 +75,8 @@ export function Inbox() {
     await reload();
     await s.refreshInbox();
   }
+  /** «Войти в Совет» passes through the city: the camera flies to the palace (skippable, instant in light graphics). */
+  const councilEntry = (path: string) => `/kingdom?enter=${encodeURIComponent(path.replace(/^#/, ''))}`;
   async function open(n: Notification, path: string, also: Notification[] = []) {
     const ids = [n, ...also].filter((x) => !x.readAt).map((x) => x.id);
     if (ids.length) await markRead(ids);
@@ -186,7 +188,7 @@ export function Inbox() {
                   <div className="row">
                     {m && !m.cancelled ? (
                       <>
-                        <button className="btn primary small" onClick={() => void open(n, target!, more)}>
+                        <button className="btn primary small" onClick={() => void open(n, councilEntry(target!), more)}>
                           Войти в Совет
                         </button>
                         {m.attendance !== 'confirmed' ? (

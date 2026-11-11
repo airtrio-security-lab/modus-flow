@@ -14,6 +14,8 @@ import { Workspace } from './screens/Workspace';
 import { AllItems } from './screens/AllItems';
 import { Overview } from './screens/Overview';
 import { Kingdom } from './screens/Kingdom';
+import { DistrictPage } from './screens/District';
+import { PersonPage } from './screens/Person';
 import { RatingPage } from './screens/Rating';
 import { CouncilList, RoundTable } from './screens/Council';
 import { Profile } from './screens/Profile';
@@ -96,7 +98,7 @@ function Shell() {
   // and the work (Обращения, Доска). Secondary pages stay one click away.
   const ITEMS = ['', 'all', 'work', 'meeting', 'items'];
   const nav: NavItem[] = [
-    { href: '#/kingdom', label: 'Королевство', short: 'Королевство', match: (p: string[]) => p[0] === 'kingdom' },
+    { href: '#/kingdom', label: 'Королевство', short: 'Королевство', match: (p: string[]) => p[0] === 'kingdom' || p[0] === 'castles' || p[0] === 'people' },
     { href: '#/council', label: 'Совет', short: 'Совет', match: (p: string[]) => p[0] === 'council' || p[0] === 'meetings' },
     { href: '#/', label: 'Обращения', short: 'Обращения', match: (p) => ITEMS.includes(p[0] ?? '') },
     { href: '#/board', label: 'Доска', short: 'Доска', match: (p: string[]) => p[0] === 'board' },
@@ -132,6 +134,8 @@ function Shell() {
   else if (head === 'work' && s.isLead) page = <Workspace tab={route[1]} />;
   else if (head === 'all') page = <AllItems />;
   else if (head === 'kingdom') page = <Kingdom />;
+  else if (head === 'castles' && route[1]) page = <DistrictPage id={route[1]} tab={route[2]} key={route[1]} />;
+  else if (head === 'people' && route[1]) page = <PersonPage id={route[1]} key={location.hash} />;
   else if (head === 'rating') page = <RatingPage />;
   else if (head === 'council' && route[1]) page = <RoundTable number={Number(route[1])} key={route[1]} />;
   else if (head === 'council') page = <CouncilList />;

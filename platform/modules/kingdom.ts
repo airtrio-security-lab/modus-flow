@@ -33,6 +33,10 @@ export interface Castle {
   progress: number;
   effectXp: number;
   headcount: number | null;
+  /** Architectural style of the district (0014, ADR-0019): a picture, no rights. */
+  civilization: string;
+  /** Achievements the castle earned (same rules as the castle page) — pedestals on the plaza. */
+  achievements: number;
 }
 
 export interface Envoy {
@@ -55,7 +59,7 @@ export async function kingdom(
   if (actor.access !== 'member') throw forbidden('Королевство доступно сотрудникам организации');
   return withTx(db, orgTx(actor), async (c) => {
     const castles = await c.query<Castle>(
-      `SELECT d.id, d.name,
+      `SELECT d.id, d.name, d.civilization,
               count(o.number) FILTER (WHERE o.status = 'implemented')::int AS towers,
               count(o.number) FILTER (WHERE o.status = 'in_progress')::int AS building,
               count(o.number) FILTER (WHERE o.status NOT IN ('implemented','rejected','closed'))::int AS envoys,
@@ -64,7 +68,7 @@ export async function kingdom(
          FROM departments d
          LEFT JOIN idea_overview o ON o.department_id = d.id AND o.organization_id = app_org_id()
         WHERE d.organization_id = app_org_id() AND d.active
-        GROUP BY d.id, d.name
+        GROUP BY d.id, d.name, d.civilization
         ORDER BY d.name`,
     );
     const envoys = await c.query<Envoy>(
@@ -96,6 +100,8 @@ export async function kingdom(
         progress: lv.progress,
         effectXp: p?.effectXp ?? 0,
         headcount: p?.headcount ?? null,
+        // Same rules as the castle page: first stone, five implementations, proven effect, each level-up.
+        achievements: Number((p?.implemented ?? 0) >= 1) + Number((p?.implemented ?? 0) >= 5) + Number((p?.effectXp ?? 0) > 0) + (lv.level - 1),
       };
     });
     return { castles: withProgress, envoys: envoys.rows, wildlands, levels: { thresholds: cfg.thresholds, names: cfg.names } };

@@ -79,9 +79,11 @@ npm run demo:messages    # optional, on a fresh seed: the King calls the council
 npm run demo:legacy      # optional, on a fresh seed: meeting → Летопись → Библиотека → re-application → Высший Архив (ADR-0017)
 npm run demo:final       # the final story: idea → envoy → council → decision → implementation → XP → castle → Летопись → Библиотека → Высший Архив
 RECORD=1 npm run demo:final   # the same at presentation pace, recorded as the fallback video .demo/final-demo.mp4
+npm run demo:city        # optional, on a fresh seed: «Живое Королевство» — city camera, district screen, staff cards and privacy, style picker, workspace, phone (ADR-0019)
 npm run demo:record      # optional, on a fresh seed: records the kingdom scenario as a fallback video (.demo/kingdom-demo.mp4)
 ```
 The final 3-minute story inside a 5-minute talk: [`docs/demo/final-3min.md`](docs/demo/final-3min.md); readiness for the pilot: [`docs/audit/2026-11-11-final-readiness.md`](docs/audit/2026-11-11-final-readiness.md).
+The city and the district screen: [`docs/demo/city-demo.md`](docs/demo/city-demo.md) (a 90–120 s version and the extended one).
 The 90-second click paths for a live demo: [`docs/demo/meeting-90s.md`](docs/demo/meeting-90s.md) (meeting → work → XP) and [`docs/demo/kingdom-90s.md`](docs/demo/kingdom-90s.md) (idea → council → XP).
 Or all of it in one command (Docker + Node ≥ 22.18): `./scripts/demo-local.sh`.
 

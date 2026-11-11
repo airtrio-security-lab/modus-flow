@@ -63,7 +63,8 @@ try {
     await page.locator('.realm-list button', { hasText: 'Склад и логистика' }).click();
     await page.getByRole('link', { name: 'Созвать малый совет с записью' }).click();
     await page.getByLabel('Тема').fill('Короткая проверка записи');
-    for (const box of await page.locator('.pick-list input:checked').all()) await box.uncheck();
+    // The small council starts with the whole department; keep only the storekeeper (the list shrinks as boxes are unchecked).
+    while (await page.locator('.pick-list input:checked').count()) await page.locator('.pick-list input:checked').first().uncheck();
     await page.locator('.pick-list label', { hasText: storekeeper.name }).locator('input').check();
     await page.getByLabel(/Я согласен\(на\) на запись/).check();
     await page.getByRole('button', { name: 'Созвать заседание' }).click();

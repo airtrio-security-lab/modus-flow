@@ -35,7 +35,8 @@
     "demo:meeting": "node web/e2e/meeting-flow.mjs",
     "demo:messages": "node web/e2e/messages-flow.mjs",
     "demo:legacy": "node web/e2e/legacy-flow.mjs",
-    "demo:final": "node web/e2e/final-flow.mjs"
+    "demo:final": "node web/e2e/final-flow.mjs",
+    "demo:city": "node web/e2e/city-flow.mjs"
   },
   "engines": {
     "node": ">=22"

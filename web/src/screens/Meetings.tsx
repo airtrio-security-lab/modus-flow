@@ -114,7 +114,8 @@ export function NewMeeting() {
   const [title, setTitle] = useState(q.get('title') ?? '');
   const [departmentId, setDepartmentId] = useState(q.get('department') ?? '');
   const ideaNumber = Number(q.get('idea')) || undefined;
-  const [picked, setPicked] = useState<Set<string>>(new Set());
+  // «Пригласить в Совет» from a staff card starts with that person (still editable before sending).
+  const [picked, setPicked] = useState<Set<string>>(() => new Set(q.getAll('participant').filter((id) => id !== s.membershipId)));
   const [filter, setFilter] = useState('');
   const [consent, setConsent] = useState(false);
   const [when, setWhen] = useState('');

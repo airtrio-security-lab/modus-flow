@@ -284,6 +284,10 @@ export interface Castle {
   progress: number;
   effectXp: number;
   headcount: number | null;
+  /** Architectural style of the district (ADR-0019): a picture, no rights. */
+  civilization: string;
+  /** Achievements earned: pedestals on the achievements plaza. */
+  achievements: number;
 }
 export interface Envoy {
   number: number;
@@ -619,4 +623,101 @@ export interface ItemOrigin {
   recordingAvailable: boolean | null;
   confirmedBy: string | null;
   confirmedAt: string | null;
+}
+
+/** «Живое Королевство» (ADR-0019): the district screen — read-only facts under the caller's rights. */
+export interface StaffCard {
+  membershipId: string;
+  name: string;
+  jobTitle: string | null;
+  title: string | null;
+  group: 'command' | 'specialist' | 'member';
+  isHead: boolean;
+  questionnaire: 'filled' | 'empty' | 'hidden';
+  specialization: string | null;
+  skills: string[] | null;
+  capacityHours: number | null;
+  loadHours: null;
+  activeTasks: number;
+  assigned: number;
+  leading: number;
+  achievements: { implemented: number; ideasImplemented: number; effectsConfirmed: number; confirmedAsExecutor: number };
+}
+export interface DistrictItem {
+  number: number;
+  title: string;
+  kind: string;
+  status: Status;
+  author: string;
+  maintainer: string | null;
+  implementer: string | null;
+  decisionOwner: string | null;
+  due: string | null;
+  overdue: boolean;
+  stale: boolean;
+  publishedAt: string;
+}
+export interface District {
+  id: string;
+  name: string;
+  civilization: { id: string; name: string };
+  colorIndex: number;
+  head: { membershipId: string; name: string | null; title: string | null } | null;
+  canChooseCivilization: boolean;
+  level: number;
+  levelName: string;
+  xp: number;
+  levelFloor: number;
+  nextLevelXp: number | null;
+  nextLevelName: string | null;
+  progress: number;
+  levels: Levels;
+  rank: number;
+  of: number;
+  people: number;
+  activeTasks: number;
+  inReview: number;
+  implemented: number;
+  lastAchievements: Achievement[];
+  staff: StaffCard[];
+  needs: { vacancies: null; missingSkills: null; capacityShortage: null; note: string };
+  tasks: DistrictItem[];
+  initiatives: DistrictItem[];
+  council: {
+    open: { number: number; title: string; entries: number }[];
+    decisions: { number: number; title: string; outcome: string; by: string; at: string }[];
+    meetings: { id: string; title: string; at: string; cancelled: boolean; idea: number | null }[];
+  };
+  legacy: { id: string; title: string; level: string; status: string; kind: string }[];
+  development: {
+    history: CastleDetail['history'];
+    achievements: Achievement[];
+    civilizationHistory: { at: string; from: string; to: string; actor: string | null }[];
+  };
+  assignable: { number: number; title: string; implementerId: string | null }[];
+  canCallCouncil: boolean;
+}
+export interface PersonListItem {
+  number: number;
+  title: string;
+  status: Status;
+  due: string | null;
+  overdue: boolean;
+}
+export interface PersonCard {
+  membershipId: string;
+  name: string;
+  jobTitle: string | null;
+  department: { id: string | null; name: string } | null;
+  title: string | null;
+  self: boolean;
+  questionnaire: 'filled' | 'empty' | 'hidden';
+  skills: string[] | null;
+  weeklyHours: number | null;
+  preferences: string | null;
+  loadHours: null;
+  tasks: PersonListItem[];
+  initiatives: PersonListItem[];
+  results: { number: number; title: string; role: string; xp: number }[];
+  achievements: StaffCard['achievements'];
 }

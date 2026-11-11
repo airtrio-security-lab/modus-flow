@@ -963,3 +963,131 @@ button.ts:hover { border-color: var(--accent); color: var(--accent-ink); }
 @media (prefers-reduced-motion: reduce) { .vault-door { display: none; } }
 :root[data-lite='on'] .vault-door { display: none; }
 .library-filters .select { width: auto; min-width: 180px; }
+
+/* «Живое Королевство» (ADR-0019): the city camera and the centre of the city. */
+.realm-map { position: relative; }
+.realm-map:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.realm-map svg { cursor: grab; user-select: none; -webkit-user-select: none; }
+.realm-map svg:active { cursor: grabbing; }
+.realm-cam { position: absolute; top: 10px; right: 10px; display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; max-width: calc(100% - 20px); }
+.realm-cam-btn { min-width: 40px; min-height: 40px; padding: 0 12px; border-radius: 10px; border: 1px solid rgba(34, 40, 43, 0.35); background: rgba(255, 253, 248, 0.94); color: #22282b; font: 600 15px var(--font); cursor: pointer; box-shadow: 0 2px 6px -3px rgba(34, 40, 43, 0.5); }
+.realm-cam-btn.wide { font-size: 13px; }
+.realm-cam-btn:hover:not(:disabled) { background: #fff; border-color: #22282b; }
+.realm-cam-btn:disabled { opacity: 0.45; cursor: default; }
+.realm-cam-btn:focus-visible { outline: 3px solid var(--accent); outline-offset: 1px; }
+.realm-place { cursor: pointer; outline: none; }
+.realm-place:hover .realm-plate { stroke: #22282b; }
+.realm-place:focus-visible .realm-plate { stroke: var(--accent); stroke-width: 3; }
+.realm-path-bed { fill: none; stroke: #c9b994; stroke-width: 18; stroke-linecap: round; opacity: 0.85; }
+.realm-path { fill: none; stroke: #e9dfc8; stroke-width: 10; stroke-linecap: round; }
+.realm-castle:hover .realm-plate, .realm-castle.is-selected .realm-plate { stroke: #22282b; stroke-width: 2; }
+@media (max-width: 619px) {
+  .realm-cam { position: static; max-width: none; justify-content: flex-start; padding: 8px; background: #f1e6cc; }
+  .realm-cam-btn { min-width: 44px; min-height: 44px; }
+}
+
+/* District screen (ADR-0019): one bold element — the castle in its landscape — and quiet work UI around it. */
+.back-link { font-size: var(--fs-sm); color: var(--ink-2); text-decoration: none; align-self: flex-start; }
+.back-link:hover { color: var(--ink); text-decoration: underline; }
+.linklike { border: 0; background: none; padding: 0; color: var(--accent-ink); font: inherit; text-decoration: underline; cursor: pointer; }
+.district .field > span { font-size: var(--fs-sm); font-weight: 500; }
+.district-head { display: grid; grid-template-columns: 260px minmax(0, 1fr); grid-template-areas: 'art id' 'stats stats' 'ach ach'; gap: 16px 24px; padding: 20px; border-radius: var(--r-md); border: 1px solid var(--line); background: var(--surface); }
+.district-art { grid-area: art; border-radius: var(--r-md); background: linear-gradient(180deg, #c9d9b0 0%, #9db97c 100%); display: grid; place-items: end center; padding: 8px 4px 0; min-height: 190px; }
+.civ-japan .district-art { background: linear-gradient(180deg, #e9dfd2 0%, #b8c79f 100%); }
+.civ-mongolia .district-art { background: linear-gradient(180deg, #d8e4ea 0%, #c7b980 100%); }
+.civ-kazakh .district-art { background: linear-gradient(180deg, #ecdcbc 0%, #c9b27c 100%); }
+.district-art svg { width: 100%; height: auto; max-height: 220px; }
+.district-id { grid-area: id; min-width: 0; }
+.district-id h1 { font-size: var(--fs-xl); line-height: 1.15; }
+.district-level { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.district-stats { grid-area: stats; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.district-stats div { background: var(--column); border-radius: var(--r-sm); padding: 10px 12px; }
+.district-stats dt { font-size: var(--fs-xs); color: var(--ink-2); }
+.district-stats dd { font-size: var(--fs-xl); font-weight: 600; font-variant-numeric: tabular-nums; }
+.district-ach { grid-area: ach; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.ach-chip { padding: 2px 10px; border-radius: 999px; background: #fff8e4; border: 1px solid #d9b45c; color: #3d3022; font-weight: 600; }
+.district-tabs { display: flex; gap: 2px; overflow-x: auto; border-bottom: 1px solid var(--line); scrollbar-width: thin; }
+.district-tab { display: inline-flex; align-items: center; gap: 6px; padding: 10px 14px; min-height: 44px; color: var(--ink-2); text-decoration: none; font-weight: 500; border-bottom: 3px solid transparent; white-space: nowrap; }
+.district-tab:hover { color: var(--ink); background: var(--hover); }
+.district-tab[aria-selected='true'] { color: var(--ink); border-bottom-color: var(--ink); }
+.district-tab-n { font-size: var(--fs-xs); color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.district-search { max-width: 420px; }
+.staff-grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; }
+.staff-card { width: 100%; height: 100%; display: grid; gap: 10px; align-content: start; text-align: left; padding: 14px; border-radius: var(--r-md); border: 1px solid var(--line); background: var(--surface); color: var(--ink); font: inherit; cursor: pointer; }
+.staff-card:hover { border-color: var(--line-strong); background: var(--hover); }
+.staff-card:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.staff-card.group-command { border-left: 4px solid var(--ink); }
+.staff-card.group-specialist { border-left: 4px solid #b8860b; }
+.staff-top { display: flex; gap: 12px; align-items: flex-start; }
+.staff-who { display: grid; gap: 2px; min-width: 0; }
+.staff-who b { overflow-wrap: anywhere; }
+.avatar { flex: none; display: inline-grid; place-items: center; border-radius: 50%; color: #fff; font-weight: 700; letter-spacing: 0.5px; }
+.row-tight { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.staff-figs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; border-top: 1px solid var(--line); padding-top: 10px; }
+.fig { display: grid; gap: 2px; }
+.fig-l { font-size: 11px; color: var(--ink-3); }
+.fig-v { font-weight: 600; font-variant-numeric: tabular-nums; font-size: var(--fs-sm); }
+.fig-v.none, .realm-facts dd.none { color: var(--ink-3); font-weight: 500; font-size: var(--fs-sm); }
+.skill-chip { padding: 2px 10px; border-radius: 999px; background: var(--column); border: 1px solid var(--line-strong); font-size: var(--fs-xs); }
+.needs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.needs div { background: var(--column); border-radius: var(--r-sm); padding: 10px 12px; }
+.needs dt { font-size: var(--fs-xs); color: var(--ink-2); }
+.needs dd { color: var(--ink-3); font-weight: 500; }
+.kanban { display: grid; grid-template-columns: repeat(5, minmax(200px, 1fr)); gap: 10px; overflow-x: auto; padding-bottom: 6px; }
+.kan-col { display: grid; gap: 8px; align-content: start; background: var(--column); border-radius: var(--r-md); padding: 10px; min-height: 120px; }
+.kan-h { font-size: var(--fs-sm); font-weight: 600; display: flex; justify-content: space-between; }
+.kan-card { display: grid; gap: 4px; padding: 10px 12px; border-radius: var(--r-sm); background: var(--surface); border: 1px solid var(--line); color: var(--ink); text-decoration: none; }
+.kan-card:hover { border-color: var(--line-strong); }
+.kan-card b { font-weight: 600; overflow-wrap: anywhere; }
+.district-list { list-style: none; margin: 0; padding: 0; display: grid; }
+.district-list li { display: grid; gap: 4px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.district-list a { color: var(--ink); font-weight: 500; overflow-wrap: anywhere; }
+.district-list .num { color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.filters { gap: 12px; align-items: flex-end; flex-wrap: wrap; }
+.civ-levels { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
+.civ-levels li { display: grid; gap: 2px; justify-items: center; text-align: center; padding: 8px 6px; border-radius: var(--r-sm); border: 1px solid var(--line); background: linear-gradient(180deg, transparent 40%, rgba(157, 185, 124, 0.25)); }
+.civ-levels li[data-reached='no'] svg { opacity: 0.55; filter: grayscale(0.5); }
+.civ-levels svg { width: 100%; max-width: 140px; height: auto; }
+.civ-levels b { font-size: var(--fs-xs); }
+.civ-choices { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.civ-choice { display: grid; gap: 4px; justify-items: center; text-align: center; padding: 10px; border-radius: var(--r-md); border: 1px solid var(--line); background: var(--surface); color: var(--ink); font: inherit; cursor: pointer; }
+.civ-choice svg { width: 100%; max-width: 130px; height: auto; }
+.civ-choice[aria-checked='true'] { border-color: var(--ink); box-shadow: inset 0 0 0 2px var(--ink); }
+.civ-choice:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+/* Sheet: a side drawer on desktop, a bottom sheet on phones. */
+.sheet-backdrop { position: fixed; inset: 0; z-index: 50; background: rgba(20, 24, 26, 0.45); display: flex; justify-content: flex-end; }
+.sheet { width: min(520px, 100%); height: 100%; overflow-y: auto; background: var(--surface); color: var(--ink); box-shadow: -12px 0 40px -20px rgba(0, 0, 0, 0.5); outline: none; display: flex; flex-direction: column; }
+.sheet.wide { width: min(860px, 100%); }
+.sheet-grip { display: none; }
+.sheet-head { display: flex; gap: 12px; align-items: flex-start; padding: 18px 18px 12px; border-bottom: 1px solid var(--line); position: sticky; top: 0; background: var(--surface); z-index: 1; }
+.sheet-head h2 { font-size: var(--fs-lg); }
+.sheet-close { margin-left: auto; }
+.sheet-body { padding: 16px 18px 24px; }
+.sheet-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.notice.ok { background: var(--accent-tint); color: var(--accent-ink); }
+.work-table td, .work-table th { white-space: nowrap; }
+@media (max-width: 760px) {
+  .district-head { grid-template-columns: 1fr; grid-template-areas: 'art' 'id' 'stats' 'ach'; padding: 14px; }
+  .district-art { min-height: 150px; }
+  .district-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .staff-grid { grid-template-columns: 1fr; }
+  /* Leadership as a horizontal strip on phones. */
+  .staff-grid.is-strip { grid-auto-flow: column; grid-auto-columns: 82%; grid-template-columns: none; overflow-x: auto; scroll-snap-type: x mandatory; padding-bottom: 6px; }
+  .staff-grid.is-strip > li { scroll-snap-align: start; }
+  .needs { grid-template-columns: 1fr; }
+  .kanban { grid-template-columns: repeat(5, 78%); scroll-snap-type: x mandatory; }
+  .kan-col { scroll-snap-align: start; }
+  .civ-levels { grid-template-columns: repeat(5, 46%); overflow-x: auto; }
+  .civ-choices { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .sheet-backdrop { align-items: flex-end; }
+  .sheet, .sheet.wide { width: 100%; height: auto; max-height: 88vh; border-radius: 16px 16px 0 0; box-shadow: 0 -12px 40px -20px rgba(0, 0, 0, 0.5); }
+  .sheet-grip { display: block; width: 44px; height: 5px; border-radius: 3px; background: var(--line-strong); margin: 8px auto 0; }
+}
+.district-stats dd, .needs dd, .realm-facts dd { margin: 0; }
+.staff-card .title-chip { white-space: normal; text-align: left; }
+.fig-v.none { font-size: var(--fs-xs); }
+.realm-cinema { position: absolute; left: 50%; bottom: 18px; transform: translateX(-50%); display: flex; gap: 12px; align-items: center; padding: 10px 14px; border-radius: 12px; background: rgba(34, 40, 43, 0.92); color: #fff8e6; font-weight: 600; box-shadow: 0 10px 30px -12px rgba(0, 0, 0, 0.6); }
+@media (prefers-reduced-motion: no-preference) {
+  :root:not([data-lite='on']) .realm-stroll { animation: realm-stroll 9s ease-in-out infinite; transform-box: fill-box; }
+  @keyframes realm-stroll { 0%, 100% { transform: translateX(0); } 45% { transform: translateX(22px); } 50% { transform: translateX(22px) scaleX(-1); } 95% { transform: translateX(0) scaleX(-1); } }
+}

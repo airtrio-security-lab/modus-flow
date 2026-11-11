@@ -11,6 +11,7 @@ import type { OrgActor, OrgRole } from '../domain/model.ts';
 import * as admin from '../modules/admin.ts';
 import { submitItem, type SubmitInputT } from '../modules/intake.ts';
 import * as wf from '../modules/workflow.ts';
+import { setCivilization } from '../modules/district.ts';
 import * as progressMod from '../modules/progress.ts';
 import * as council from '../modules/council.ts';
 import { uploadAttachment } from '../modules/attachments.ts';
@@ -399,6 +400,21 @@ async function main() {
   await saveMyProfile(db, engineer, { skills: ['Сканеры', 'Ремонт оборудования', 'Принтеры'], preferences: 'Выездные работы, оборудование', weeklyHours: 3 });
   await saveMyProfile(db, storekeeper, { skills: ['Приёмка', 'Этикетки', 'Инвентаризация'], preferences: 'Утренние смены', weeklyHours: 2 });
   await saveMyProfile(db, designer, { skills: ['Чертежи', 'Спецификации'], weeklyHours: 0 });
+  // More (fictional) people of the warehouse, so the district shows a real staff list.
+  const senior = await mk('Ержан Мусин', 'Старший кладовщик', 'Склад и логистика', ['employee']);
+  const wms = await mk('Ирина Волкова', 'Оператор складской системы', 'Склад и логистика', ['employee']);
+  const forklift = await mk('Бауыржан Оспанов', 'Водитель погрузчика', 'Склад и логистика', ['employee']);
+  await saveMyProfile(db, senior, { skills: ['Адресное хранение', 'Инвентаризация', 'Наставничество'], preferences: 'Хочу вести обучение новичков', weeklyHours: 4 });
+  await saveMyProfile(db, wms, { skills: ['Складская программа', 'Штрихкодирование', 'Отчёты по остаткам'], weeklyHours: 3 });
+  await saveMyProfile(db, forklift, { skills: ['Погрузчик', 'Приёмка паллет'], preferences: 'Только дневные смены', weeklyHours: 2 });
+
+  // ---- «Живое Королевство» (ADR-0019): architectural styles of the districts — a picture, no rights ----
+  await setCivilization(db, whHead, D.warehouse, 'japan');
+  await setCivilization(db, salesHead, D.sales, 'kazakh');
+  await setCivilization(db, svcHead, D.service, 'mongolia');
+  await setCivilization(db, sysAdmin, D.pnr, 'kazakh');
+  await setCivilization(db, sysAdmin, D.purchasing, 'japan');
+  await setCivilization(db, sysAdmin, D.design, 'mongolia');
 
   // ---- game titles (ADR-0014): decoration only, no rights; editable by the admin ----
   const guilds: [string, string[]][] = [

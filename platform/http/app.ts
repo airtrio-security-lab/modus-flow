@@ -28,6 +28,7 @@ import * as advisor from '../modules/advisor.ts';
 import * as meetings from '../modules/meetings.ts';
 import * as legacy from '../modules/legacy.ts';
 import * as kprivacy from '../modules/knowledge-privacy.ts';
+import * as district from '../modules/district.ts';
 import * as titles from '../modules/titles.ts';
 import * as retention from '../modules/retention.ts';
 import type { TranscribeConfig } from '../modules/transcribe.ts';
@@ -310,6 +311,10 @@ export function createApp(config: AppConfig) {
     body: await progress.rating(db, await org(ctx), progress.RatingQuery.parse(queryObject(ctx.query))),
   }));
   route('GET', `${ORG}/castles/(?<id>${UUID})`, async (ctx) => ({ status: 200, body: await progress.castle(db, await org(ctx), ctx.params.id!) }));
+  // ---- «Живое Королевство» (0014, ADR-0019): district screen, civilization, person card ----
+  route('GET', `${ORG}/castles/(?<id>${UUID})/district`, async (ctx) => ({ status: 200, body: await district.district(db, await org(ctx), ctx.params.id!) }));
+  json('PUT', `/castles/(?<id>${UUID})/civilization`, district.CivilizationInput, (a, i, p) => district.setCivilization(db, a, p.id!, i.civilization));
+  route('GET', `${ORG}/people/(?<id>${UUID})`, async (ctx) => ({ status: 200, body: await district.person(db, await org(ctx), ctx.params.id!) }));
   route('GET', `${ORG}/me/contribution`, async (ctx) => ({ status: 200, body: await progress.myContribution(db, await org(ctx)) }));
   json('PATCH', '/settings/progress', progress.ProgressSettingsInput, (a, i) => progress.updateProgressSettings(db, a, i));
   route('GET', `${ORG}/council`, async (ctx) => ({ status: 200, body: await council.listCouncil(db, await org(ctx)) }));

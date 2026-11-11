@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { api } from '../lib/api';
 import { plural } from '../lib/format';
 import { LiteToggle, useLite } from '../lib/lite';
@@ -8,6 +8,8 @@ import type { Castle, CastleDetail, Envoy, Kingdom as KingdomData } from '../lib
 import { ErrorBox, Loading, PageHead, StatusChip } from '../components/ui';
 import { HowItWorks } from '../components/HowItWorks';
 import { IsoCastle, IsoCouncil, IsoLibrary, P, Scaffold, Tree } from '../components/iso';
+import { CIV_HEIGHT, CivCastle, DistrictHouses, IsoArchive, IsoPlaza, civName, type Civ } from '../components/civ';
+import { useCamera } from '../lib/camera';
 
 /**
  * «Королевство» — the same items as a living strategy map (owner decisions
@@ -23,15 +25,26 @@ const RED = '#b3261e';
 const POLL_MS = 15000;
 
 type Pt = { x: number; y: number };
-/** `u` is the size of one isometric grid unit; `font` keeps plate labels readable at the map's real size. */
-type Layout = { w: number; h: number; capital: Pt; rx: number; ry: number; camp: Pt; library: Pt; s: number; u: number; font: number; start: number };
-const WIDE: Layout = { w: 1000, h: 800, capital: { x: 500, y: 420 }, rx: 380, ry: 280, camp: { x: 64, y: 40 }, library: { x: 880, y: 690 }, s: 1.25, u: 10, font: 17, start: -72 };
-const TALL: Layout = { w: 480, h: 1220, capital: { x: 240, y: 560 }, rx: 150, ry: 390, camp: { x: 64, y: 1080 }, library: { x: 360, y: 1110 }, s: 1.05, u: 7, font: 18, start: NaN };
+/**
+ * `u` is the size of one isometric grid unit; `font` keeps plate labels readable at the map's real size.
+ * The centre of the city: the Council palace with the Round Table, the Great Library, the Higher
+ * Archive and the achievements plaza; the districts of the departments stand around it.
+ */
+type Layout = { w: number; h: number; capital: Pt; rx: number; ry: number; camp: Pt; library: Pt; archive: Pt; plaza: Pt; s: number; u: number; font: number; start: number };
+const WIDE: Layout = { w: 1400, h: 1100, capital: { x: 700, y: 540 }, rx: 545, ry: 320, camp: { x: 70, y: 40 }, library: { x: 440, y: 650 }, archive: { x: 960, y: 650 }, plaza: { x: 700, y: 795 }, s: 1.7, u: 15, font: 24, start: -72 };
+const TALL: Layout = { w: 480, h: 1500, capital: { x: 240, y: 660 }, rx: 150, ry: 390, camp: { x: 70, y: 30 }, library: { x: 120, y: 1250 }, archive: { x: 360, y: 1250 }, plaza: { x: 240, y: 1350 }, s: 1.05, u: 7, font: 18, start: NaN };
 /** Phones: two columns around the council instead of a tight ring, so labels never collide (up to 8 castles). */
 const TALL_SLOTS: Pt[] = [
-  { x: 120, y: 190 }, { x: 360, y: 190 }, { x: 120, y: 390 }, { x: 360, y: 390 },
-  { x: 120, y: 760 }, { x: 360, y: 760 }, { x: 120, y: 960 }, { x: 360, y: 960 },
+  { x: 120, y: 270 }, { x: 360, y: 270 }, { x: 120, y: 470 }, { x: 360, y: 470 },
+  { x: 120, y: 880 }, { x: 360, y: 880 }, { x: 120, y: 1080 }, { x: 360, y: 1080 },
 ];
+const reducedMotion = () => {
+  try {
+    return window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+  } catch {
+    return false;
+  }
+};
 
 /** Where an envoy stands on its road (0 = home castle, 1 = council gates) and what it means. */
 export function envoyState(e: Envoy): { t: number; label: string; home?: boolean } {
@@ -88,6 +101,22 @@ export function Kingdom() {
   const [selected, setSelected] = useState<string | null>(null);
   const [celebrate, setCelebrate] = useState<{ id: string; text: string } | null>(null);
   const seen = useRef<Map<string, number> | null>(null);
+  const [enter] = useState(enterTarget);
+  const [mode, setModeRaw] = useState<'city' | 'work'>(() => {
+    try {
+      return localStorage.getItem(MODE_KEY) === 'work' ? 'work' : 'city';
+    } catch {
+      return 'city';
+    }
+  });
+  const setMode = (m: 'city' | 'work') => {
+    setModeRaw(m);
+    try {
+      localStorage.setItem(MODE_KEY, m);
+    } catch {
+      /* ignore */
+    }
+  };
 
   // Live: refresh while the page is visible.
   useEffect(() => {
@@ -101,6 +130,11 @@ export function Kingdom() {
       document.removeEventListener('visibilitychange', tick);
     };
   }, [reload]);
+
+  // Without the map there is nothing to fly over: go straight in.
+  useEffect(() => {
+    if (enter && mode === 'work') location.hash = enter;
+  }, [enter, mode]);
 
   // A level-up is shown only when the backend reports a higher level than before.
   useEffect(() => {
@@ -118,10 +152,18 @@ export function Kingdom() {
 
   return (
     <div className="stack-lg">
-      <PageHead title="Королевство" sub="Карта подразделений. Замок растёт только после подтверждённого внедрения идеи.">
-        <LiteToggle />
+      <PageHead title="Королевство" sub="Город подразделений. Замок растёт только после подтверждённого внедрения идеи.">
+        <div className="segmented" role="group" aria-label="Вид">
+          <button type="button" aria-pressed={mode === 'city'} onClick={() => setMode('city')}>
+            Город
+          </button>
+          <button type="button" aria-pressed={mode === 'work'} onClick={() => setMode('work')}>
+            Рабочее пространство
+          </button>
+        </div>
+        {mode === 'city' ? <LiteToggle /> : null}
       </PageHead>
-      <HowItWorks />
+      {mode === 'city' ? <HowItWorks /> : null}
       <div className="realm-toast-slot" aria-live="polite">
         {celebrate ? (
           <div className="realm-toast" role="status">
@@ -131,14 +173,73 @@ export function Kingdom() {
       </div>
       {error ? <ErrorBox error={error} retry={() => void reload()} /> : null}
       {loading && !data ? <Loading label="Рисуем карту…" rows={3} /> : null}
-      {data ? <Realm k={data} selected={selected} onSelect={setSelected} celebrate={celebrate} /> : null}
+      {data && mode === 'city' ? <Realm k={data} selected={selected} onSelect={setSelected} celebrate={celebrate} enterCouncil={enter} /> : null}
+      {data && mode === 'work' ? <WorkView k={data} /> : null}
     </div>
+  );
+}
+
+const MODE_KEY = 'modus.kingdom.mode';
+/** Where «Войти в Совет» leads after the flight: only the council and meeting pages. */
+function enterTarget(): string | null {
+  const t = new URLSearchParams(location.hash.split('?')[1] ?? '').get('enter');
+  return t && /^\/(council|meetings)(\/[0-9a-f-]{1,36})?$/.test(t) ? t : null;
+}
+
+/** «Рабочее пространство»: the same departments as a plain table, without the map or animations. */
+function WorkView({ k }: { k: KingdomData }) {
+  return (
+    <section className="panel stack" aria-labelledby="work-h">
+      <h2 id="work-h" className="section-title">
+        Подразделения
+      </h2>
+      <div className="table-wrap">
+        <table className="rating work-table">
+          <thead>
+            <tr>
+              <th scope="col">Подразделение</th>
+              <th scope="col">Уровень</th>
+              <th scope="col">XP</th>
+              <th scope="col">В работе</th>
+              <th scope="col">Ждут ответа</th>
+              <th scope="col">Внедряется</th>
+              <th scope="col">Внедрено</th>
+              <th scope="col">Стиль района</th>
+            </tr>
+          </thead>
+          <tbody>
+            {k.castles.map((c) => (
+              <tr key={c.id}>
+                <th scope="row">
+                  <a href={`#/castles/${c.id}`}>{c.name}</a>
+                </th>
+                <td>
+                  {c.level} · {c.levelName}
+                </td>
+                <td>{c.xp}</td>
+                <td>{c.envoys}</td>
+                <td>{c.waiting}</td>
+                <td>{c.building}</td>
+                <td>{c.towers}</td>
+                <td>{civName(c.civilization)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {k.wildlands ? (
+        <p className="muted small">
+          Без подразделения: {envoysWord(k.wildlands)} ждут распределения — <a href="#/all">все обращения</a>.
+        </p>
+      ) : null}
+    </section>
   );
 }
 
 function useWide() {
   const ref = useRef<HTMLDivElement>(null);
-  const [wide, setWide] = useState(true);
+  // First guess from the window, so a phone starts with its own layout (and its saved camera).
+  const [wide, setWide] = useState(() => (typeof window === 'undefined' ? true : window.innerWidth >= 700));
   useEffect(() => {
     const el = ref.current;
     if (!el || typeof ResizeObserver === 'undefined') return;
@@ -154,65 +255,143 @@ function Realm({
   selected,
   onSelect,
   celebrate,
+  enterCouncil = null,
 }: {
   k: KingdomData;
   selected: string | null;
   onSelect: (id: string | null) => void;
   celebrate: { id: string; text: string } | null;
+  /** «Войти в Совет»: fly to the palace, then open this page. */
+  enterCouncil?: string | null;
 }) {
   const { ref, wide } = useWide();
   const [lite] = useLite();
   const L = wide ? WIDE : TALL;
+  const cam = useCamera(L.w, L.h, { instant: lite || reducedMotion() });
+  const { flyTo } = cam;
   const placed = useMemo(() => placeCastles(k.castles, L), [k.castles, L]);
-  const byId = new Map(placed.map((p) => [p.castle.id, p]));
   const mine = k.envoys.filter((e) => e.mine);
-  const current = selected ? byId.get(selected) : undefined;
+  const current = selected ? placed.find((p) => p.castle.id === selected) : undefined;
+  const achievements = k.castles.reduce((n, c) => n + (c.achievements ?? 0), 0);
+  const cu = L.u * (wide ? 1 : 0.9);
+  const lu = L.u * (wide ? 0.9 : 0.75);
 
-  // Envoys that share a spot step aside along the road's normal.
-  const crowd = new Map<string, number>();
-  const figures = k.envoys.map((e) => {
-    const st = envoyState(e);
-    const home = e.departmentId ? byId.get(e.departmentId) : undefined;
-    let p: Pt;
-    let color = '#7a6a52';
-    if (home) {
-      const key = `${home.castle.id}:${st.t}`;
-      const k2 = crowd.get(key) ?? 0;
-      crowd.set(key, k2 + 1);
-      const base = bezier(home.road.from, home.road.ctrl, home.road.to, st.t);
-      const side = k2 === 0 ? 0 : (k2 % 2 ? 1 : -1) * Math.ceil(k2 / 2) * 17 * L.s;
-      p = { x: base.x + home.road.normal.x * side, y: base.y + home.road.normal.y * side };
-      color = home.color;
-    } else {
-      const k2 = crowd.get('camp') ?? 0;
-      crowd.set('camp', k2 + 1);
-      p = { x: L.camp.x + (52 + (k2 % 4) * 18) * L.s, y: L.camp.y + 12 + Math.floor(k2 / 4) * 24 * L.s };
-    }
-    return { e, st, p, color };
-  });
+  /** Click on a building: the camera flies to it, then its screen opens. Ctrl/⌘-click opens it as a plain link. */
+  const enter = useCallback(
+    (href: string, at: Pt, zoom: number) => (e: { preventDefault: () => void; ctrlKey?: boolean; metaKey?: boolean; shiftKey?: boolean; button?: number }) => {
+      if (e.ctrlKey || e.metaKey || e.shiftKey || (e.button ?? 0) !== 0) return;
+      e.preventDefault();
+      void flyTo(at, zoom).then(() => {
+        location.hash = href;
+      });
+    },
+    [flyTo],
+  );
 
-  // Painter's order: farther (higher on screen) first.
-  const drawables = [
-    ...placed.map((p) => ({ y: p.pos.y, key: `c-${p.castle.id}`, node: castleNode(p) })),
-    ...figures.map((f) => ({ y: f.p.y, key: `e-${f.e.number}`, node: <EnvoyMark key={`e-${f.e.number}`} e={f.e} at={f.p} s={L.s} color={f.color} label={f.st.label} home={!!f.st.home} /> })),
-  ].sort((a, b) => a.y - b.y);
+  // The cinematic entry to the Council: whole city → palace → the agenda. «Пропустить» goes at once.
+  const [entering, setEntering] = useState(!!enterCouncil);
+  useEffect(() => {
+    if (!enterCouncil) return;
+    let gone = false;
+    const goIn = () => {
+      if (gone) return;
+      gone = true;
+      location.hash = enterCouncil;
+    };
+    void flyTo(L.capital, 3.2, 1100).then(() => window.setTimeout(goIn, lite ? 0 : 350));
+    return () => {
+      gone = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enterCouncil]);
 
-  function castleNode(p: (typeof placed)[number]) {
+  // The scene does not depend on the camera: moving the camera only changes the viewBox.
+  const scene = useMemo(() => {
+    const byId = new Map(placed.map((p) => [p.castle.id, p]));
+    // Envoys that share a spot step aside along the road's normal.
+    const crowd = new Map<string, number>();
+    const figures = k.envoys.map((e) => {
+      const st = envoyState(e);
+      const home = e.departmentId ? byId.get(e.departmentId) : undefined;
+      let p: Pt;
+      let color = '#7a6a52';
+      if (home) {
+        const key = `${home.castle.id}:${st.t}`;
+        const k2 = crowd.get(key) ?? 0;
+        crowd.set(key, k2 + 1);
+        const base = bezier(home.road.from, home.road.ctrl, home.road.to, st.t);
+        const side = k2 === 0 ? 0 : (k2 % 2 ? 1 : -1) * Math.ceil(k2 / 2) * 17 * L.s;
+        p = { x: base.x + home.road.normal.x * side, y: base.y + home.road.normal.y * side };
+        color = home.color;
+      } else {
+        const k2 = crowd.get('camp') ?? 0;
+        crowd.set('camp', k2 + 1);
+        p = { x: L.camp.x + (52 + (k2 % 4) * 18) * L.s, y: L.camp.y + 12 + Math.floor(k2 / 4) * 24 * L.s };
+      }
+      return { e, st, p, color };
+    });
+    // Painter's order: farther (higher on screen) first.
+    const drawables = [
+      ...placed.map((p) => ({
+        y: p.pos.y,
+        node: (
+          <CastleMark
+            key={`c-${p.castle.id}`}
+            c={p.castle}
+            at={p.pos}
+            L={L}
+            above={p.pos.y < L.capital.y}
+            color={p.color}
+            selected={selected === p.castle.id}
+            celebrate={celebrate?.id === p.castle.id}
+            onEnter={enter(`#/castles/${p.castle.id}`, p.pos, 2.6)}
+          />
+        ),
+      })),
+      ...figures.map((f) => ({ y: f.p.y, node: <EnvoyMark key={`e-${f.e.number}`} e={f.e} at={f.p} s={L.s} color={f.color} label={f.st.label} home={!!f.st.home} /> })),
+    ].sort((a, b) => a.y - b.y);
     return (
-      <CastleMark
-        key={`c-${p.castle.id}`}
-        c={p.castle}
-        at={p.pos}
-        L={L}
-        above={p.pos.y < L.capital.y}
-        color={p.color}
-        selected={selected === p.castle.id}
-        celebrate={celebrate?.id === p.castle.id}
-        onSelect={() => onSelect(selected === p.castle.id ? null : p.castle.id)}
-      />
+      <>
+        <MapGround L={L} wide={wide} lite={lite} />
+        {placed.map((p) => (
+          <g key={`road-${p.castle.id}`} aria-hidden="true">
+            <path d={`M${p.road.from.x},${p.road.from.y} Q${p.road.ctrl.x},${p.road.ctrl.y} ${p.road.to.x},${p.road.to.y}`} className="realm-road-bed" />
+            <path d={`M${p.road.from.x},${p.road.from.y} Q${p.road.ctrl.x},${p.road.ctrl.y} ${p.road.to.x},${p.road.to.y}`} className="realm-road" />
+          </g>
+        ))}
+        <CityPaths L={L} />
+        <a href="#/council" className="realm-place" aria-label="Дворец Королевского совета и Круглый стол: обращения у Совета" onClick={enter('#/council', L.capital, 2.4)}>
+          <g transform={`translate(${L.capital.x},${L.capital.y})`}>
+            <IsoCouncil u={cu} />
+            <LabelPlate y={4.9 * cu + 12} title="Королевский совет" sub="Круглый стол: обсуждают и решают" font={L.font} strong />
+          </g>
+        </a>
+        {k.wildlands ? <Camp at={L.camp} count={k.wildlands} font={L.font} /> : null}
+        <a href="#/library" className="realm-place realm-library-link" aria-label="Великая библиотека: Летопись, Библиотека решений и Высший Архив" onClick={enter('#/library', L.library, 2.6)}>
+          <g transform={`translate(${L.library.x},${L.library.y})`}>
+            <IsoLibrary u={lu} />
+            <LabelPlate y={3.4 * lu + 8} title="Великая библиотека" sub="решения, итоги и уроки" font={L.font * 0.9} />
+          </g>
+        </a>
+        <a href="#/library?hall=archive" className="realm-place" aria-label="Высший Архив: наследие, утверждённое Советом" onClick={enter('#/library?hall=archive', L.archive, 2.6)}>
+          <g transform={`translate(${L.archive.x},${L.archive.y})`}>
+            <IsoArchive u={lu} />
+            <LabelPlate y={2.5 * lu + 10} title="Высший Архив" sub="наследие королевства" font={L.font * 0.9} />
+          </g>
+        </a>
+        <a href="#/rating" className="realm-place" aria-label={`Площадь достижений: ${achievements} ${plural(achievements, 'достижение', 'достижения', 'достижений')} замков; рейтинг подразделений`} onClick={enter('#/rating', L.plaza, 2.4)}>
+          <g transform={`translate(${L.plaza.x},${L.plaza.y})`}>
+            <IsoPlaza u={lu * 0.85} count={achievements} />
+            <LabelPlate y={2.7 * lu + 4} title="Площадь достижений" sub={`${achievements} ${plural(achievements, 'достижение', 'достижения', 'достижений')} · рейтинг`} font={L.font * 0.85} />
+          </g>
+        </a>
+        {lite ? null : <Residents placed={placed} L={L} />}
+        {drawables.map((d) => d.node)}
+      </>
     );
-  }
+  }, [k, placed, L, wide, lite, selected, celebrate, enter, achievements, cu, lu]);
 
+  const zoomed = cam.zoom > 1.01;
   return (
     <>
       {mine.length ? (
@@ -227,28 +406,54 @@ function Realm({
       ) : null}
 
       <div className={`realm${lite ? ' is-lite' : ''}`} ref={ref}>
-        <div className="realm-map">
-          <svg viewBox={`0 0 ${L.w} ${L.h}`} role="img" aria-label={`Карта королевства: ${k.castles.length} замков подразделений, ${envoysWord(k.envoys.length)} в работе`}>
-            <MapGround L={L} wide={wide} lite={lite} />
-            {placed.map((p) => (
-              <g key={`road-${p.castle.id}`} aria-hidden="true">
-                <path d={`M${p.road.from.x},${p.road.from.y} Q${p.road.ctrl.x},${p.road.ctrl.y} ${p.road.to.x},${p.road.to.y}`} className="realm-road-bed" />
-                <path d={`M${p.road.from.x},${p.road.from.y} Q${p.road.ctrl.x},${p.road.ctrl.y} ${p.road.to.x},${p.road.to.y}`} className="realm-road" />
-              </g>
-            ))}
-            <g transform={`translate(${L.capital.x},${L.capital.y})`} aria-hidden="true">
-              <IsoCouncil u={L.u * (wide ? 1 : 0.9)} />
-              <LabelPlate y={4.9 * L.u * (wide ? 1 : 0.9) + 12} title="Совет" sub="здесь обсуждают и решают" font={L.font} strong />
-            </g>
-            {k.wildlands ? <Camp at={L.camp} count={k.wildlands} font={L.font} /> : null}
-            <a href="#/library" className="realm-library-link" aria-label="Великая библиотека: Летопись, Библиотека решений и Высший Архив">
-              <g transform={`translate(${L.library.x},${L.library.y})`}>
-                <IsoLibrary u={L.u * (wide ? 0.9 : 0.75)} />
-                <LabelPlate y={3.4 * L.u * (wide ? 0.9 : 0.75) + 8} title="Великая библиотека" sub="решения, итоги и уроки" font={L.font * 0.9} />
-              </g>
-            </a>
-            {drawables.map((d) => d.node)}
+        <div
+          className={`realm-map${zoomed ? ' is-zoomed' : ''}`}
+          tabIndex={0}
+          role="group"
+          aria-label="Карта города. Стрелки — перемещение, плюс и минус — масштаб, ноль — весь город"
+          onKeyDown={cam.onKey}
+        >
+          <svg
+            {...cam.handlers}
+            viewBox={`${cam.view.x} ${cam.view.y} ${cam.view.w} ${cam.view.h}`}
+            style={{ touchAction: zoomed ? 'none' : 'pan-y' }}
+            role="img"
+            aria-label={`Город королевства: ${k.castles.length} замков подразделений, ${envoysWord(k.envoys.length)} в работе`}
+          >
+            {scene}
           </svg>
+          {entering && enterCouncil ? (
+            <div className="realm-cinema" role="status">
+              <span>Входим в Королевский совет…</span>
+              <button
+                type="button"
+                className="btn small"
+                onClick={() => {
+                  setEntering(false);
+                  location.hash = enterCouncil;
+                }}
+              >
+                Пропустить
+              </button>
+            </div>
+          ) : null}
+          <div className="realm-cam" role="toolbar" aria-label="Камера">
+            <button type="button" className="realm-cam-btn" onClick={() => cam.zoomAt(1.4)} aria-label="Приблизить" disabled={cam.zoom >= 3.49}>
+              +
+            </button>
+            <button type="button" className="realm-cam-btn" onClick={() => cam.zoomAt(1 / 1.4)} aria-label="Отдалить" disabled={!zoomed}>
+              −
+            </button>
+            <button type="button" className="realm-cam-btn wide" onClick={() => void flyTo(null)} disabled={!zoomed}>
+              Весь город
+            </button>
+            <button type="button" className="realm-cam-btn wide" onClick={() => void flyTo(L.capital, 2.4)}>
+              К Совету
+            </button>
+            <button type="button" className="realm-cam-btn wide" onClick={() => void flyTo(L.library, 2.6)}>
+              К Библиотеке
+            </button>
+          </div>
         </div>
 
         <aside className="realm-side panel" aria-live="polite">
@@ -258,7 +463,7 @@ function Realm({
             <div className="stack">
               <h2 className="realm-h">Как читать карту</h2>
               <Legend levels={k.levels.names} />
-              <p className="muted small">Выберите замок на карте или в списке ниже. Карта обновляется сама.</p>
+              <p className="muted small">Нажмите на замок, чтобы войти в район подразделения. В списке ниже — краткая сводка без перехода. Карта обновляется сама.</p>
             </div>
           )}
         </aside>
@@ -275,7 +480,7 @@ function Realm({
                 <span className="realm-swatch" style={{ background: p.color }} aria-hidden="true" />
                 <span className="realm-list-name">{p.castle.name}</span>
                 <span className="muted small">
-                  Уровень {p.castle.level} · {p.castle.levelName} · {p.castle.xp} XP
+                  Уровень {p.castle.level} · {p.castle.levelName} · {p.castle.xp} XP · {civName(p.castle.civilization)}
                 </span>
                 <span className="muted small">
                   Внедрено: {p.castle.towers}
@@ -297,6 +502,50 @@ function Realm({
         </ul>
       </section>
     </>
+  );
+}
+
+/**
+ * Residents: one walking figure per five people of the department (by its recorded headcount), at
+ * most four per district and 24 in the city; none in light graphics. They show size, nothing else.
+ */
+const MAX_RESIDENTS = 24;
+function Residents({ placed, L }: { placed: { castle: Castle; pos: Pt; color: string }[]; L: Layout }) {
+  let left = MAX_RESIDENTS;
+  return (
+    <g aria-hidden="true" className="realm-residents">
+      {placed.flatMap((p) => {
+        const n = Math.min(4, left, Math.max(1, Math.ceil((p.castle.headcount ?? 5) / 5)));
+        left -= n;
+        const plate = [2.6, 3.2, 3.8, 4.4, 5][p.castle.level - 1]!;
+        return Array.from({ length: n }, (_, i) => {
+          const side = i % 2 ? 1 : -1;
+          const x = p.pos.x + side * (plate * 0.9 + 1.4 + i * 0.5) * L.u;
+          const y = p.pos.y + (plate * 0.55 + 1 + (i % 3) * 0.6) * L.u;
+          return (
+            <g key={`${p.castle.id}-${i}`} transform={`translate(${x},${y}) scale(${L.s * 0.55})`}>
+              <g className="realm-stroll" style={{ animationDelay: `${-i * 1.7}s` }}>
+                <ellipse cy="1" rx="5" ry="1.8" fill="#2d3a22" opacity="0.25" />
+                <path d="M-4,0 L0,-11 L4,0 Z" fill={p.color} stroke="#2d2a24" strokeWidth="0.8" />
+                <circle cy="-13.5" r="3" fill="#f2dfc2" stroke="#2d2a24" strokeWidth="0.8" />
+              </g>
+            </g>
+          );
+        });
+      })}
+    </g>
+  );
+}
+
+/** Paved paths of the city centre between the palace, the library, the archive and the plaza. */
+function CityPaths({ L }: { L: Layout }) {
+  const c = L.capital;
+  const d = [L.library, L.archive, L.plaza].map((p) => `M${c.x},${c.y} L${p.x},${p.y}`).join(' ');
+  return (
+    <g aria-hidden="true">
+      <path d={d} className="realm-path-bed" />
+      <path d={d} className="realm-path" />
+    </g>
   );
 }
 
@@ -323,6 +572,10 @@ function CastleDetails({ c, color, envoys }: { c: Castle; color: string; envoys:
       <p className="level-badge">
         Уровень {c.level} · {c.levelName}
       </p>
+      <p className="muted small">Стиль района: {civName(c.civilization)}</p>
+      <a className="btn primary" href={`#/castles/${c.id}`}>
+        Войти в замок
+      </a>
       <XpBar xp={c.xp} floor={c.levelFloor} next={c.nextLevelXp} nextName={c.nextLevelName} progress={c.progress} />
       <dl className="realm-facts">
         <div>
@@ -541,7 +794,7 @@ function CastleMark({
   color,
   selected,
   celebrate,
-  onSelect,
+  onEnter,
 }: {
   c: Castle;
   at: Pt;
@@ -551,49 +804,48 @@ function CastleMark({
   color: string;
   selected: boolean;
   celebrate: boolean;
-  onSelect: () => void;
+  /** Fly to the castle and open the district screen. */
+  onEnter: (e: { preventDefault: () => void; ctrlKey?: boolean; metaKey?: boolean; button?: number }) => void;
 }) {
   const onKey = (e: KeyboardEvent) => {
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
-      onSelect();
-    }
+    if (e.key === 'Enter' || e.key === ' ') onEnter(e);
   };
+  const civ = (c.civilization in CIV_HEIGHT ? c.civilization : 'europe') as Civ;
   const plate = [2.6, 3.2, 3.8, 4.4, 5][c.level - 1]!;
   const bottom = P(plate, plate, 0, L.u).y;
-  const name = `${c.name}: уровень ${c.level}, ${c.levelName}, ${c.xp} XP; в работе ${envoysWord(c.envoys)}`;
+  const height = CIV_HEIGHT[civ][c.level - 1]!;
+  const name = `Войти в замок «${c.name}»: ${civName(civ)}, уровень ${c.level}, ${c.levelName}, ${c.xp} XP; в работе ${envoysWord(c.envoys)}`;
   return (
     <g
       transform={`translate(${at.x},${at.y})`}
       className={`realm-castle${selected ? ' is-selected' : ''}${celebrate ? ' is-celebrating' : ''}`}
-      role="button"
+      role="link"
       tabIndex={0}
       aria-label={name}
-      aria-pressed={selected}
-      onClick={onSelect}
+      data-castle={c.id}
+      onClick={(e) => onEnter(e)}
       onKeyDown={onKey}
     >
       <title>{name}</title>
+      <ellipse cy={-height * L.u * 0.3} rx={plate * 2 * 0.866 * L.u + 8} ry={height * L.u * 0.75 + plate * L.u} fill="transparent" />
       {selected ? <ellipse cy={L.u * 0.2} rx={plate * 2 * 0.866 * L.u + 14} ry={plate * L.u + 10} className="realm-ring" /> : null}
-      <IsoCastle level={c.level} color={color} u={L.u} rising={celebrate} />
+      <DistrictHouses civ={civ} level={c.level} u={L.u} color={color} />
+      <CivCastle civ={civ} level={c.level} color={color} u={L.u} rising={celebrate} />
       {c.building ? <Scaffold x={plate + 1.4} y={-0.5} u={L.u} /> : null}
       {celebrate ? (
         <g className="realm-dust" aria-hidden="true">
           {[-26, -8, 12, 28].map((x, i) => (
             <circle key={x} cx={x} cy={bottom - 6 - (i % 2) * 6} r="6" fill="#efe6d2" />
           ))}
-          <text y={-plate * L.u * 2.2} textAnchor="middle" className="realm-xp-float">
+          <text y={-height * L.u - 8} textAnchor="middle" className="realm-xp-float">
             Новый уровень
           </text>
         </g>
       ) : null}
-      <LabelPlate y={above ? -CASTLE_HEIGHT[c.level - 1]! * L.u - L.font * 2.45 - 18 : bottom + 10} title={c.name} sub={`Ур. ${c.level} · ${c.levelName}`} font={L.font} />
+      <LabelPlate y={above ? -height * L.u - L.font * 2.45 - 18 : bottom + 10} title={c.name} sub={`Ур. ${c.level} · ${c.levelName}`} font={L.font} />
     </g>
   );
 }
-
-/** Height of the drawing above the ground per level, in grid units (banners included). */
-const CASTLE_HEIGHT = [5, 5.6, 5.6, 8.4, 11];
 
 function EnvoyBody({ color, pennant, mine }: { color: string; pennant?: string; mine?: boolean }) {
   return (
