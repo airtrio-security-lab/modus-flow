@@ -762,3 +762,4 @@ fieldset.field legend { font-size: var(--fs-sm); font-weight: 500; margin-bottom
   .protocol > .panel:first-child { position: static; max-height: none; }
 }
 nav.segmented { justify-self: start; width: fit-content; max-width: 100%; }
+.candidate > .segmented { justify-self: start; width: fit-content; }
