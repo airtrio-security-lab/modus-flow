@@ -69,6 +69,10 @@ export const NOTIFICATION_EVENTS = [
   'meeting_called',
   'meeting_recording_started',
   'meeting_findings_ready',
+  'meeting_rescheduled',
+  'meeting_cancelled',
+  'deadline_soon',
+  'castle_xp',
 ] as const;
 export type NotificationEvent = (typeof NOTIFICATION_EVENTS)[number];
 

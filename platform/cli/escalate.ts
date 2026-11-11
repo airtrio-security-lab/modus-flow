@@ -11,7 +11,9 @@ if (!url) throw new Error('MIGRATION_DATABASE_URL is required');
 const db = createDatabase(url, 1);
 try {
   const { rows } = await db.pool.query<{ n: number }>('SELECT escalate_overdue() AS n');
-  console.log(JSON.stringify({ level: 'info', escalated: rows[0]!.n }));
+  // «Приближается срок»: once per item and deadline (ADR-0016).
+  const soon = await db.pool.query<{ n: number }>('SELECT notify_deadlines_soon() AS n');
+  console.log(JSON.stringify({ level: 'info', escalated: rows[0]!.n, deadlineSoon: soon.rows[0]!.n }));
 } finally {
   await db.close();
 }

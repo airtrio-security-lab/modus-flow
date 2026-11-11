@@ -205,15 +205,47 @@ export interface Rule {
   resolutionDays: number | null;
 }
 
+export type NoteCategory = 'council' | 'items' | 'decisions' | 'deadlines' | 'castle';
+export interface MeetingInvite {
+  title: string;
+  organizer: string;
+  scheduledAt: string | null;
+  ideaNumber: number | null;
+  ideaTitle: string | null;
+  reason: string;
+  required: boolean;
+  action: string;
+  attendance: 'pending' | 'confirmed' | 'declined';
+  consent: 'pending' | 'given' | 'declined';
+  cancelled: boolean;
+  cancelReason: string | null;
+}
 export interface Notification {
   id: string;
   event: string;
+  category: NoteCategory;
   message: string;
+  royal: string | null;
+  headline: string;
+  urgent: boolean;
   ideaNumber: number | null;
-  meetingId?: string | null;
-  headline?: string;
+  meetingId: string | null;
+  meeting: MeetingInvite | null;
+  meetingClosed: boolean;
   createdAt: string;
   readAt: string | null;
+}
+export interface NotePreferences {
+  style: 'royal' | 'business';
+  addressForm: 'title' | 'milord' | 'milady' | 'master' | 'neutral';
+  groupRepeats: boolean;
+  muted: string[];
+  address: string;
+  title: string | null;
+  mandatory: string[];
+  categories: Record<string, NoteCategory>;
+  channels: { id: string; label: string; available: boolean; note?: string }[];
+  note: string;
 }
 
 export interface Analytics {
@@ -508,6 +540,9 @@ export interface MeetingRow {
   recordingStartedAt: string | null;
   endedAt: string | null;
   myConsent: Consent | null;
+  myAttendance?: 'pending' | 'confirmed' | 'declined' | null;
+  scheduledAt?: string | null;
+  cancelledAt?: string | null;
   participants: number;
   consented: number;
   hasRecording: boolean;
@@ -556,7 +591,10 @@ export interface MeetingView {
   createdAt: string;
   recordingStartedAt: string | null;
   endedAt: string | null;
-  participants: { membershipId: string; name: string; jobTitle: string | null; department: string | null; consent: Consent; consentAt: string | null }[];
+  participants: { membershipId: string; name: string; jobTitle: string | null; department: string | null; consent: Consent; consentAt: string | null; attendance: 'pending' | 'confirmed' | 'declined' }[];
+  scheduledAt: string | null;
+  cancelledAt: string | null;
+  cancelReason: string | null;
   myConsent: Consent | null;
   allConsented: boolean;
   recording: { source: 'microphone' | 'upload'; contentType: string; sizeBytes: number; durationMs: number | null; sha256: string; createdAt: string; uploadedBy: string; purgedAt: string | null } | null;
@@ -566,7 +604,7 @@ export interface MeetingView {
   findings: MeetingFinding[];
   engine: { configured: boolean; model: string | null };
   model: { configured: boolean; model: string | null };
-  can: { consent: boolean; record: boolean; review: boolean; transcribe: boolean; addTranscript: boolean };
+  can: { consent: boolean; attend: boolean; manage: boolean; record: boolean; review: boolean; transcribe: boolean; addTranscript: boolean };
 }
 export interface ItemOrigin {
   meetingId: string;

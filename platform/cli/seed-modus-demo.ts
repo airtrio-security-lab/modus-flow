@@ -4,6 +4,7 @@ import { createDatabase, withAdminTx, type Database } from '../db/pool.ts';
 import { saveMyProfile } from '../modules/advisor.ts';
 import { assignTitle, setGuildTitles } from '../modules/titles.ts';
 import { createMeeting, setConsent } from '../modules/meetings.ts';
+import { savePreferences } from '../modules/notifications.ts';
 import { migrate } from '../db/migrate.ts';
 import type { OrgActor, OrgRole } from '../domain/model.ts';
 import * as admin from '../modules/admin.ts';
@@ -412,6 +413,10 @@ async function main() {
   await assignTitle(db, sysAdmin, ops.membershipId, { rank: 'regent' });
   await assignTitle(db, sysAdmin, storekeeper.membershipId, { rank: 'guild', title: 'Мастер запасов' });
 
+  // ---- forms of address chosen by the people themselves (fictional; never guessed from names) ----
+  await savePreferences(db, whHead, { style: 'royal', addressForm: 'milord', groupRepeats: true, muted: [] });
+  await savePreferences(db, salesHead, { style: 'royal', addressForm: 'milady', groupRepeats: true, muted: [] });
+
   // ---- a council meeting called in advance; each participant gave consent themselves (fictional) ----
   const planerka = (
     await createMeeting(db, whHead, {
@@ -423,7 +428,7 @@ async function main() {
   ).body.id;
   for (const p of [storekeeper, engineer, itLead]) await setConsent(db, p, planerka, 'given');
 
-  const personas = [owner, ops, whHead, itLead, storekeeper, engineer, sysAdmin].map((p) => ({
+  const personas = [owner, ops, whHead, salesHead, itLead, storekeeper, engineer, sysAdmin].map((p) => ({
     userId: p.userId,
     name: p.name,
     title: p.title,

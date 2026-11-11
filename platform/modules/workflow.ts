@@ -522,12 +522,19 @@ export function decide(db: Database, actor: OrgActor, number: number, input: z.i
     }
     await log(c, actor, `decision.${input.outcome}`, 'decision', decision.id, { idea: idea.number, revision: idea.current_revision_number });
     const owners = await c.query<{ owner_membership_id: string }>('SELECT owner_membership_id FROM verifications WHERE idea_id = $1', [idea.id]);
+    // Everyone who argued at the council or sat at a meeting about it learns the result (ADR-0016).
+    const council = await c.query<{ m: string }>(
+      `SELECT author_membership_id AS m FROM council_entries WHERE idea_id = $1
+        UNION SELECT p.membership_id FROM meeting_participants p JOIN meetings mt ON mt.id = p.meeting_id
+         WHERE mt.idea_id = $1 AND p.removed_at IS NULL AND mt.cancelled_at IS NULL`,
+      [idea.id],
+    );
     await ping(
       c,
       actor,
       input.outcome === 'merge' ? 'idea_merged' : 'idea_rejected',
       idea,
-      [idea.author_membership_id, idea.raised_by_membership_id, idea.maintainer_membership_id, ...owners.rows.map((o) => o.owner_membership_id)],
+      [idea.author_membership_id, idea.raised_by_membership_id, idea.maintainer_membership_id, ...owners.rows.map((o) => o.owner_membership_id), ...council.rows.map((r) => r.m)],
       decision.id,
     );
     return {

@@ -6,6 +6,7 @@ import { useLoad, useSession } from '../lib/session';
 import type { Contribution, EmployeeProfile } from '../lib/types';
 import { ErrorBox, Loading, PageHead, StatusChip } from '../components/ui';
 import { useTitles } from '../components/Titles';
+import { NotePrefs } from '../components/NotePrefs';
 
 /**
  * «Мой профиль»: who I am here, what I raised and what my implemented ideas
@@ -133,6 +134,8 @@ export function Profile() {
       ) : null}
 
       <Questionnaire />
+
+      <NotePrefs />
 
       <section className="panel stack">
         <h2 className="section-title">Настройки на этом устройстве</h2>

@@ -117,6 +117,7 @@ export function NewMeeting() {
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [filter, setFilter] = useState('');
   const [consent, setConsent] = useState(false);
+  const [when, setWhen] = useState('');
   const [key] = useState(newKey);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -138,7 +139,14 @@ export function NewMeeting() {
     try {
       const r = await api<{ id: string }>(`/orgs/${s.org}/meetings`, {
         key,
-        json: { title: title.trim(), participants: [...picked], organizerConsent: true, ...(departmentId ? { departmentId } : {}), ...(ideaNumber ? { ideaNumber } : {}) },
+        json: {
+          title: title.trim(),
+          participants: [...picked],
+          organizerConsent: true,
+          ...(departmentId ? { departmentId } : {}),
+          ...(ideaNumber ? { ideaNumber } : {}),
+          ...(when ? { scheduledAt: new Date(when).toISOString() } : {}),
+        },
       });
       s.toast('Заседание созвано: участники получили уведомление и запрос согласия');
       go(`/meetings/${r.id}`);
@@ -168,6 +176,11 @@ export function NewMeeting() {
                   </option>
                 ))}
             </select>
+          </div>
+          <div className="field">
+            <label htmlFor="mt-when">Когда</label>
+            <input id="mt-when" className="input" type="datetime-local" value={when} onChange={(e) => setWhen(e.target.value)} />
+            <span className="hint">Можно назначить позже; участники получат сообщение о переносе.</span>
           </div>
           <div className="field">
             <span className="label-like">Обращение</span>
@@ -244,7 +257,7 @@ export function MeetingPage({ id }: { id: string }) {
     <div className="stack-lg">
       <PageHead
         title={data.title}
-        sub={`${data.scope === 'castle' ? `Малый совет замка «${data.department}»` : 'Королевский совет'} · созвал(а) ${data.organizer}, ${dateTime(data.createdAt)}`}
+        sub={`${data.scope === 'castle' ? `Малый совет замка «${data.department}»` : 'Королевский совет'} · созвал(а) ${data.organizer} · ${data.scheduledAt ? `назначено на ${dateTime(data.scheduledAt)}` : 'время не назначено'}`}
       >
         {data.ideaNumber ? (
           <a className="btn" href={`#/council/${data.ideaNumber}`}>
@@ -253,6 +266,13 @@ export function MeetingPage({ id }: { id: string }) {
         ) : null}
       </PageHead>
 
+      {data.cancelledAt ? (
+        <p className="notice error" role="status">
+          Заседание отменено {dateTime(data.cancelledAt)}
+          {data.cancelReason ? `: ${data.cancelReason}` : ''}. Запись и ответы больше не принимаются.
+        </p>
+      ) : null}
+      {data.can.manage ? <ManagePanel view={data} onDone={reload} /> : null}
       <div className="meeting-grid">
         <div className="stack">
           <ConsentPanel view={data} onDone={reload} />
@@ -297,6 +317,20 @@ function ConsentPanel({ view, onDone }: { view: MeetingView; onDone: () => Promi
   const s = useSession();
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const me = view.participants.find((p) => p.membershipId === s.membershipId);
+  async function attend(attendance: 'confirmed' | 'declined') {
+    setBusy(true);
+    setErr(null);
+    try {
+      await api(`/orgs/${s.org}/meetings/${view.id}/attendance`, { json: { attendance } });
+      s.toast(attendance === 'confirmed' ? 'Участие подтверждено' : 'Организатор увидит, что вы не сможете присутствовать');
+      await onDone();
+    } catch (x) {
+      setErr(errorText(x));
+    } finally {
+      setBusy(false);
+    }
+  }
   async function answer(consent: 'given' | 'declined') {
     setBusy(true);
     setErr(null);
@@ -322,10 +356,24 @@ function ConsentPanel({ view, onDone }: { view: MeetingView; onDone: () => Promi
               <b>{p.name}</b>
               <span className="small muted">{p.jobTitle ? `, ${p.jobTitle}` : ''}</span>
             </span>
-            <span className={`seat-pill tone-${CONSENT[p.consent].tone}`}>{CONSENT[p.consent].label}</span>
+            <span className="row">
+              <span className="small muted">{p.attendance === 'confirmed' ? 'придёт' : p.attendance === 'declined' ? 'не сможет' : 'ответа нет'}</span>
+              <span className={`seat-pill tone-${CONSENT[p.consent].tone}`}>{CONSENT[p.consent].label}</span>
+            </span>
           </li>
         ))}
       </ul>
+      {view.can.attend && me ? (
+        <div className="row">
+          <span className="small">Участие:</span>
+          <button className="btn small" aria-pressed={me.attendance === 'confirmed'} disabled={busy || me.attendance === 'confirmed'} onClick={() => void attend('confirmed')}>
+            Подтвердить участие
+          </button>
+          <button className="btn small" aria-pressed={me.attendance === 'declined'} disabled={busy || me.attendance === 'declined'} onClick={() => void attend('declined')}>
+            Не могу присутствовать
+          </button>
+        </div>
+      ) : null}
       {view.can.consent && view.myConsent !== null ? (
         <div className="consent-me stack">
           <p className="small">
@@ -984,5 +1032,81 @@ function FindingCard({ view, f, onDone, onSeek }: { view: MeetingView; f: Meetin
       )}
       {err ? <p className="notice error">{err}</p> : null}
     </article>
+  );
+}
+
+/** Organizer: time, cancellation and the participant list — until recording starts. */
+function ManagePanel({ view, onDone }: { view: MeetingView; onDone: () => Promise<void> }) {
+  const s = useSession();
+  const [when, setWhen] = useState('');
+  const [reason, setReason] = useState('');
+  const [add, setAdd] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const inside = new Set(view.participants.map((p) => p.membershipId));
+  const candidates = (s.directory?.members ?? []).filter((m) => m.access === 'member' && !inside.has(m.membershipId));
+  async function run(path: string, json: unknown, done: string) {
+    setBusy(true);
+    setErr(null);
+    try {
+      await api(`/orgs/${s.org}/meetings/${view.id}/${path}`, { json });
+      s.toast(done);
+      await onDone();
+    } catch (x) {
+      setErr(errorText(x));
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <details className="panel manage">
+      <summary className="section-title">Управление заседанием (организатор)</summary>
+      <div className="stack">
+        <div className="row">
+          <label htmlFor="mg-when" className="small">
+            Перенести на
+          </label>
+          <input id="mg-when" className="input compact" type="datetime-local" value={when} onChange={(e) => setWhen(e.target.value)} />
+          <button className="btn small" disabled={busy || !when} onClick={() => void run('reschedule', { scheduledAt: new Date(when).toISOString() }, 'Время изменено: участники получили сообщение')}>
+            Перенести
+          </button>
+        </div>
+        <div className="row">
+          <label htmlFor="mg-add" className="small">
+            Добавить участника
+          </label>
+          <select id="mg-add" className="select compact" value={add} onChange={(e) => setAdd(e.target.value)}>
+            <option value="">—</option>
+            {candidates.map((m) => (
+              <option key={m.membershipId} value={m.membershipId}>
+                {m.name}
+              </option>
+            ))}
+          </select>
+          <button className="btn small" disabled={busy || !add} onClick={() => void run('participants', { membershipId: add, present: true }, 'Участник добавлен и приглашён')}>
+            Добавить
+          </button>
+        </div>
+        <ul className="consent-list">
+          {view.participants
+            .filter((p) => p.membershipId !== view.organizerMembershipId)
+            .map((p) => (
+              <li key={p.membershipId}>
+                <span>{p.name}</span>
+                <button className="btn quiet small" disabled={busy} onClick={() => void run('participants', { membershipId: p.membershipId, present: false }, `${p.name}: убран(а) из участников, доступ закрыт`)}>
+                  Убрать
+                </button>
+              </li>
+            ))}
+        </ul>
+        <div className="row">
+          <input className="input compact" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Причина отмены" aria-label="Причина отмены" maxLength={500} />
+          <button className="btn small danger" disabled={busy || reason.trim().length < 3} onClick={() => void run('cancel', { reason: reason.trim() }, 'Заседание отменено: участники получили сообщение')}>
+            Отменить заседание
+          </button>
+        </div>
+        {err ? <p className="notice error">{err}</p> : null}
+      </div>
+    </details>
   );
 }

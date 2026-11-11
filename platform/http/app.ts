@@ -17,6 +17,7 @@ import {
   saveVersion,
 } from '../modules/lab.ts';
 import { listInbox, markRead } from '../modules/notifications.ts';
+import * as notificationsMod from '../modules/notifications.ts';
 import * as wf from '../modules/workflow.ts';
 import * as admin from '../modules/admin.ts';
 import { analytics, AnalyticsQuery } from '../modules/analytics.ts';
@@ -432,6 +433,16 @@ export function createApp(config: AppConfig) {
   json('PUT', '/retention', retention.RetentionInput, (a, i) => retention.setRetention(db, a, i));
   json('POST', `/meetings/(?<id>${UUID})/purge`, retention.PurgeInput, (a, i, p) => retention.purgeMedia(db, a, p.id!, i));
   json('POST', `/meetings/(?<id>${UUID})/legal-hold`, retention.HoldInput, (a, i, p) => retention.setLegalHold(db, a, p.id!, i));
+  route('GET', `${ORG}/me/notification-preferences`, async (ctx) => ({ status: 200, body: await notificationsMod.getPreferences(db, await org(ctx)) }));
+  json('PUT', '/me/notification-preferences', notificationsMod.PreferencesInput, (a, i) => notificationsMod.savePreferences(db, a, i));
+  route('POST', `${MTG}/attendance`, async (ctx) => {
+    const actor = await org(ctx);
+    const { attendance } = z.object({ attendance: z.enum(['confirmed', 'declined']) }).strict().parse(await ctx.body());
+    return { status: 200, body: await meetings.setAttendance(db, actor, ctx.params.id!, attendance) };
+  });
+  json('POST', `/meetings/(?<id>${UUID})/reschedule`, meetings.RescheduleInput, (a, i, p) => meetings.reschedule(db, a, p.id!, i));
+  json('POST', `/meetings/(?<id>${UUID})/cancel`, meetings.CancelInput, (a, i, p) => meetings.cancel(db, a, p.id!, i));
+  json('POST', `/meetings/(?<id>${UUID})/participants`, meetings.ParticipantInput, (a, i, p) => meetings.setParticipant(db, a, p.id!, i));
   route('GET', `${IDEA}/origin`, async (ctx) => ({ status: 200, body: await meetings.itemOrigin(db, await org(ctx), NumberParam.parse(ctx.params.number)) }));
   step('/effect', progress.EffectInput, (a, n, i, _p, k) => progress.approveEffect(db, a, n, i, k));
   route('GET', `${ORG}/analytics`, async (ctx) => ({

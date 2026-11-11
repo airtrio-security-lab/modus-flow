@@ -809,3 +809,37 @@ button.ts:hover { border-color: var(--accent); color: var(--accent-ink); }
 .origin { background: #fbfaf6; }
 .retention-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 12px; }
 .retention-list li { display: grid; gap: 6px; padding: 10px 0; border-top: 1px solid var(--line); }
+
+/* ---- Royal messages (0011, ADR-0016) ---------------------------------- */
+.scrolls { list-style: none; padding: 0; margin: 0; display: grid; gap: 12px; }
+.scroll { display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 14px; padding: 16px; border-radius: var(--r-md); background: var(--surface); border: 1px solid var(--line); }
+.scroll.unread { border-color: #c9a46c; background: #fffdf6; box-shadow: inset 3px 0 0 #b8860b; }
+.scroll-body { display: grid; gap: 8px; min-width: 0; }
+.scroll-top { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 12px; align-items: baseline; }
+.scroll-h { margin: 0; font-size: var(--fs-md, 17px); font-weight: 700; color: var(--ink); }
+.scroll-royal { margin: 0; font-size: var(--fs-sm); color: #5a4209; overflow-wrap: anywhere; }
+.scroll-business { margin: 0; overflow-wrap: anywhere; }
+.scroll-facts { margin: 0; display: grid; gap: 4px; font-size: var(--fs-sm); }
+.scroll-facts > div { display: grid; grid-template-columns: 120px 1fr; gap: 8px; }
+.scroll-facts dt { color: var(--ink-2); }
+.scroll-facts dd { margin: 0; overflow-wrap: anywhere; }
+.unread-mark { color: #8a1c1c; }
+.seal { flex: none; }
+.scroll.unfold { animation: scroll-unfold 380ms ease-out 1; transform-origin: top; }
+@keyframes scroll-unfold { from { clip-path: inset(0 0 70% 0); opacity: .6; } to { clip-path: inset(0 0 0 0); opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .scroll.unfold { animation: none; } }
+@media (max-width: 560px) {
+  .scroll { grid-template-columns: 1fr; padding: 14px; }
+  .scroll .seal { width: 32px; height: 32px; }
+  .scroll-facts > div { grid-template-columns: 1fr; gap: 0; }
+}
+:root[data-theme='dark'] .scroll.unread { background: var(--surface); }
+:root[data-theme='dark'] .scroll-royal { color: #e0c98f; }
+.manage summary { cursor: pointer; margin: 0; }
+.manage[open] summary { margin-bottom: 12px; }
+.input.compact, .select.compact { width: auto; min-width: 200px; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .scroll.unread { background: var(--surface); }
+  :root:not([data-theme='light']) .scroll-royal { color: #e0c98f; }
+}
+.segmented.wrap { justify-self: start; max-width: 100%; }

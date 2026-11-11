@@ -85,6 +85,12 @@ export async function afterAward(c: Client, actor: OrgActor, ideaId: string, kin
   );
   const a = award.rows[0];
   if (!a?.department_id) return null;
+  // «Замок получил XP» — to the people whose idea it was, once per award.
+  const origin = (await c.query<{ author_membership_id: string; raised_by_membership_id: string | null }>(
+    'SELECT author_membership_id, raised_by_membership_id FROM ideas WHERE id = $1',
+    [ideaId],
+  )).rows[0]!;
+  await notify(c, actor, 'castle_xp', ideaId, [origin.author_membership_id, origin.raised_by_membership_id], `${ideaId}:${kind}`);
   const total = (await c.query<{ xp: number }>('SELECT coalesce(sum(xp), 0)::int AS xp FROM xp_awards WHERE department_id = $1', [a.department_id])).rows[0]!.xp;
   const cfg = await loadConfig(c);
   const before = levelFor(total - a.xp, cfg);

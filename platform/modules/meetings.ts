@@ -35,7 +35,7 @@ export interface MeetingDeps {
 
 const isLead = (a: OrgActor) => a.access === 'member' && a.roles.some((r) => r === 'maintainer' || r === 'decision_owner' || r === 'org_admin');
 
-async function notifyMeeting(c: Client, actor: OrgActor, event: 'meeting_called' | 'meeting_recording_started' | 'meeting_findings_ready', meetingId: string, recipients: string[], dedupe: string) {
+async function notifyMeeting(c: Client, actor: OrgActor, event: 'meeting_called' | 'meeting_recording_started' | 'meeting_findings_ready' | 'meeting_rescheduled' | 'meeting_cancelled', meetingId: string, recipients: string[], dedupe: string) {
   const targets = [...new Set(recipients.filter((r) => r && r !== actor.membershipId))];
   if (!targets.length) return 0;
   const { rows } = await c.query<{ n: number }>('SELECT app_notify_meeting($1, $2, $3::uuid[], $4) AS n', [event, meetingId, targets, dedupe]);
@@ -51,6 +51,7 @@ export const CreateMeetingInput = z
     departmentId: z.uuid().optional(),
     ideaNumber: z.number().int().positive().optional(),
     participants: z.array(z.uuid()).min(1).max(40),
+    scheduledAt: z.iso.datetime({ offset: true }).optional(),
     /** The organizer agrees to be recorded by calling a recorded meeting. */
     organizerConsent: z.literal(true),
   })
@@ -62,9 +63,9 @@ export async function createMeeting(db: Database, actor: OrgActor, input: z.infe
     idempotent(c, actor.userId, `meeting.create:${actor.orgId}`, key, hashRequest(input), async () => {
       const idea = input.ideaNumber ? await loadIdea(c, input.ideaNumber) : null;
       const { rows } = await c.query<{ id: string }>(
-        `INSERT INTO meetings (organization_id, scope, department_id, idea_id, title, organizer_membership_id)
-         VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
-        [actor.orgId, input.departmentId ? 'castle' : 'royal', input.departmentId ?? null, idea?.id ?? null, input.title, actor.membershipId],
+        `INSERT INTO meetings (organization_id, scope, department_id, idea_id, title, organizer_membership_id, scheduled_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
+        [actor.orgId, input.departmentId ? 'castle' : 'royal', input.departmentId ?? null, idea?.id ?? null, input.title, actor.membershipId, input.scheduledAt ?? null],
       );
       const id = rows[0]!.id;
       const people = [...new Set([actor.membershipId, ...input.participants])];
@@ -75,7 +76,11 @@ export async function createMeeting(db: Database, actor: OrgActor, input: z.infe
           [actor.orgId, id, m],
         );
         if (mine) {
-          await c.query(`UPDATE meeting_participants SET consent = 'given', consent_at = clock_timestamp() WHERE meeting_id = $1 AND membership_id = $2`, [id, m]);
+          await c.query(
+            `UPDATE meeting_participants SET consent = 'given', consent_at = clock_timestamp(), attendance = 'confirmed', attendance_at = clock_timestamp()
+              WHERE meeting_id = $1 AND membership_id = $2`,
+            [id, m],
+          );
         }
       }
       await audit(c, { orgId: actor.orgId, actorUserId: actor.userId, action: 'meeting.called', entityType: 'meeting', entityId: id, data: { participants: people.length } });
@@ -119,7 +124,7 @@ export async function startRecording(db: Database, actor: OrgActor, meetingId: s
     if (m.recording_started_at) return { recordingStartedAt: m.recording_started_at, replayed: true };
     const pending = await c.query<{ name: string; consent: string }>(
       `SELECT e.display_name AS name, p.consent FROM meeting_participants p JOIN employees e ON e.membership_id = p.membership_id
-        WHERE p.meeting_id = $1 AND p.consent <> 'given' ORDER BY e.display_name`,
+        WHERE p.meeting_id = $1 AND p.consent <> 'given' AND p.removed_at IS NULL ORDER BY e.display_name`,
       [meetingId],
     );
     if (pending.rowCount) {
@@ -127,7 +132,7 @@ export async function startRecording(db: Database, actor: OrgActor, meetingId: s
     }
     const { rows } = await c.query<{ t: Date }>('UPDATE meetings SET recording_started_at = clock_timestamp() WHERE id = $1 RETURNING recording_started_at AS t', [meetingId]);
     await audit(c, { orgId: actor.orgId, actorUserId: actor.userId, action: 'meeting.recording_started', entityType: 'meeting', entityId: meetingId, data: {} });
-    const people = await c.query<{ m: string }>('SELECT membership_id AS m FROM meeting_participants WHERE meeting_id = $1', [meetingId]);
+    const people = await c.query<{ m: string }>('SELECT membership_id AS m FROM meeting_participants WHERE meeting_id = $1 AND removed_at IS NULL', [meetingId]);
     await notifyMeeting(c, actor, 'meeting_recording_started', meetingId, people.rows.map((r) => r.m), meetingId);
     return { recordingStartedAt: rows[0]!.t, replayed: false };
   });
@@ -265,7 +270,7 @@ export async function analyze(db: Database, actor: OrgActor, meetingId: string, 
     if (again.rows[0]) return { id: again.rows[0].id, replayed: true, findings: null, dropped: 0 };
     const people = await c.query<{ id: string; name: string }>(
       `SELECT p.membership_id AS id, lower(e.display_name) AS name FROM meeting_participants p
-         JOIN employees e ON e.membership_id = p.membership_id WHERE p.meeting_id = $1`,
+         JOIN employees e ON e.membership_id = p.membership_id WHERE p.meeting_id = $1 AND p.removed_at IS NULL`,
       [meetingId],
     );
     const byName = new Map(people.rows.map((r) => [r.name, r.id]));
@@ -285,7 +290,7 @@ export async function analyze(db: Database, actor: OrgActor, meetingId: string, 
       );
     }
     await audit(c, { orgId: actor.orgId, actorUserId: actor.userId, action: 'meeting.analyzed', entityType: 'meeting', entityId: meetingId, data: { method: input.method, findings: found.findings.length, dropped: found.dropped } });
-    const all = await c.query<{ m: string }>('SELECT membership_id AS m FROM meeting_participants WHERE meeting_id = $1', [meetingId]);
+    const all = await c.query<{ m: string }>('SELECT membership_id AS m FROM meeting_participants WHERE meeting_id = $1 AND removed_at IS NULL', [meetingId]);
     await notifyMeeting(c, actor, 'meeting_findings_ready', meetingId, all.rows.map((r) => r.m), pid);
     return { id: pid, replayed: false, findings: found.findings.length, dropped: found.dropped };
   });
@@ -390,8 +395,10 @@ export async function listMeetings(db: Database, actor: OrgActor) {
       `SELECT m.id, m.title, m.scope, d.name AS department, i.number AS "ideaNumber", o.display_name AS organizer,
               m.created_at AS "createdAt", m.recording_started_at AS "recordingStartedAt", m.ended_at AS "endedAt",
               (SELECT consent FROM meeting_participants x WHERE x.meeting_id = m.id AND x.membership_id = app_membership_id()) AS "myConsent",
-              (SELECT count(*)::int FROM meeting_participants x WHERE x.meeting_id = m.id) AS participants,
-              (SELECT count(*)::int FROM meeting_participants x WHERE x.meeting_id = m.id AND x.consent = 'given') AS consented,
+              (SELECT attendance FROM meeting_participants x WHERE x.meeting_id = m.id AND x.membership_id = app_membership_id()) AS "myAttendance",
+              (SELECT count(*)::int FROM meeting_participants x WHERE x.meeting_id = m.id AND x.removed_at IS NULL) AS participants,
+              (SELECT count(*)::int FROM meeting_participants x WHERE x.meeting_id = m.id AND x.consent = 'given' AND x.removed_at IS NULL) AS consented,
+              m.scheduled_at AS "scheduledAt", m.cancelled_at AS "cancelledAt",
               EXISTS (SELECT 1 FROM meeting_recordings r WHERE r.meeting_id = m.id) AS "hasRecording"
          FROM meetings m
          JOIN employees o ON o.membership_id = m.organizer_membership_id
@@ -410,7 +417,8 @@ export async function getMeeting(db: Database, actor: OrgActor, id: string, deps
       await c.query(
         `SELECT m.id, m.title, m.scope, m.department_id AS "departmentId", d.name AS department, i.number AS "ideaNumber",
                 m.organizer_membership_id AS "organizerMembershipId", o.display_name AS organizer, m.created_at AS "createdAt",
-                m.recording_started_at AS "recordingStartedAt", m.ended_at AS "endedAt", m.legal_hold AS "legalHold"
+                m.recording_started_at AS "recordingStartedAt", m.ended_at AS "endedAt", m.legal_hold AS "legalHold",
+                m.scheduled_at AS "scheduledAt", m.cancelled_at AS "cancelledAt", m.cancel_reason AS "cancelReason"
            FROM meetings m JOIN employees o ON o.membership_id = m.organizer_membership_id
            LEFT JOIN departments d ON d.id = m.department_id LEFT JOIN ideas i ON i.id = m.idea_id
           WHERE m.id = $1 AND m.organization_id = app_org_id()`,
@@ -419,9 +427,10 @@ export async function getMeeting(db: Database, actor: OrgActor, id: string, deps
     ).rows[0] as Record<string, unknown> | undefined;
     if (!m) throw notFound('Заседание не найдено или вы не участник');
     const participants = await c.query(
-      `SELECT p.membership_id AS "membershipId", e.display_name AS name, e.job_title AS "jobTitle", e.department, p.consent, p.consent_at AS "consentAt"
+      `SELECT p.membership_id AS "membershipId", e.display_name AS name, e.job_title AS "jobTitle", e.department, p.consent, p.consent_at AS "consentAt",
+              p.attendance, p.attendance_at AS "attendanceAt"
          FROM meeting_participants p JOIN employees e ON e.membership_id = p.membership_id
-        WHERE p.meeting_id = $1 ORDER BY e.display_name`,
+        WHERE p.meeting_id = $1 AND p.removed_at IS NULL ORDER BY e.display_name`,
       [id],
     );
     const recording = (
@@ -470,8 +479,10 @@ export async function getMeeting(db: Database, actor: OrgActor, id: string, deps
       engine: deps.engine ? { configured: true, model: deps.engine.model } : { configured: false, model: null },
       model: deps.model ? { configured: true, model: deps.model.model } : { configured: false, model: null },
       can: {
-        consent: !!me && !m.recordingStartedAt,
-        record: organizer && allConsented && !recording,
+        consent: !!me && !m.recordingStartedAt && !m.cancelledAt,
+        attend: !!me && !m.cancelledAt && !m.endedAt,
+        manage: organizer && !m.recordingStartedAt && !m.cancelledAt,
+        record: organizer && allConsented && !recording && !m.cancelledAt,
         review: isLead(actor),
         transcribe: isLead(actor) && !!recording && !(recording as { purgedAt?: unknown }).purgedAt && !!deps.engine,
         addTranscript: isLead(actor),
@@ -495,5 +506,65 @@ export async function itemOrigin(db: Database, actor: OrgActor, number: number) 
       [idea.id],
     );
     return rows[0] ?? null;
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Attendance, rescheduling, cancellation, participant changes (ADR-0016)
+// ---------------------------------------------------------------------------
+export async function setAttendance(db: Database, actor: OrgActor, meetingId: string, attendance: 'confirmed' | 'declined') {
+  return withTx(db, orgTx(actor), async (c) => {
+    const r = await c.query(
+      `UPDATE meeting_participants SET attendance = $3, attendance_at = clock_timestamp()
+        WHERE meeting_id = $1 AND membership_id = $2 AND removed_at IS NULL RETURNING attendance`,
+      [meetingId, actor.membershipId, attendance],
+    );
+    if (!r.rowCount) throw notFound('Вы не участник этого заседания');
+    await audit(c, { orgId: actor.orgId, actorUserId: actor.userId, action: `meeting.attendance_${attendance}`, entityType: 'meeting', entityId: meetingId, data: {} });
+    return { attendance };
+  });
+}
+
+export const RescheduleInput = z.object({ scheduledAt: z.iso.datetime({ offset: true }) }).strict();
+export const CancelInput = z.object({ reason: text(3, 500) }).strict();
+export const ParticipantInput = z.object({ membershipId: z.uuid(), present: z.boolean() }).strict();
+
+async function activePeople(c: Client, meetingId: string) {
+  return (await c.query<{ m: string }>('SELECT membership_id AS m FROM meeting_participants WHERE meeting_id = $1 AND removed_at IS NULL', [meetingId])).rows.map((r) => r.m);
+}
+
+export async function reschedule(db: Database, actor: OrgActor, meetingId: string, input: z.infer<typeof RescheduleInput>) {
+  return withTx(db, orgTx(actor), async (c) => {
+    const m = await loadMeeting(c, meetingId, true);
+    if (m.organizer_membership_id !== actor.membershipId) throw forbidden('Перенести заседание может организатор');
+    const r = await c.query<{ changed: boolean }>(
+      'UPDATE meetings SET scheduled_at = $2 WHERE id = $1 RETURNING true AS changed',
+      [meetingId, input.scheduledAt],
+    );
+    await audit(c, { orgId: actor.orgId, actorUserId: actor.userId, action: 'meeting.rescheduled', entityType: 'meeting', entityId: meetingId, data: { at: input.scheduledAt } });
+    // One message per new time: re-sending the same time does not repeat it.
+    await notifyMeeting(c, actor, 'meeting_rescheduled', meetingId, await activePeople(c, meetingId), `${meetingId}:${new Date(input.scheduledAt).toISOString()}`);
+    return { scheduledAt: input.scheduledAt, changed: r.rows[0]?.changed ?? false };
+  });
+}
+
+export async function cancel(db: Database, actor: OrgActor, meetingId: string, input: z.infer<typeof CancelInput>) {
+  return withTx(db, orgTx(actor), async (c) => {
+    const m = await loadMeeting(c, meetingId, true);
+    if (m.organizer_membership_id !== actor.membershipId) throw forbidden('Отменить заседание может организатор');
+    if (m.recording_started_at) throw conflict('Запись уже велась: такое заседание не отменяют');
+    await c.query('UPDATE meetings SET cancelled_at = clock_timestamp(), cancel_reason = $2 WHERE id = $1 AND cancelled_at IS NULL', [meetingId, input.reason]);
+    await audit(c, { orgId: actor.orgId, actorUserId: actor.userId, action: 'meeting.cancelled', entityType: 'meeting', entityId: meetingId, data: {} });
+    await notifyMeeting(c, actor, 'meeting_cancelled', meetingId, await activePeople(c, meetingId), meetingId);
+    return { cancelled: true };
+  });
+}
+
+export async function setParticipant(db: Database, actor: OrgActor, meetingId: string, input: z.infer<typeof ParticipantInput>) {
+  return withTx(db, orgTx(actor), async (c) => {
+    await c.query('SELECT app_meeting_set_participant($1, $2, $3)', [meetingId, input.membershipId, input.present]);
+    await audit(c, { orgId: actor.orgId, actorUserId: actor.userId, action: input.present ? 'meeting.participant_added' : 'meeting.participant_removed', entityType: 'meeting', entityId: meetingId, data: { membership: input.membershipId } });
+    if (input.present) await notifyMeeting(c, actor, 'meeting_called', meetingId, [input.membershipId], `${meetingId}:${input.membershipId}:${Date.now()}`);
+    return { present: input.present };
   });
 }
