@@ -28,7 +28,7 @@ export function Overview() {
     <div className="stack-lg">
       <PageHead title="Обзор" sub="Что требует решения, что забыто и откуда приходят вопросы.">
         <a className="btn" href="#/kingdom">
-          Королевство
+          Город Содружества
         </a>
         <div className="segmented" role="group" aria-label="Период">
           {PERIODS.map((x) => (

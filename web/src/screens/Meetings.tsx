@@ -70,7 +70,7 @@ export function MeetingsList() {
           <div className="list">
             {data.map((m) => (
               <a key={m.id} className="list-row" href={`#/meetings/${m.id}`}>
-                <span className="num">{m.scope === 'castle' ? 'Малый совет' : 'Королевский совет'}</span>
+                <span className="num">{m.scope === 'castle' ? 'Малый совет' : 'Большой Круглый стол'}</span>
                 <span className="title">{m.title}</span>
                 <span className="meta">
                   <span>Созвал(а) {m.organizer}, {dateTime(m.createdAt)}</span>

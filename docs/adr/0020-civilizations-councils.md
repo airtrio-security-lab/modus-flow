@@ -1,6 +1,6 @@
 # ADR-0020 · Civilizations, titles and councils: one data model, four looks, one Great Round Table
 
-**Status.** Accepted (owner brief «MODUS FLOW — CIVILIZATIONS & COUNCILS», 2026-11-11).
+**Status.** Accepted (owner brief «MODUS FLOW — CIVILIZATIONS & COUNCILS», 2026-11-11). Amended by ADR-0021: the game world is the organization's commonwealth; «Японское княжество» is now «Японский сёгунат», Камелот is a civilization of knighthood (not a kingdom).
 Migration `0015_civilizations_councils.sql`; registry `platform/domain/civilizations.ts`; modules `titles.ts`,
 `council.ts` (escalation, council place), `meetings.ts` (agenda, place), `notifications.ts` (wording by civilization);
 web `components/civ.tsx` (Camelot, council halls), `components/scenes.tsx`, `components/TitlesAdmin.tsx`, `District.tsx`,

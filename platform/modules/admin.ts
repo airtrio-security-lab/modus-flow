@@ -44,6 +44,8 @@ export const SettingsInput = z
     defaultResolutionDays: z.number().int().min(1).max(365).optional(),
     staleDays: z.number().int().min(1).max(90).optional(),
     escalationMembershipId: z.uuid().nullable().optional(),
+    /** Name of the organization's game world (ADR-0021); the real company name is not changed here. */
+    realmName: z.string().trim().min(3).max(60).optional(),
   })
   .strict();
 
@@ -72,7 +74,7 @@ export async function getDirectory(db: Database, actor: OrgActor) {
     );
     const settings = await c.query(
       `SELECT default_first_response_hours AS "defaultFirstResponseHours", default_resolution_days AS "defaultResolutionDays",
-              stale_days AS "staleDays", escalation_membership_id AS "escalationMembershipId"
+              stale_days AS "staleDays", escalation_membership_id AS "escalationMembershipId", realm_name AS "realmName"
          FROM organizations WHERE id = app_org_id()`,
     );
     // Guests (invited reviewers) do not need organization settings.
@@ -204,7 +206,8 @@ export async function updateSettings(db: Database, actor: OrgActor, input: z.inf
           default_first_response_hours = coalesce($2, default_first_response_hours),
           default_resolution_days = coalesce($3, default_resolution_days),
           stale_days = coalesce($4, stale_days),
-          escalation_membership_id = CASE WHEN $5::boolean THEN $6::uuid ELSE escalation_membership_id END
+          escalation_membership_id = CASE WHEN $5::boolean THEN $6::uuid ELSE escalation_membership_id END,
+          realm_name = coalesce($7, realm_name)
         WHERE id = $1`,
       [
         actor.orgId,
@@ -213,6 +216,7 @@ export async function updateSettings(db: Database, actor: OrgActor, input: z.inf
         input.staleDays ?? null,
         input.escalationMembershipId !== undefined,
         input.escalationMembershipId ?? null,
+        input.realmName ?? null,
       ],
     );
     await log(c, actor, 'admin.settings_updated', 'organization', actor.orgId, input as Record<string, unknown>);

@@ -107,7 +107,7 @@ export const HEADLINES: Record<NotificationEvent, string> = {
   council_recommendation: 'Совет даёт совет',
   council_handoff: 'Решение Совета ждёт вас',
   castle_level_up: 'Замок повысил уровень',
-  meeting_called: 'Созван Королевский совет',
+  meeting_called: 'Созван совет',
   meeting_recording_started: 'Идёт запись заседания',
   meeting_findings_ready: 'Находки заседания ждут проверки',
   meeting_rescheduled: 'Заседание перенесено',

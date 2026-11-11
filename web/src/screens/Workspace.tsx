@@ -38,7 +38,7 @@ export function Workspace({ tab }: { tab?: string }) {
         }
       >
         <a className="btn" href="#/kingdom">
-          Королевство
+          Город Содружества
         </a>
       </PageHead>
       <nav className="tabs" aria-label="Очереди">

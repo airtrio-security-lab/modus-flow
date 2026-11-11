@@ -98,7 +98,7 @@ function Shell() {
   // and the work (Обращения, Доска). Secondary pages stay one click away.
   const ITEMS = ['', 'all', 'work', 'meeting', 'items'];
   const nav: NavItem[] = [
-    { href: '#/kingdom', label: 'Королевство', short: 'Королевство', match: (p: string[]) => p[0] === 'kingdom' || p[0] === 'castles' || p[0] === 'people' },
+    { href: '#/kingdom', label: s.realmName, short: 'Город', match: (p: string[]) => p[0] === 'kingdom' || p[0] === 'castles' || p[0] === 'people' },
     { href: '#/council', label: 'Совет', short: 'Совет', match: (p: string[]) => p[0] === 'council' || p[0] === 'meetings' },
     { href: '#/', label: 'Обращения', short: 'Обращения', match: (p) => ITEMS.includes(p[0] ?? '') },
     { href: '#/board', label: 'Доска', short: 'Доска', match: (p: string[]) => p[0] === 'board' },
@@ -260,7 +260,7 @@ function Shell() {
         </div>
         <div className="page">
           {subnav ? (
-            <nav className="subnav" aria-label={subnav === gameTabs ? 'Королевство' : 'Обращения'}>
+            <nav className="subnav" aria-label={subnav === gameTabs ? s.realmName : 'Обращения'}>
               {subnav.map((t) => (
                 <a key={t.href} href={t.href} aria-current={t.on ? 'page' : undefined}>
                   {t.label}

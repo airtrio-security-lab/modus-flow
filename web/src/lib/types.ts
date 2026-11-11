@@ -17,7 +17,7 @@ export type Kind = 'idea' | 'problem';
 export interface Me {
   id: string;
   displayName: string;
-  memberships: { organization: string; organizationName: string; membershipId: string; roles: Role[] }[];
+  memberships: { organization: string; organizationName: string; realmName?: string; membershipId: string; roles: Role[] }[];
 }
 
 export interface Persona {
@@ -184,7 +184,7 @@ export interface Directory {
   departments: { id: string; name: string; active: boolean; headMembershipId: string | null; head: string | null; headcount?: number | null; civilization?: string }[];
   categories: { id: string; name: string; description: string | null; sortOrder: number; active: boolean }[];
   members: { membershipId: string; name: string; department: string | null; jobTitle: string | null; roles: Role[]; access: 'member' | 'guest' }[];
-  settings: { defaultFirstResponseHours: number; defaultResolutionDays: number; staleDays: number; escalationMembershipId: string | null } | null;
+  settings: { defaultFirstResponseHours: number; defaultResolutionDays: number; staleDays: number; escalationMembershipId: string | null; realmName?: string } | null;
 }
 
 export interface Rule {

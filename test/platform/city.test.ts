@@ -50,7 +50,7 @@ test('civilization: head or admin only, from the catalog, logged; no XP, level o
   await assert.rejects(asUser(picker, `SELECT app_set_civilization($1, 'japan')`, [sklad]), codes('forbidden', '42501'));
   assert.throws(() => CivilizationInput.parse({ civilization: 'atlantis' }));
   await assert.rejects(asUser(f.head, `SELECT app_set_civilization($1, 'atlantis')`, [sklad]), codes('validation_failed', '23514'));
-  assert.deepEqual(await district.setCivilization(db, f.head.actor, sklad, 'japan'), { civilization: { id: 'japan', name: 'Японское княжество' } });
+  assert.deepEqual(await district.setCivilization(db, f.head.actor, sklad, 'japan'), { civilization: { id: 'japan', name: 'Японский сёгунат' } });
   await district.setCivilization(db, w.admin.actor, f.departments.service, 'mongolia');
   // The head of one department does not choose for another.
   await assert.rejects(district.setCivilization(db, f.head.actor, f.departments.service, 'kazakh'), codes('forbidden'));
@@ -61,7 +61,7 @@ test('civilization: head or admin only, from the catalog, logged; no XP, level o
   const k = await kingdom(db, picker.actor);
   assert.deepEqual(k.castles.map((c) => [c.name, c.civilization]).sort(), [['Сервис', 'mongolia'], ['Склад', 'japan']]);
   const d = await district.district(db, picker.actor, sklad);
-  assert.equal(d.development.civilizationHistory[0]!.to, 'Японское княжество');
+  assert.equal(d.development.civilizationHistory[0]!.to, 'Японский сёгунат');
   assert.equal(d.canChooseCivilization, false);
   assert.equal((await district.district(db, f.head.actor, sklad)).canChooseCivilization, true);
 });

@@ -56,7 +56,7 @@ export async function kingdom(
   db: Database,
   actor: OrgActor,
 ): Promise<{ castles: Castle[]; envoys: Envoy[]; wildlands: number; levels: { thresholds: number[]; names: string[] } }> {
-  if (actor.access !== 'member') throw forbidden('Королевство доступно сотрудникам организации');
+  if (actor.access !== 'member') throw forbidden('Город Содружества доступен сотрудникам организации');
   return withTx(db, orgTx(actor), async (c) => {
     const castles = await c.query<Castle>(
       `SELECT d.id, d.name, d.civilization,

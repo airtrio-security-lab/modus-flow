@@ -5,7 +5,10 @@ import type { Directory, Me, Notification, Role } from './types';
 export interface Session {
   me: Me;
   org: string;
+  /** The real company name: administration, documents, legal identification. */
   orgName: string;
+  /** The game world's name (ADR-0021): the organization's commonwealth, configurable by its admin. */
+  realmName: string;
   membershipId: string;
   roles: Role[];
   isLead: boolean;
@@ -66,6 +69,7 @@ export function SessionProvider({ me, onSignOut, children }: { me: Me; onSignOut
       me,
       org: m.organization,
       orgName: m.organizationName,
+      realmName: m.realmName ?? 'Великое Содружество',
       membershipId: m.membershipId,
       roles,
       isLead: roles.includes('maintainer') || roles.includes('decision_owner'),

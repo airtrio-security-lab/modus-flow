@@ -34,14 +34,14 @@ export function ItemKingdom({ item }: { item: IdeaDetail }) {
   if (error) return <ErrorBox error={error} retry={() => void reload()} />;
   if (!data) return null;
   const xp = data.awards.reduce((n, a) => n + a.xp, 0);
-  const castle = item.department ? `замку «${item.department}»` : 'королевству';
+  const castle = item.department ? `замку «${item.department}»` : 'Содружеству';
   return (
     <div className="item-kingdom stack">
       {xp ? (
         <span>
           Внедрение подтверждено: {castle} начислено <b>+{xp} XP</b>
           {data.effect ? ` (из них за подтверждённый эффект +${data.effect.xp}, подтвердил(а) ${data.effect.approvedBy})` : ''}.{' '}
-          <a href="#/kingdom">Открыть королевство</a>
+          <a href="#/kingdom">Открыть город Содружества</a>
         </span>
       ) : (
         <span>Опыт замку начисляется, когда внедрение подтверждено. Сейчас идёт внедрение.</span>

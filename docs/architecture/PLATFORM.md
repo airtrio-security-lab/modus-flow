@@ -149,7 +149,7 @@ lost, everyone sees the stage, the owner sees what needs attention. Migrations 0
 | GET | `/api/v1/orgs/:org/directory` | departments, categories, active members, settings (full members only) |
 | GET/POST | `/api/v1/orgs/:org/routing-rules`, `POST …/:id/active` | org_admin writes; rules are deactivated, never deleted |
 | POST/PATCH | `/api/v1/orgs/:org/departments[/:id]`, `/categories[/:id]` | org_admin |
-| PATCH | `/api/v1/orgs/:org/settings` | first-response hours, resolution days, stale days, escalation contact |
+| PATCH | `/api/v1/orgs/:org/settings` | first-response hours, resolution days, stale days, escalation contact, `realmName` — the name of the organization's commonwealth in the game (ADR-0021; 3–60 characters; the real company name is not changed) |
 | GET | `/api/v1/orgs/:org/analytics?from=&to=` | leads and admins; counts and shares from recorded facts only |
 | GET | `/api/v1/orgs/:org/kingdom` | full members; castles per active department (`towers` = implemented, `building`, `envoys`, `waiting`, `returned`), open items as envoys with a `mine` flag, `wildlands` = open items without a department, each castle's `civilization` and `achievements` (count, same rules as the castle page). Computed under RLS (ADR-0011) |
 | GET | `/api/v1/orgs/:org/rating?period=30\|90\|365\|all` | full members; per department: `xpPeriod`, `xpTotal`, level, implemented and effect XP for the period and all time, `xpPer10` / `implementedPer10` only when `headcount` is set; rank by period XP. No personal fields (ADR-0012) |

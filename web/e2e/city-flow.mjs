@@ -68,8 +68,8 @@ try {
     await page.waitForSelector('.realm-map svg');
     const castles = await page.locator('.realm-castle').count();
     must(castles === 8, `castles: ${castles}`);
-    for (const civ of ['Японское княжество', 'Казахское ханство', 'Монгольская держава', 'Камелот']) must((await page.locator(`.realm-castle[aria-label*="${civ}"]`).count()) > 0, `no district in style ${civ}`);
-    for (const place of ['Королевский совет', 'Великая библиотека', 'Высший Архив', 'Площадь достижений']) await page.locator('.realm-place', { hasText: place }).first().waitFor();
+    for (const civ of ['Японский сёгунат', 'Казахское ханство', 'Монгольская держава', 'Камелот']) must((await page.locator(`.realm-castle[aria-label*="${civ}"]`).count()) > 0, `no district in style ${civ}`);
+    for (const place of ['Большой Круглый стол', 'Великая библиотека', 'Высший Архив', 'Площадь достижений']) await page.locator('.realm-place', { hasText: place }).first().waitFor();
     step('город: 8 районов в четырёх стилях, Совет, Библиотека, Архив, Площадь достижений');
 
     const full = await viewBox(page);
@@ -173,9 +173,9 @@ try {
     await page.getByRole('button', { name: 'Сменить стиль района' }).click();
     await page.getByRole('radio', { name: /Камелот/ }).click();
     must((await page.locator('.sheet .civ-levels li').count()) === 5, 'five levels preview');
-    await page.getByRole('button', { name: 'Выбрать «Камелот — Рыцарское королевство»' }).click();
-    await page.locator('.district-head', { hasText: 'Камелот — Рыцарское королевство' }).waitFor();
-    await page.locator('.district-list', { hasText: 'Казахское ханство → Камелот — Рыцарское королевство' }).waitFor();
+    await page.getByRole('button', { name: 'Выбрать «Камелот»' }).click();
+    await page.locator('.district-head', { hasText: 'Камелот' }).waitFor();
+    await page.locator('.district-list', { hasText: 'Казахское ханство → Камелот' }).waitFor();
     must((await page.locator('.district-head .xpbar .small').textContent()) === xpBefore, 'XP must not change with the style');
     await page.getByRole('button', { name: 'Сменить стиль района' }).click();
     await page.getByRole('radio', { name: /Казахское ханство/ }).click();
@@ -184,7 +184,26 @@ try {
     step('глава сменил стиль: превью пяти уровней, запись в журнале, опыт не изменился (стиль возвращён)');
   });
 
-  // 3. Admin's workspace: the same departments without the map, remembered after reload.
+  // 3. The commonwealth's name is the organization's setting (ADR-0021); the real company name stays in administration.
+  await as(sysAdmin, async (page) => {
+    await page.goto(`${BASE}/#/kingdom`);
+    await page.getByRole('heading', { name: 'Великое Содружество', level: 1 }).waitFor();
+    await page.goto(`${BASE}/#/settings`);
+    await page.getByLabel('Название Содружества').fill('Содружество Модус');
+    await page.getByRole('button', { name: 'Сохранить название' }).click();
+    await page.waitForLoadState('load');
+    await page.goto(`${BASE}/#/kingdom`);
+    await page.getByRole('heading', { name: 'Содружество Модус', level: 1 }).waitFor();
+    await page.locator('.realm-cartouche', { hasText: 'Содружество Модус' }).waitFor();
+    must(((await page.locator('.shell').textContent()) ?? '').includes('Модус Трейд — демо'), 'the real company name stays in the interface frame');
+    await page.goto(`${BASE}/#/settings`);
+    await page.getByLabel('Название Содружества').fill('Великое Содружество');
+    await page.getByRole('button', { name: 'Сохранить название' }).click();
+    await page.waitForLoadState('load');
+    step('админ переименовал Содружество; реальное название компании осталось в администрировании (название возвращено)');
+  });
+
+  // 4. Admin's workspace: the same departments without the map, remembered after reload.
   await as(sysAdmin, async (page) => {
     await page.goto(`${BASE}/#/kingdom`);
     await page.getByRole('button', { name: 'Рабочее пространство' }).click();
@@ -200,7 +219,7 @@ try {
     step('«Рабочее пространство»: таблица без карты, выбор запоминается, ведёт в тот же район');
   });
 
-  // 4. Phone: lite graphics, the castle opens a full-screen panel, the card is a bottom sheet.
+  // 5. Phone: lite graphics, the castle opens a full-screen panel, the card is a bottom sheet.
   await as(
     whHead,
     async (page) => {

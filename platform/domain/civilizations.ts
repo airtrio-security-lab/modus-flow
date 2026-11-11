@@ -1,4 +1,12 @@
 /**
+ * Game world model (ADR-0021): one organization (tenant) = one commonwealth («Великое Содружество» by default,
+ * renamed by the organization); its departments are districts; each district picks a civilization below.
+ * A civilization is a STYLE of a department — never an organization, a tenant or a legal entity.
+ * The Great Round Table belongs to the whole commonwealth, not to any civilization.
+ */
+export const REALM_DEFAULT_NAME = 'Великое Содружество';
+
+/**
  * The registry of civilizations (ADR-0019, ADR-0020): architecture, council place, titles and
  * invitation wording for each district style. One data model and one process for all of them:
  * a civilization changes pictures and words only — never XP, levels, rights or the workflow.
@@ -40,19 +48,19 @@ export interface Civilization {
 export const CIVILIZATIONS: readonly Civilization[] = [
   {
     id: 'camelot',
-    name: 'Камелот — Рыцарское королевство',
-    motto: 'Замок, башни и стены, рыцарский двор, оружейная и мастерские',
+    name: 'Камелот',
+    motto: 'Рыцарская цивилизация: замок, башни и стены, рыцарский двор, оружейная и мастерские',
     hall: 'Зал рыцарей',
     invite: (a) => `${a}, вас призывают в зал Камелота`,
     titles: { head: 'Лорд', deputy: 'Сенешаль', authorized: 'Рыцарь', master: 'Мастер гильдии', honor: null, novice: 'Оруженосец', member: 'Житель Камелота' },
   },
   {
     id: 'japan',
-    name: 'Японское княжество',
+    name: 'Японский сёгунат',
     motto: 'Замок, сады и мосты, многоярусные крыши',
     hall: 'Зал даймё',
     invite: (a) => `${a}, вас ожидают в зале совета`,
-    titles: { head: 'Даймё', deputy: 'Каро', authorized: 'Самурай', master: 'Такуми', honor: null, novice: null, member: 'Житель княжества' },
+    titles: { head: 'Даймё', deputy: 'Каро', authorized: 'Самурай', master: 'Такуми', honor: null, novice: null, member: 'Житель сёгуната' },
   },
   {
     id: 'kazakh',
@@ -79,9 +87,11 @@ export const civilization = (id: string | null | undefined): Civilization =>
   CIVILIZATIONS.find((c) => c.id === (ALIASES[id ?? ''] ?? id)) ?? CIVILIZATIONS[0]!;
 export const civilizationName = (id: string) => (id === 'europe' ? 'Средневековая Европа (ныне Камелот)' : civilization(id).name);
 
-/** The company council: one for everyone, owned by no civilization. */
+/** The council of the whole commonwealth: one for everyone, owned by no civilization. */
 export const GREAT_COUNCIL = {
   name: 'Большой Круглый стол',
+  /** It belongs to the whole commonwealth: one table, every civilization on equal terms. */
+  owner: 'всё Содружество',
   hall: 'Зал Большого Круглого стола',
   /** `null` addresses the heads of districts together: «Главы владений, …». */
   invite: (addr: string | null) => `${addr ?? 'Главы владений'}, вас созывают к Большому Круглому столу`,

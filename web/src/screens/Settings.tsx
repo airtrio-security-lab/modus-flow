@@ -43,6 +43,15 @@ export function Settings() {
         </div>
       )}
 
+      <RealmSettings
+        current={dir.settings?.realmName ?? s.realmName}
+        company={s.orgName}
+        onSave={async (realmName) => {
+          // The new name appears in the whole interface after the session reloads.
+          if (await send('/settings', 'PATCH', { realmName }, 'Название Содружества сохранено')) window.location.reload();
+        }}
+      />
+
       <Deadlines settings={dir.settings} members={members} onSave={(v) => send('/settings', 'PATCH', v, 'Сроки сохранены')} />
 
       <section className="panel stack">
@@ -313,5 +322,41 @@ function AddByName({ label, min, onAdd }: { label: string; min: number; onAdd: (
         Добавить
       </button>
     </form>
+  );
+}
+
+/** The organization's game world (ADR-0021): its name is configurable; the real company name is not changed here. */
+function RealmSettings({ current, company, onSave }: { current: string; company: string; onSave: (name: string) => Promise<void> }) {
+  const [name, setName] = useState(current);
+  const [busy, setBusy] = useState(false);
+  const ok = name.trim().length >= 3 && name.trim().length <= 60 && name.trim() !== current;
+  return (
+    <section className="panel stack" aria-labelledby="realm-h">
+      <h2 id="realm-h" className="section-title">
+        Игровой мир
+      </h2>
+      <p className="small muted">
+        Организация «{company}» в игре — одно Содружество. Подразделения — его районы, каждое со своей цивилизацией; цивилизации — стили, а не отдельные
+        организации. Реальное название компании остаётся в администрировании и документах.
+      </p>
+      <div className="field">
+        <label htmlFor="realm-name">Название Содружества</label>
+        <input id="realm-name" className="input" value={name} maxLength={60} onChange={(e) => setName(e.target.value)} />
+        <span className="hint">От 3 до 60 символов. Показывается в игровом интерфейсе: город, советы, послания.</span>
+      </div>
+      <div>
+        <button
+          type="button"
+          className="btn primary"
+          disabled={!ok || busy}
+          onClick={() => {
+            setBusy(true);
+            void onSave(name.trim()).finally(() => setBusy(false));
+          }}
+        >
+          Сохранить название
+        </button>
+      </div>
+    </section>
   );
 }

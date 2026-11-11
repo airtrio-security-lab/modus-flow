@@ -77,7 +77,7 @@ export function CouncilList() {
   const rows = (data ?? []).filter((r) => scope === 'all' || (scope === 'decide' ? r.iDecide : r.iLead));
   return (
     <div className="stack-lg">
-      <PageHead title="Совет королевства" sub="Здесь обсуждают обращения: аргументы за и против, рекомендации — и решение того, кто за него отвечает.">
+      <PageHead title={`Советы: ${s.realmName}`} sub="Малые советы подразделений и Большой Круглый стол всего Содружества: аргументы, рекомендации — и решение того, кто за него отвечает.">
         {s.isLead ? (
           <div className="segmented" role="group" aria-label="Какие заседания">
             <button type="button" aria-pressed={scope === 'all'} onClick={() => setScope('all')}>
@@ -101,7 +101,7 @@ export function CouncilList() {
       {error ? <ErrorBox error={error} retry={() => void reload()} /> : null}
       {loading && !data ? <Loading rows={4} /> : null}
       {data && !rows.length ? <div className="empty">Сейчас на Совете нет обращений{scope !== 'all' ? ' по этому фильтру' : ''}.</div> : null}
-      <CouncilScene place="great" seats={[...new Set(rows.filter((r) => r.council === 'great').map((r) => r.civilization ?? 'camelot'))]} label="Большой Круглый стол — совет компании: все цивилизации на равных" />
+      <CouncilScene place="great" seats={[...new Set(rows.filter((r) => r.council === 'great').map((r) => r.civilization ?? 'camelot'))]} label={`Большой Круглый стол — совет всего Содружества «${s.realmName}»: все цивилизации на равных`} />
       <section className="stack" aria-labelledby="cg-great">
         <h2 id="cg-great" className="section-title">
           Большой Круглый стол ({rows.filter((r) => r.council === 'great').length})

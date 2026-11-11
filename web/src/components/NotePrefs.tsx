@@ -57,7 +57,7 @@ export function NotePrefs() {
         <legend>Стиль</legend>
         <label className="check">
           <input type="radio" name="np-style" checked={p.style === 'royal'} onChange={() => setP({ ...p, style: 'royal' })} /> Игровой: заголовки и обращения
-          королевства, деловой текст ниже
+          Содружества, деловой текст ниже
         </label>
         <label className="check">
           <input type="radio" name="np-style" checked={p.style === 'business'} onChange={() => setP({ ...p, style: 'business' })} /> Деловой: только деловой

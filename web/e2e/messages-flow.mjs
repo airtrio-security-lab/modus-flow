@@ -119,7 +119,10 @@ try {
     await page.getByLabel('Почему внедряем').fill('Совет за, риск закрываем запасным принтером');
     const opt = (await page.getByLabel('Кто внедряет').locator('option', { hasText: itLead.name }).first().textContent())?.trim();
     await page.getByLabel('Кто внедряет').selectOption({ label: opt });
+    // Wait for the server to record the decision, not only for text on the page (the context closes right after).
+    const saved = page.waitForResponse((r) => r.url().endsWith(`/ideas/${n}/decision`) && r.request().method() === 'POST');
     await page.locator('form.council-form button[type=submit]').click();
+    if (!(await saved).ok()) throw new Error('decision was not recorded');
     await expectText(page, 'Решение: внедрить');
     step('8. ответственный (Айгерим) принял решение и назначил исполнителя');
   });

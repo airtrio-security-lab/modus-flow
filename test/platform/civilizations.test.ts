@@ -59,7 +59,7 @@ test('titles come from the civilization of the district and real functions; none
   await assert.rejects(titles.assignTitle(db, f.head.actor, w.colleague.membershipId, { rank: 'deputy' }), codes('forbidden'));
   await titles.assignTitle(db, w.admin.actor, w.colleague.membershipId, { rank: 'deputy' });
   const japan = Object.fromEntries(await Promise.all([f.head, w.colleague, master, w.author].map(async (p) => [p.actor.membershipId, (await titleOf(p))?.title])));
-  assert.deepEqual(Object.values(japan), ['Даймё', 'Каро', 'Такуми', 'Житель княжества']);
+  assert.deepEqual(Object.values(japan), ['Даймё', 'Каро', 'Такуми', 'Житель сёгуната']);
   await setCiv('kazakh');
   assert.deepEqual(await Promise.all([f.head, w.colleague, master, w.author].map(async (p) => (await titleOf(p))?.title)), ['Хан', 'Султан', 'Шебер', 'Житель Орды']);
   await setCiv('mongolia');

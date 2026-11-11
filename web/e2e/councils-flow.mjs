@@ -69,16 +69,16 @@ try {
     await page.goto(`${BASE}/#/kingdom`);
     await page.locator('.realm-castle[aria-label*="«ИТ-разработка»"]').click();
     await page.waitForURL(/#\/castles\/[0-9a-f-]{36}/);
-    await page.locator('.district-head', { hasText: 'Японское княжество' }).waitFor();
+    await page.locator('.district-head', { hasText: 'Японский сёгунат' }).waitFor();
     const titles = {};
     for (const card of await page.locator('.staff-card').all()) {
       const text = (await card.textContent()) ?? '';
       for (const n of ['Дмитрий Орлов', 'Арман Жаксыбеков', 'Елена Смирнова', 'Тимофей Ли']) if (text.includes(n)) titles[n] = (await card.locator('.title-chip').textContent())?.trim();
     }
-    must(JSON.stringify(titles) === JSON.stringify({ 'Дмитрий Орлов': 'Даймё', 'Елена Смирнова': 'Самурай', 'Арман Жаксыбеков': 'Каро', 'Тимофей Ли': 'Житель княжества' }), `titles: ${JSON.stringify(titles)}`);
+    must(JSON.stringify(titles) === JSON.stringify({ 'Дмитрий Орлов': 'Даймё', 'Елена Смирнова': 'Самурай', 'Арман Жаксыбеков': 'Каро', 'Тимофей Ли': 'Житель сёгуната' }), `titles: ${JSON.stringify(titles)}`);
     return page.url().split('/castles/')[1].split('/')[0];
   });
-  step('город → японский замок ИТ: Даймё, Каро, Самурай, Житель княжества — звания по функции, не по людям');
+  step('город → японский замок ИТ: Даймё, Каро, Самурай, Житель сёгуната — звания по функции, не по людям');
 
   // A technical initiative from the IT district.
   const n = await as(dev, async (page) => {

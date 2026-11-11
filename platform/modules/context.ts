@@ -30,7 +30,7 @@ export const orgTx = (actor: OrgActor) => ({
 export interface Me {
   id: string;
   displayName: string;
-  memberships: { organization: string; organizationName: string; membershipId: string; roles: OrgRole[] }[];
+  memberships: { organization: string; organizationName: string; realmName: string; membershipId: string; roles: OrgRole[] }[];
 }
 
 export async function getMe(db: Database, userId: string): Promise<Me> {
@@ -41,8 +41,8 @@ export async function getMe(db: Database, userId: string): Promise<Me> {
     );
     const u = user.rows[0];
     if (!u) throw notFound('Пользователь не найден');
-    const m = await c.query<{ slug: string; name: string; id: string; roles: OrgRole[] }>(
-      `SELECT o.slug, o.name, m.id, m.roles FROM memberships m
+    const m = await c.query<{ slug: string; name: string; realm_name: string; id: string; roles: OrgRole[] }>(
+      `SELECT o.slug, o.name, o.realm_name, m.id, m.roles FROM memberships m
          JOIN organizations o ON o.id = m.organization_id
         WHERE m.user_id = $1 AND m.status = 'active' ORDER BY o.name`,
       [userId],
@@ -53,6 +53,8 @@ export async function getMe(db: Database, userId: string): Promise<Me> {
       memberships: m.rows.map((r) => ({
         organization: r.slug,
         organizationName: r.name,
+        // The game world's name (ADR-0021); the real name above is for administration and documents.
+        realmName: r.realm_name,
         membershipId: r.id,
         roles: r.roles,
       })),

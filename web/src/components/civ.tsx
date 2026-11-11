@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { Banner, Box, IsoCastle, P, Plate, Roof, STONE, STONE_DARK, TIMBER, shadeOf, type Shade } from './iso';
 
 /**
- * Architectural styles of the districts (ADR-0019, ADR-0020): Камелот, Японское княжество,
+ * Architectural styles of the districts (ADR-0019, ADR-0020, ADR-0021): Камелот, Японский сёгунат,
  * Казахское ханство, Монгольская держава. Original drawings made of the same isometric primitives —
  * no borrowed game art. Every style has the same five levels and the same number of buildings; a
  * level always looks the same; nothing is random. The style is chosen by the department and says
@@ -11,8 +11,8 @@ import { Banner, Box, IsoCastle, P, Plate, Roof, STONE, STONE_DARK, TIMBER, shad
  */
 export type Civ = 'camelot' | 'japan' | 'mongolia' | 'kazakh';
 export const CIVS: { id: Civ; name: string; motto: string; hall: string }[] = [
-  { id: 'camelot', name: 'Камелот — Рыцарское королевство', motto: 'Замок, башни и стены, рыцарский двор, оружейная и мастерские', hall: 'Зал рыцарей' },
-  { id: 'japan', name: 'Японское княжество', motto: 'Замок, сады и мосты, многоярусные крыши', hall: 'Зал даймё' },
+  { id: 'camelot', name: 'Камелот', motto: 'Рыцарская цивилизация: замок, башни и стены, рыцарский двор, оружейная и мастерские', hall: 'Зал рыцарей' },
+  { id: 'japan', name: 'Японский сёгунат', motto: 'Замок, сады и мосты, многоярусные крыши', hall: 'Зал даймё' },
   { id: 'kazakh', name: 'Казахское ханство', motto: 'Большая ханская юрта, ставка и поселение, орнаменты', hall: 'Ханская юрта' },
   { id: 'mongolia', name: 'Монгольская держава', motto: 'Ставка правителя, юрты, туги и степные сооружения', hall: 'Совет нойонов' },
 ];

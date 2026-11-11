@@ -152,7 +152,7 @@ export function Kingdom() {
 
   return (
     <div className="stack-lg">
-      <PageHead title="Королевство" sub="Город подразделений. Замок растёт только после подтверждённого внедрения идеи.">
+      <PageHead title={s.realmName} sub="Город подразделений: каждое выбрало свою цивилизацию. Замок растёт только после подтверждённого внедрения идеи.">
         <div className="segmented" role="group" aria-label="Вид">
           <button type="button" aria-pressed={mode === 'city'} onClick={() => setMode('city')}>
             Город
@@ -266,6 +266,7 @@ function Realm({
 }) {
   const { ref, wide } = useWide();
   const [lite] = useLite();
+  const realm = useSession().realmName;
   const L = wide ? WIDE : TALL;
   const cam = useCamera(L.w, L.h, { instant: lite || reducedMotion() });
   const { flyTo } = cam;
@@ -379,7 +380,7 @@ function Realm({
     ].sort((a, b) => a.y - b.y);
     return (
       <>
-        <MapGround L={L} wide={wide} lite={lite} />
+        <MapGround L={L} wide={wide} lite={lite} realm={realm} />
         {placed.map((p) => (
           <g key={`road-${p.castle.id}`} aria-hidden="true">
             <path d={`M${p.road.from.x},${p.road.from.y} Q${p.road.ctrl.x},${p.road.ctrl.y} ${p.road.to.x},${p.road.to.y}`} className="realm-road-bed" />
@@ -387,10 +388,10 @@ function Realm({
           </g>
         ))}
         <CityPaths L={L} />
-        <a href="#/council" className="realm-place" aria-label="Дворец Королевского совета и Круглый стол: обращения у Совета" onClick={enter('#/council', L.capital, 2.4)}>
+        <a href="#/council" className="realm-place" aria-label="Дворец Большого Круглого стола — совет всего Содружества: обращения у Совета" onClick={enter('#/council', L.capital, 2.4)}>
           <g transform={`translate(${L.capital.x},${L.capital.y})`}>
             <IsoCouncil u={cu} />
-            <LabelPlate y={4.9 * cu + 12} title="Королевский совет" sub="Круглый стол: обсуждают и решают" font={L.font} strong />
+            <LabelPlate y={4.9 * cu + 12} title="Большой Круглый стол" sub="совет всего Содружества" font={L.font} strong />
           </g>
         </a>
         {k.wildlands ? <Camp at={L.camp} count={k.wildlands} font={L.font} /> : null}
@@ -403,7 +404,7 @@ function Realm({
         <a href="#/library?hall=archive" className="realm-place" aria-label="Высший Архив: наследие, утверждённое Советом" onClick={enter('#/library?hall=archive', L.archive, 2.6)}>
           <g transform={`translate(${L.archive.x},${L.archive.y})`}>
             <IsoArchive u={lu} />
-            <LabelPlate y={2.5 * lu + 10} title="Высший Архив" sub="наследие королевства" font={L.font * 0.9} />
+            <LabelPlate y={2.5 * lu + 10} title="Высший Архив" sub="наследие Содружества" font={L.font * 0.9} />
           </g>
         </a>
         <a href="#/rating" className="realm-place" aria-label={`Площадь достижений: ${achievements} ${plural(achievements, 'достижение', 'достижения', 'достижений')} замков; рейтинг подразделений`} onClick={enter('#/rating', L.plaza, 2.4)}>
@@ -445,7 +446,7 @@ function Realm({
             viewBox={`${cam.view.x} ${cam.view.y} ${cam.view.w} ${cam.view.h}`}
             style={{ touchAction: zoomed ? 'none' : 'pan-y' }}
             role="img"
-            aria-label={`Город королевства: ${k.castles.length} замков подразделений, ${envoysWord(k.envoys.length)} в работе`}
+            aria-label={`Город Содружества «${realm}»: ${k.castles.length} замков подразделений, ${envoysWord(k.envoys.length)} в работе`}
           >
             {scene}
           </svg>
@@ -728,7 +729,8 @@ function Legend({ levels }: { levels: string[] }) {
 // Drawing
 // ---------------------------------------------------------------------------
 
-function MapGround({ L, wide, lite }: { L: Layout; wide: boolean; lite: boolean }) {
+function MapGround({ L, wide, lite, realm }: { L: Layout; wide: boolean; lite: boolean; realm: string }) {
+  const cw = Math.min(L.w - 40, Math.max(wide ? 212 : 176, realm.length * 10 + 40));
   const trees = (
     wide
       ? [
@@ -769,10 +771,10 @@ function MapGround({ L, wide, lite }: { L: Layout; wide: boolean; lite: boolean 
         <Tree key={i} x={t.x} y={t.y} u={wide ? 7 : 5.6} k={i % 3 === 0 ? 1.15 : 1} />
       ))}
       {/* Decorative parchment cartouche: the only parchment on the map. */}
-      <g transform={`translate(${L.w - (wide ? 236 : 196)}, ${L.h - (wide ? 76 : 70)})`}>
-        <rect width={wide ? 212 : 176} height="50" rx="8" fill="#f1e6cc" stroke="#9c8661" strokeWidth="1.5" />
-        <text x={wide ? 106 : 88} y="31" textAnchor="middle" className="realm-cartouche">
-          Королевство Модус
+      <g transform={`translate(${L.w - cw - 24}, ${L.h - (wide ? 76 : 70)})`}>
+        <rect width={cw} height="50" rx="8" fill="#f1e6cc" stroke="#9c8661" strokeWidth="1.5" />
+        <text x={cw / 2} y="31" textAnchor="middle" className="realm-cartouche">
+          {realm}
         </text>
       </g>
       {lite ? null : <rect width={L.w} height={L.h} fill="url(#realm-vignette)" />}

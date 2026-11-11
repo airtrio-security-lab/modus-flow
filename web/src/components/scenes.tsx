@@ -137,7 +137,7 @@ function Camelot({ color }: { color: string }) {
 
 /** The Great Round Table: one table, four equal banners — no civilization owns the hall. */
 function Great() {
-  const banners: [string, string][] = [['#55606e', 'Камелот'], ['#a2412f', 'Японское княжество'], ['#c99a2e', 'Казахское ханство'], ['#2f4f7a', 'Монгольская держава']];
+  const banners: [string, string][] = [['#55606e', 'Камелот'], ['#a2412f', 'Японский сёгунат'], ['#c99a2e', 'Казахское ханство'], ['#2f4f7a', 'Монгольская держава']];
   return (
     <g>
       <rect width={W} height={H} fill="#2b3134" />
