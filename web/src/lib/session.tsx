@@ -44,7 +44,19 @@ export function SessionProvider({ me, onSignOut, children }: { me: Me; onSignOut
   const refreshInbox = useCallback(async () => {
     try {
       const list = await api<Notification[]>(`/orgs/${m.organization}/notifications`);
-      setUnread(list.filter((n) => !n.readAt).length);
+      // An audience is a separate, server-confirmed event. Include its pending
+      // invitation (king) or unseen acceptance (sender) in the bell count.
+      const audiences = await api<{ items: { id: string; role: 'king' | 'sender'; status: 'requested' | 'accepted' }[] }>(
+        `/orgs/${m.organization}/audiences`,
+      ).catch(() => ({ items: [] }));
+      const outstanding = audiences.items.filter((a) => {
+        if (a.role === 'king') return a.status === 'requested';
+        if (a.status !== 'accepted') return false;
+        try {
+          return sessionStorage.getItem('modus.audience.seen:' + m.organization + ':' + m.membershipId + ':' + a.id) !== '1';
+        } catch { return true; }
+      }).length;
+      setUnread(list.filter((n) => !n.readAt).length + outstanding);
     } catch {
       /* the counter is a convenience; the inbox page shows errors */
     }

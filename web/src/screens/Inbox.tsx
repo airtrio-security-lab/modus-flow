@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { AudienceInbox } from '../components/Audience';
 import { api, errorText } from '../lib/api';
 import { ago, dateTime } from '../lib/format';
 import { go } from '../lib/router';
@@ -110,6 +111,7 @@ export function Inbox() {
           </button>
         )}
       </PageHead>
+      <AudienceInbox />
       <div className="segmented wrap" role="group" aria-label="Какие послания показать">
         {FILTERS.map((x) => (
           <button key={x.id} type="button" aria-pressed={filter === x.id} onClick={() => setFilter(x.id)}>

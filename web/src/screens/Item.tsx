@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState, type ReactNode } from 'react';
 import { ItemKingdom } from '../components/ItemKingdom';
+import { EnvoyShortcut } from '../components/Audience';
 import { ItemOrigin } from '../components/ItemOrigin';
 import { api, errorText } from '../lib/api';
 import { facts, type Facts } from '../lib/can';
@@ -30,7 +31,7 @@ type Mode =
 export function ItemPage({ number }: { number: number }) {
   const s = useSession();
   const { data: item, error, loading, reload } = useLoad(() => api<IdeaDetail>(`/orgs/${s.org}/ideas/${number}`), [s.org, number]);
-  const [mode, setMode] = useState<Mode>(null);
+  const [mode, setMode] = useState<Mode>(() => new URLSearchParams(location.hash.split('?')[1] ?? '').get('audience') === 'decide' ? 'decide' : null);
   const [busy, setBusy] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -86,6 +87,7 @@ export function ItemPage({ number }: { number: number }) {
         <p className="now">{nowLine(item)}</p>
         <ItemKingdom item={item} />
         <ItemOrigin number={item.number} />
+        <EnvoyShortcut item={item} />
         {s.isLead || s.isAdmin || s.isArchivist ? (
           <div className="row">
             <a className="btn small" href={`#/library/new?idea=${item.number}`}>
@@ -128,7 +130,7 @@ export function ItemPage({ number }: { number: number }) {
 
           <section aria-label="Действия" className="stack">
             <Actions f={f} item={item} mode={mode} open={open} reload={reload} busy={busy} />
-            {mode && <Composer mode={mode} ctx={ctx} />}
+            {mode === 'decide' && !f.decide ? <p className="small muted">Внедрение оформляет назначенный ответственный за решение, не игровой титул.</p> : mode && <Composer mode={mode} ctx={ctx} />}
           </section>
 
           <section aria-label="История" className="stack">

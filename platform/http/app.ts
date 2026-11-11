@@ -18,6 +18,7 @@ import {
 } from '../modules/lab.ts';
 import { listInbox, markRead } from '../modules/notifications.ts';
 import * as notificationsMod from '../modules/notifications.ts';
+import * as royalAudience from '../modules/royal-audience.ts';
 import * as wf from '../modules/workflow.ts';
 import * as admin from '../modules/admin.ts';
 import { analytics, AnalyticsQuery } from '../modules/analytics.ts';
@@ -230,6 +231,10 @@ export function createApp(config: AppConfig) {
   // Every mutation accepts an Idempotency-Key header and returns 201 with the
   // resulting state; a replay returns the stored response with Idempotent-Replayed.
   const IDEA = `/api/v1/orgs/(?<org>${SLUG})/ideas/(?<number>\\d{1,10})`;
+  route('POST', `${IDEA}/audience`, async (ctx) => {
+    z.object({}).strict().parse(await ctx.body());
+    return { status: 201, body: await royalAudience.requestAudience(db, await org(ctx), NumberParam.parse(ctx.params.number)) };
+  });
   const replied = <T>(r: IdempotentResult<T>): Reply => ({
     status: r.status,
     body: r.body,
@@ -293,6 +298,13 @@ export function createApp(config: AppConfig) {
   });
 
   const ORG = `/api/v1/orgs/(?<org>${SLUG})`;
+  route('GET', `${ORG}/audiences`, async (ctx) => ({
+    status: 200, body: await royalAudience.listAudiences(db, await org(ctx)),
+  }));
+  route('POST', `${ORG}/audiences/(?<id>${UUID})/accept`, async (ctx) => {
+    z.object({}).strict().parse(await ctx.body());
+    return { status: 200, body: await royalAudience.acceptAudience(db, await org(ctx), ctx.params.id!) };
+  });
   const json = <S extends z.ZodType>(method: string, path: string, schema: S, run: (a: Awaited<ReturnType<typeof org>>, input: z.infer<S>, p: Record<string, string>) => Promise<unknown>, status = 200) =>
     route(method, `${ORG}${path}`, async (ctx) => ({ status, body: await run(await org(ctx), schema.parse(await ctx.body()), ctx.params) }));
 
