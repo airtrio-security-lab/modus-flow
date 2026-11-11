@@ -74,9 +74,10 @@ npm run demo:start       # API as modus_api + web app + demo sign-in; refuses NO
 npm run demo:e2e         # optional: Playwright walks through the main scenario
 npm run demo:kingdom     # optional, on a fresh seed: the 90-second kingdom scenario (Council → XP → level → rating)
 npm run demo:advisor     # optional, on a fresh seed: protocol → confirmed items → executor suggestion (rules, no AI; ADR-0013)
+npm run demo:meeting     # optional, on a fresh seed: council meeting with consent, recording, prepared transcript, findings, confirmation (ADR-0014)
 npm run demo:record      # optional, on a fresh seed: records the kingdom scenario as a fallback video (.demo/kingdom-demo.mp4)
 ```
-The 90-second click path for a live demo: [`docs/demo/kingdom-90s.md`](docs/demo/kingdom-90s.md).
+The 90-second click paths for a live demo: [`docs/demo/meeting-90s.md`](docs/demo/meeting-90s.md) (meeting → work → XP) and [`docs/demo/kingdom-90s.md`](docs/demo/kingdom-90s.md) (idea → council → XP).
 Or all of it in one command (Docker + Node ≥ 22.18): `./scripts/demo-local.sh`.
 
 ### Platform tests

@@ -168,6 +168,21 @@ lost, everyone sees the stage, the owner sees what needs attention. Migrations 0
 | POST | `…/protocols/:id/candidates/:c/dismiss` | lead; kept as history |
 | GET | `…/ideas/:n/executors` | maintainer / decision owner: suggestions from questionnaires with reasons, confirmed people |
 | POST | `…/ideas/:n/executors` | `{candidate, reasons[]}`; maintainer or decision owner, not an originator; once per person; does not set the implementer |
+| GET | `/api/v1/orgs/:org/titles` | full members: effective game title of everyone (assigned king/regent/guild, castle head, guild default) and guild title lists; «звание не даёт прав». ADR-0014 |
+| PUT / DELETE | `…/titles/:membershipId` | admin: `{rank: king\|regent\|guild, title?}`; king and regent are unique (assigning moves the title) |
+| PUT | `…/guild-titles/:departmentId` | admin: `{titles[1..8]}`, senior first; the last is the default |
+| GET | `/api/v1/orgs/:org/engines` | transcription engine and analysis model: configured / reachable; both off by default |
+| GET / POST | `/api/v1/orgs/:org/meetings` | list my meetings; leads call one: `{title, departmentId?, ideaNumber?, participants[], organizerConsent: true}` → participants notified (`meeting_called`) |
+| GET | `…/meetings/:id` | participants only: consents, recording meta, transcripts with source, analyses, findings, `can` flags |
+| POST | `…/meetings/:id/consent` | `{consent: given\|declined}` — only for oneself; fixed once recording started |
+| POST | `…/meetings/:id/recording/start` | organizer; refused unless every participant consented (also enforced by the database) |
+| POST / GET | `…/meetings/:id/recording` | upload raw audio (`Content-Type` audio/webm\|ogg\|mpeg\|mp4\|wav, ≤ 25 MB, signature checked, `X-Recording-Source`, `X-Duration-Ms`); download for participants (logged) |
+| POST | `…/meetings/:id/transcripts` | lead participant: `{text, source: manual\|prepared}`; same text → same transcript |
+| POST | `…/meetings/:id/transcribe` | lead participant; only with a configured local engine |
+| POST | `…/meetings/:id/analyses` | `{transcriptId, method: rules\|model}`; the same transcript and method return the stored findings |
+| POST | `…/meetings/:id/findings/:f/accept` | lead participant confirms → ordinary item (`source_channel = meeting`, note with timestamp); duplicates refused with the existing number |
+| POST | `…/meetings/:id/findings/:f/note` · `/dismiss` | keep in memory without an item / dismiss; once |
+| GET | `…/ideas/:n/origin` | the meeting, quote, timestamp, speaker and transcript source of an item — participants only |
 | GET | `…/ideas/:n/progress` | XP awarded for the item, effect approval, whether the caller may approve it |
 | POST | `…/ideas/:n/effect` | decision owner, not an originator, after a confirmed implementation: `{xp ≤ xpEffectMax, rationale ≥ 20}`, once |
 
