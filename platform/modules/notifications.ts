@@ -62,6 +62,42 @@ const TEMPLATES: Record<NotificationEvent, (actor: string, title: string) => str
   council_recommendation: (a, t) => `${a} оставляет рекомендацию Совета по «${t}»`,
   council_handoff: (a, t) => `${a} передаёт вам решение по «${t}» после обсуждения в Совете`,
   castle_level_up: (_a, t) => `Внедрение «${t}» подняло замок подразделения на новый уровень`,
+  meeting_called: (a, t) => `${a} созывает заседание «${t}» с записью: подтвердите или отклоните согласие`,
+  meeting_recording_started: (a, t) => `${a} включил(а) запись заседания «${t}»`,
+  meeting_findings_ready: (a, t) => `${a} подготовил(а) находки по заседанию «${t}» — их проверит руководитель`,
+};
+
+/**
+ * Game headline for each event (owner brief «Живое королевство»). The headline is
+ * decoration: the business message below it always says what happened and who did it.
+ * No headline names the King: «Король направил послание» appears only for a real
+ * message from the person holding that title, which this version does not send.
+ */
+export const HEADLINES: Record<NotificationEvent, string> = {
+  idea_published: 'В замок прибыл посол',
+  comment_added: 'Новое слово в обсуждении',
+  changes_requested: 'Совет просит уточнить',
+  assigned: 'Получено поручение',
+  verification_started: 'Начато испытание',
+  verification_completed: 'Испытание завершено',
+  idea_merged: 'Решение зафиксировано',
+  idea_rejected: 'Решение зафиксировано',
+  contribution_confirmed: 'Вклад признан',
+  honor_board_recognition: 'Вклад признан',
+  objection_raised: 'Возражение',
+  revision_submitted: 'Посол принёс новую версию',
+  suggestion_submitted: 'Предложена новая версия',
+  suggestion_decided: 'Ответ на ваше предложение',
+  status_report: 'Вести с работ',
+  implemented: 'Внедрение завершено',
+  raised_on_behalf: 'Ваш вопрос записан',
+  escalated: 'Приближается срок',
+  council_recommendation: 'Совет даёт совет',
+  council_handoff: 'Решение Совета ждёт вас',
+  castle_level_up: 'Замок повысил уровень',
+  meeting_called: 'Созван Королевский совет',
+  meeting_recording_started: 'Идёт запись заседания',
+  meeting_findings_ready: 'Находки заседания ждут проверки',
 };
 
 export interface InboxItem {
@@ -69,6 +105,8 @@ export interface InboxItem {
   event: NotificationEvent;
   message: string;
   ideaNumber: number | null;
+  meetingId: string | null;
+  headline: string;
   createdAt: string;
   readAt: string | null;
 }
@@ -80,15 +118,18 @@ export async function inbox(c: Client, limit = 50): Promise<InboxItem[]> {
     actor_name: string | null;
     title: string | null;
     number: number | null;
+    meeting_id: string | null;
+    meeting_title: string | null;
     created_at: Date;
     read_at: Date | null;
   }>(
-    `SELECT n.id, n.event_type, u.display_name AS actor_name, r.title, i.number, n.created_at, n.read_at
+    `SELECT n.id, n.event_type, u.display_name AS actor_name, r.title, i.number, n.meeting_id, mt.title AS meeting_title, n.created_at, n.read_at
        FROM notifications n
        LEFT JOIN memberships am ON am.id = n.actor_membership_id
        LEFT JOIN users u ON u.id = am.user_id
        LEFT JOIN ideas i ON i.id = n.idea_id
        LEFT JOIN idea_revisions r ON r.idea_id = i.id AND r.number = i.current_revision_number
+       LEFT JOIN meetings mt ON mt.id = n.meeting_id
       WHERE n.recipient_membership_id = app_membership_id()
       ORDER BY n.created_at DESC LIMIT $1`,
     [limit],
@@ -96,8 +137,10 @@ export async function inbox(c: Client, limit = 50): Promise<InboxItem[]> {
   return rows.map((r) => ({
     id: r.id,
     event: r.event_type,
-    message: TEMPLATES[r.event_type](r.actor_name ?? 'Система', r.title ?? '—'),
+    message: TEMPLATES[r.event_type](r.actor_name ?? 'Система', r.title ?? r.meeting_title ?? '—'),
     ideaNumber: r.number,
+    meetingId: r.meeting_id,
+    headline: HEADLINES[r.event_type],
     createdAt: r.created_at.toISOString(),
     readAt: r.read_at?.toISOString() ?? null,
   }));

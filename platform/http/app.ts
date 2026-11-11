@@ -24,6 +24,10 @@ import { kingdom } from '../modules/kingdom.ts';
 import * as progress from '../modules/progress.ts';
 import * as council from '../modules/council.ts';
 import * as advisor from '../modules/advisor.ts';
+import * as meetings from '../modules/meetings.ts';
+import * as titles from '../modules/titles.ts';
+import type { TranscribeConfig } from '../modules/transcribe.ts';
+import { engineReachable } from '../modules/transcribe.ts';
 import type { ModelConfig } from '../modules/advisor-model.ts';
 import { downloadAttachment, MAX_ATTACHMENT_BYTES, uploadAttachment } from '../modules/attachments.ts';
 import { SubmitInput, submitItem } from '../modules/intake.ts';
@@ -51,6 +55,8 @@ export interface AppConfig {
   advisorModel?: ModelConfig | null;
   /** Test seam for the model provider. */
   advisorFetch?: typeof fetch;
+  /** Optional local speech-to-text engine (ADR-0014). Null: no transcription, the UI offers typing it. */
+  transcribeEngine?: TranscribeConfig | null;
 }
 
 export interface DemoPersonas {
@@ -334,6 +340,94 @@ export function createApp(config: AppConfig) {
   });
   route('GET', `${IDEA}/executors`, async (ctx) => ({ status: 200, body: await advisor.suggestExecutors(db, await org(ctx), NumberParam.parse(ctx.params.number)) }));
   step('/executors', advisor.ConfirmExecutorInput, (a, n, i, _p, k) => advisor.confirmExecutor(db, a, n, i, k));
+
+  // ---- Living kingdom (0009, ADR-0014): titles, meetings, recordings, findings ----
+  const mdeps: meetings.MeetingDeps = { model, engine: config.transcribeEngine ?? null, fetchImpl: config.advisorFetch };
+  route('GET', `${ORG}/titles`, async (ctx) => ({ status: 200, body: await titles.listTitles(db, await org(ctx)) }));
+  json('PUT', `/titles/(?<m>${UUID})`, titles.AssignTitleInput, (a, i, p) => titles.assignTitle(db, a, p.m!, i));
+  route('DELETE', `${ORG}/titles/(?<m>${UUID})`, async (ctx) => ({ status: 200, body: await titles.clearTitle(db, await org(ctx), ctx.params.m!) }));
+  json('PUT', `/guild-titles/(?<d>${UUID})`, titles.GuildTitlesInput, (a, i, p) => titles.setGuildTitles(db, a, p.d!, i));
+
+  route('GET', `${ORG}/engines`, async (ctx) => {
+    await org(ctx);
+    const engine = config.transcribeEngine ?? null;
+    return {
+      status: 200,
+      body: {
+        transcription: engine
+          ? { configured: true, model: engine.model, reachable: await engineReachable(engine, config.advisorFetch) }
+          : { configured: false, model: null, reachable: false },
+        analysis: (await advisor.advisorStatus(model, config.advisorFetch)).model,
+        note: engine ? 'Расшифровка — локальный движок на этом компьютере.' : 'Движок расшифровки не подключён: расшифровку вставляют вручную или используют подготовленную (помечается).',
+      },
+    };
+  });
+  route('GET', `${ORG}/meetings`, async (ctx) => ({ status: 200, body: await meetings.listMeetings(db, await org(ctx)) }));
+  route('POST', `${ORG}/meetings`, async (ctx) => {
+    const actor = await org(ctx);
+    return replied(await meetings.createMeeting(db, actor, meetings.CreateMeetingInput.parse(await ctx.body()), idemKey(ctx.req)));
+  });
+  const MTG = `${ORG}/meetings/(?<id>${UUID})`;
+  route('GET', MTG, async (ctx) => ({ status: 200, body: await meetings.getMeeting(db, await org(ctx), ctx.params.id!, mdeps) }));
+  route('POST', `${MTG}/consent`, async (ctx) => {
+    const actor = await org(ctx);
+    const { consent } = z.object({ consent: z.enum(['given', 'declined']) }).strict().parse(await ctx.body());
+    return { status: 200, body: await meetings.setConsent(db, actor, ctx.params.id!, consent) };
+  });
+  route('POST', `${MTG}/recording/start`, async (ctx) => {
+    const actor = await org(ctx);
+    z.object({}).strict().parse(await ctx.body());
+    return { status: 200, body: await meetings.startRecording(db, actor, ctx.params.id!) };
+  });
+  route('POST', `${MTG}/recording`, async (ctx) => {
+    const actor = await org(ctx);
+    const contentType = String(ctx.req.headers['content-type'] ?? '');
+    const source = ctx.req.headers['x-recording-source'] === 'microphone' ? 'microphone' : 'upload';
+    const dur = Number(ctx.req.headers['x-duration-ms']);
+    const data = await readRaw(ctx.req, meetings.MAX_RECORDING_BYTES);
+    return {
+      status: 201,
+      body: await meetings.uploadRecording(db, actor, ctx.params.id!, { contentType, data, source, durationMs: Number.isInteger(dur) && dur >= 0 && dur <= 14400000 ? dur : null }),
+    };
+  });
+  route('GET', `${MTG}/recording`, async (ctx) => {
+    const f = await meetings.downloadRecording(db, await org(ctx), ctx.params.id!);
+    return {
+      status: 200,
+      raw: f.data,
+      headers: {
+        'Content-Type': f.contentType,
+        'Content-Length': String(f.data.length),
+        'Cache-Control': 'private, no-store',
+        'Content-Security-Policy': "default-src 'none'; sandbox",
+        ETag: `"${f.sha256}"`,
+      },
+    };
+  });
+  route('POST', `${MTG}/transcripts`, async (ctx) => {
+    const actor = await org(ctx);
+    return { status: 201, body: await meetings.addTranscript(db, actor, ctx.params.id!, meetings.TranscriptInput.parse(await ctx.body())) };
+  });
+  route('POST', `${MTG}/transcribe`, async (ctx) => {
+    const actor = await org(ctx);
+    z.object({}).strict().parse(await ctx.body());
+    return { status: 201, body: await meetings.transcribeRecording(db, actor, ctx.params.id!, mdeps) };
+  });
+  route('POST', `${MTG}/analyses`, async (ctx) => {
+    const actor = await org(ctx);
+    return { status: 201, body: await meetings.analyze(db, actor, ctx.params.id!, meetings.AnalyzeInput.parse(await ctx.body()), mdeps) };
+  });
+  route('POST', `${MTG}/findings/(?<f>${UUID})/accept`, async (ctx) => {
+    const actor = await org(ctx);
+    const input = meetings.AcceptFindingInput.parse(await ctx.body());
+    return replied(await meetings.acceptFinding(db, actor, ctx.params.id!, ctx.params.f!, input, idemKey(ctx.req)));
+  });
+  route('POST', `${MTG}/findings/(?<f>${UUID})/(?<what>note|dismiss)`, async (ctx) => {
+    const actor = await org(ctx);
+    z.object({}).strict().parse(await ctx.body());
+    return { status: 200, body: await meetings.decideFinding(db, actor, ctx.params.id!, ctx.params.f!, ctx.params.what === 'note' ? 'noted' : 'dismissed') };
+  });
+  route('GET', `${IDEA}/origin`, async (ctx) => ({ status: 200, body: await meetings.itemOrigin(db, await org(ctx), NumberParam.parse(ctx.params.number)) }));
   step('/effect', progress.EffectInput, (a, n, i, _p, k) => progress.approveEffect(db, a, n, i, k));
   route('GET', `${ORG}/analytics`, async (ctx) => ({
     status: 200,

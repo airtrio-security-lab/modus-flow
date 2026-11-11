@@ -5,6 +5,7 @@ import { createApp } from './http/app.ts';
 import { demoConfigFromEnv } from './http/demo.ts';
 import { authenticatorFromEnv } from './http/authn.ts';
 import { modelConfigFromEnv } from './modules/advisor-model.ts';
+import { transcribeConfigFromEnv } from './modules/transcribe.ts';
 
 /**
  * MODUS FLOW platform API (v1). Runs alongside the legacy prototype
@@ -42,7 +43,9 @@ const staticDir = process.env.MODUS_WEB_DIR ?? (process.env.MODUS_SERVE_WEB === 
 // MODUS ADVISOR: rules by default; a local model only when configured explicitly (ADR-0013).
 const advisorModel = modelConfigFromEnv(process.env);
 console.log(JSON.stringify({ level: 'info', advisor: advisorModel ? `local model ${advisorModel.model} at ${advisorModel.url}` : 'rules only (no AI model connected)' }));
-const handler = createApp({ db, authenticator, staticDir, demo, advisorModel, log: (e) => console.log(JSON.stringify(e)) });
+const transcribeEngine = transcribeConfigFromEnv(process.env);
+console.log(JSON.stringify({ level: 'info', transcription: transcribeEngine ? `local engine ${transcribeEngine.model} at ${transcribeEngine.url}` : 'no engine (manual or prepared transcripts only)' }));
+const handler = createApp({ db, authenticator, staticDir, demo, advisorModel, transcribeEngine, log: (e) => console.log(JSON.stringify(e)) });
 const server = createServer((req, res) => void handler(req, res));
 server.listen(port, host, () => console.log(JSON.stringify({ level: 'info', msg: `MODUS FLOW platform API on ${host}:${port}` })));
 
