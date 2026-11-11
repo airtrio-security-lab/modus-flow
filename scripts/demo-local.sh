@@ -2,7 +2,11 @@
 # One-command local demo (macOS / Linux): PostgreSQL in Docker, fictional
 # «Модус Трейд — демо» data, API + web app on http://127.0.0.1:3100.
 # Never use with real employee data: the demo sign-in is an SSO imitation.
+#   ./scripts/demo-local.sh           start (seeds only an empty database)
+#   ./scripts/demo-local.sh --fresh   drop the demo database and seed it again (before every show)
 set -euo pipefail
+FRESH=0
+[ "${1:-}" = "--fresh" ] && FRESH=1
 cd "$(dirname "$0")/.."
 mkdir -p .demo
 
@@ -21,6 +25,12 @@ docker compose up -d postgres
 printf 'Ждём PostgreSQL'
 until docker compose exec -T postgres pg_isready -h 127.0.0.1 -U modus >/dev/null 2>&1; do printf '.'; sleep 1; done
 echo
+
+if [ "$FRESH" = 1 ]; then
+  echo "Пересоздаём демо-базу (все демо-данные будут заполнены заново)…"
+  docker compose exec -T postgres psql -U modus -d postgres -q -c "DROP DATABASE IF EXISTS modus WITH (FORCE)" -c "CREATE DATABASE modus" >/dev/null
+  rm -f .demo/personas.json
+fi
 
 export MIGRATION_DATABASE_URL="postgres://modus:modus-local-only@127.0.0.1:$PORT/modus"
 export DATABASE_URL="postgres://modus_api:modus-api-local-only@127.0.0.1:$PORT/modus"

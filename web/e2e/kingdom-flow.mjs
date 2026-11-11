@@ -24,7 +24,8 @@ const levelOf = (xp) => THRESHOLDS.filter((t) => xp >= t).length;
 
 const browser = await chromium.launch();
 const errors = [];
-const stamp = Date.now().toString(36);
+// Fresh demo data needs no suffix; STAMP=1 adds one to rerun on the same database.
+const stamp = process.env.STAMP ? ` ${Date.now().toString(36)}` : '';
 const t0 = Date.now();
 
 async function as(person, fn) {
@@ -65,7 +66,7 @@ try {
     await page.getByRole('button', { name: 'Предложить улучшение' }).click();
     await page.getByLabel(/Что сейчас не так/).fill('На приёмке этикетку печатаем на отдельном компьютере и несём к паллете, теряем по 3–4 минуты на машину');
     await page.getByLabel(/Что предлагаете/).fill('Печатать этикетку прямо со сканера на мобильный принтер у ворот, без похода к компьютеру');
-    await page.getByLabel('Коротко, одной строкой').fill(`Печать этикеток со сканера у ворот ${stamp}`);
+    await page.getByLabel('Коротко, одной строкой').fill(`Печать этикеток со сканера у ворот${stamp}`);
     await page.getByLabel('Тема').selectOption({ label: 'ИТ и инструменты' });
     await page.getByRole('button', { name: 'Отправить обращение' }).click();
     await page.waitForURL(/#\/items\/\d+/);
