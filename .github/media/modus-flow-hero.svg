@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="580" viewBox="0 0 1600 580" role="img" aria-labelledby="title desc">
+<title id="title">MODUS FLOW — сервис решений</title><desc id="desc">Чистая кинематографичная обложка с горами, городом и небольшими безликими силуэтами на переднем плане</desc>
+<defs>
+ <linearGradient id="sky" x2="0" y2="1"><stop stop-color="#080E19"/><stop offset=".56" stop-color="#15243A"/><stop offset="1" stop-color="#2E3741"/></linearGradient>
+ <radialGradient id="sun"><stop stop-color="#F6D59A" stop-opacity=".74"/><stop offset=".36" stop-color="#BE9460" stop-opacity=".24"/><stop offset="1" stop-color="#BE9460" stop-opacity="0"/></radialGradient>
+ <linearGradient id="mist" x2="0" y2="1"><stop stop-color="#E0CDAA" stop-opacity=".16"/><stop offset="1" stop-color="#06101C" stop-opacity="0"/></linearGradient>
+ <linearGradient id="textgold" x2="1" y2="1"><stop stop-color="#F4E3C8"/><stop offset=".4" stop-color="#D8B885"/><stop offset="1" stop-color="#98714E"/></linearGradient>
+ <linearGradient id="ground" x2="0" y2="1"><stop stop-color="#25313C"/><stop offset="1" stop-color="#070D14"/></linearGradient>
+ <pattern id="star" width="83" height="57" patternUnits="userSpaceOnUse"><circle cx="16" cy="13" r=".8" fill="#E9DDC8" opacity=".14"/><circle cx="71" cy="46" r=".65" fill="#E9DDC8" opacity=".09"/></pattern>
+</defs>
+<rect width="1600" height="580" fill="url(#sky)"/><rect width="1600" height="580" fill="url(#star)"/>
+<ellipse cx="1235" cy="265" rx="455" ry="315" fill="url(#sun)"/>
+<!-- Distant, atmospheric mountains -->
+<path d="M0 401 L97 348 171 371 252 300 310 355 386 318 450 379 526 312 607 353 695 304 766 341 827 260 920 351 1047 286 1138 329 1226 237 1320 311 1410 254 1512 312 1600 281V580H0Z" fill="#657080" opacity=".23"/>
+<path d="M0 419 L78 382 162 410 287 354 369 389 493 340 601 402 692 345 781 390 891 330 982 370 1071 302 1153 373 1255 310 1335 366 1436 301 1535 347 1600 328V580H0Z" fill="#314354" opacity=".63"/>
+<path d="M0 461 Q230 417 366 439 Q542 400 720 438 Q860 416 1009 432 Q1128 386 1290 415 Q1430 385 1600 425V580H0Z" fill="#1A2936"/>
+<!-- River and roads -->
+<path d="M948 580C994 520 1059 509 1148 496S1310 456 1356 411" fill="none" stroke="#667B87" stroke-width="26" opacity=".26"/>
+<path d="M960 580C1001 520 1062 510 1150 496S1310 456 1356 411" fill="none" stroke="#BDAB91" stroke-width="2" opacity=".34"/>
+<path d="M1068 582Q1185 529 1234 491T1445 439" fill="none" stroke="#A98960" stroke-width="10" opacity=".14"/>
+<ellipse cx="1185" cy="469" rx="360" ry="80" fill="url(#mist)"/>
+<!-- Main citadel -->
+<g fill="#131E2A" stroke="#B6A080" stroke-opacity=".42">
+<path d="M1097 437V324H1122V292H1149V437Z"/><path d="M1091 324L1135 278L1157 324Z"/>
+<path d="M1165 435V273H1197V245H1230V434Z"/><path d="M1158 274L1213 208L1244 274Z"/>
+<path d="M1250 438V305H1281V270H1309V438Z"/><path d="M1244 305L1294 253L1321 305Z"/>
+<path d="M1116 351H1337V462H1116Z"/><path d="M1197 258V197H1219V258Z"/><path d="M1190 207L1208 162L1227 207Z"/>
+<path d="M1063 432V359H1096V432Z"/><path d="M1058 359L1080 326L1101 359Z"/>
+<path d="M1354 443V362H1384V442Z"/><path d="M1348 363L1369 331L1391 363Z"/>
+</g>
+<g fill="#BE9C6E" opacity=".66"><path d="M1199 344V315Q1208 296 1218 315V344Z"/><path d="M1180 406V376Q1190 361 1200 376V406Z"/><path d="M1285 383V358Q1294 347 1302 358V383Z"/><path d="M1133 389V370Q1141 355 1149 370V389Z"/><rect x="1234" y="391" width="5" height="12"/></g>
+<g fill="#ECD5A7" opacity=".78"><circle cx="1208" cy="162" r="3"/><circle cx="1135" cy="278" r="2"/><circle cx="1294" cy="253" r="2"/></g>
+<!-- Peripheral districts -->
+<g fill="#111A25" stroke="#8F806C" stroke-opacity=".35">
+<path d="M974 454V398H997V363H1017V453Z"/><path d="M968 398L1008 352L1025 398Z"/>
+<path d="M1465 472V401H1497V470Z"/><path d="M1459 401L1481 375L1505 401Z"/>
+<path d="M1401 467V421H1425V468Z"/><path d="M1394 421L1413 397L1431 421Z"/>
+</g>
+<!-- Foreground cliffs / walkway -->
+<path d="M0 505 Q132 492 249 507 Q338 495 478 515 Q595 502 710 526 Q900 495 1061 544 L1600 509V580H0Z" fill="url(#ground)"/>
+<path d="M0 507 Q148 496 255 508 Q387 500 480 517 Q639 506 750 529" fill="none" stroke="#A78E70" stroke-width="2" stroke-opacity=".25"/>
+<!-- Anonymous, faceless human silhouettes: NO facial features -->
+<g fill="#050A11" stroke="#0B121B" stroke-width="3">
+<g transform="translate(1076 478)"><circle cx="0" cy="-24" r="8"/><path d="M-11 -15L9 -15L21 42H-21Z"/><path d="M-8 32L-13 67H-3L3 38M9 32L12 67H21L19 36" stroke="#050A11" stroke-width="9" fill="none"/></g>
+<g transform="translate(1145 492) scale(.86)"><circle cx="0" cy="-24" r="8"/><path d="M-9 -15L9 -15L17 39H-18Z"/><path d="M-7 35L-8 69M9 35L13 69" stroke="#050A11" stroke-width="10" fill="none"/></g>
+<g transform="translate(1011 491) scale(.72)"><circle cx="0" cy="-24" r="8"/><path d="M-12 -15L10 -15L18 40H-19Z"/><path d="M-5 35L-9 71M7 35L9 71" stroke="#050A11" stroke-width="10" fill="none"/></g>
+</g>
+<!-- Clean service-first left content -->
+<rect x="74" y="79" width="58" height="2" fill="#CBA26D"/>
+<text x="74" y="66" fill="#D4BF9D" font-family="Arial, Helvetica, sans-serif" font-size="18" letter-spacing="5">AIR TRIO SECURITY LAB  /  PRODUCT</text>
+<text x="68" y="228" fill="url(#textgold)" font-family="Georgia, 'Times New Roman', serif" font-size="96" letter-spacing="4">MODUS FLOW</text>
+<text x="75" y="288" fill="#F7F3EB" font-family="Arial, Helvetica, sans-serif" font-size="28" letter-spacing=".4">Сервис, который превращает обращения в решения.</text>
+<text x="77" y="337" fill="#BBC3CD" font-family="Arial, Helvetica, sans-serif" font-size="21">Люди  ·  Команды  ·  Ответственность  ·  Знания</text>
+<rect x="75" y="367" width="197" height="48" rx="24" fill="none" stroke="#CAA575" stroke-opacity=".7"/>
+<text x="105" y="398" fill="#F1D6AB" font-family="Arial, Helvetica, sans-serif" font-size="15" letter-spacing="2.1">SERVICE FIRST</text>
+<text x="75" y="524" fill="#8E9AA6" font-family="Arial, Helvetica, sans-serif" font-size="14" letter-spacing="2">THE GREAT COMMONWEALTH  ·  VISUAL EXPERIENCE</text>
+</svg>

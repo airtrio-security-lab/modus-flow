@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="400" viewBox="0 0 1600 400" role="img" aria-label="Архитектура: веб-клиент, API, PostgreSQL, визуальный слой по фактическим данным">
+<defs><linearGradient id="bg" x2="1" y2="1"><stop stop-color="#0C1727"/><stop offset="1" stop-color="#142136"/></linearGradient></defs>
+<rect width="1600" height="400" rx="22" fill="url(#bg)"/>
+<g font-family="Arial, Helvetica, sans-serif">
+<text x="53" y="60" fill="#E6D0AD" font-size="24" font-weight="bold" letter-spacing="2">СЛОИ СИСТЕМЫ</text>
+<text x="54" y="87" fill="#9AABB9" font-size="16">Корпоративные события определяют состояние. Визуальный мир его отображает.</text>
+<g stroke="#647287" stroke-opacity=".75">
+<rect x="55" y="121" width="320" height="174" rx="18" fill="#1C2A3B"/><rect x="443" y="121" width="320" height="174" rx="18" fill="#1C2A3B"/>
+<rect x="831" y="121" width="320" height="174" rx="18" fill="#1C2A3B"/><rect x="1219" y="121" width="320" height="174" rx="18" fill="#1C2A3B"/>
+</g>
+<g fill="#EDE8DF" font-weight="bold" font-size="26">
+<text x="82" y="167">01 / Интерфейс</text><text x="470" y="167">02 / API</text><text x="857" y="167">03 / Правила</text><text x="1247" y="167">04 / Данные</text>
+</g>
+<g fill="#B1C0CD" font-size="17">
+<text x="82" y="211">Обращения · Задачи</text><text x="82" y="237">Советы · Библиотека</text><text x="82" y="263">Десктоп · Телефон</text>
+<text x="470" y="211">Маршрутизация</text><text x="470" y="237">Проверка полномочий</text><text x="470" y="263">Идемпотентность</text>
+<text x="857" y="211">Решения людей</text><text x="857" y="237">Доказательства</text><text x="857" y="263">XP из фактов</text>
+<text x="1247" y="211">PostgreSQL + RLS</text><text x="1247" y="237">Журнал и история</text><text x="1247" y="263">Знания и права</text>
+</g>
+<g stroke="#D7B47E" stroke-width="2.2" fill="none"><path d="M378 207h58"/><path d="M428 199l8 8-8 8"/><path d="M766 207h58"/><path d="M816 199l8 8-8 8"/><path d="M1153 207h59"/><path d="M1204 199l8 8-8 8"/></g>
+<rect x="55" y="319" width="1484" height="51" rx="13" fill="#233041" stroke="#5B6572" stroke-opacity=".55"/>
+<text x="78" y="351" fill="#E2C392" font-size="19" font-weight="bold">ВИЗУАЛЬНЫЙ СЛОЙ</text>
+<text x="359" y="351" fill="#D4DDE6" font-size="18">Сейчас в рабочей ветке: React/SVG</text>
+<text x="906" y="351" fill="#B1C0CD" font-size="17">Развитие: 3D-сцена · Three.js / R3F</text>
+</g></svg>
