@@ -807,3 +807,5 @@ button.ts:hover { border-color: var(--accent); color: var(--accent-ink); }
 .finding-type.t-idea, .finding-type.t-proposed_solution, .finding-type.t-task { background: var(--accent-tint); color: var(--accent-ink); }
 .finding-type.t-open_question, .finding-type.t-insight { background: var(--amber-tint); color: var(--amber); }
 .origin { background: #fbfaf6; }
+.retention-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 12px; }
+.retention-list li { display: grid; gap: 6px; padding: 10px 0; border-top: 1px solid var(--line); }

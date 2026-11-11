@@ -26,6 +26,7 @@ import * as council from '../modules/council.ts';
 import * as advisor from '../modules/advisor.ts';
 import * as meetings from '../modules/meetings.ts';
 import * as titles from '../modules/titles.ts';
+import * as retention from '../modules/retention.ts';
 import type { TranscribeConfig } from '../modules/transcribe.ts';
 import { engineReachable } from '../modules/transcribe.ts';
 import type { ModelConfig } from '../modules/advisor-model.ts';
@@ -427,6 +428,10 @@ export function createApp(config: AppConfig) {
     z.object({}).strict().parse(await ctx.body());
     return { status: 200, body: await meetings.decideFinding(db, actor, ctx.params.id!, ctx.params.f!, ctx.params.what === 'note' ? 'noted' : 'dismissed') };
   });
+  route('GET', `${ORG}/retention`, async (ctx) => ({ status: 200, body: await retention.retentionOverview(db, await org(ctx)) }));
+  json('PUT', '/retention', retention.RetentionInput, (a, i) => retention.setRetention(db, a, i));
+  json('POST', `/meetings/(?<id>${UUID})/purge`, retention.PurgeInput, (a, i, p) => retention.purgeMedia(db, a, p.id!, i));
+  json('POST', `/meetings/(?<id>${UUID})/legal-hold`, retention.HoldInput, (a, i, p) => retention.setLegalHold(db, a, p.id!, i));
   route('GET', `${IDEA}/origin`, async (ctx) => ({ status: 200, body: await meetings.itemOrigin(db, await org(ctx), NumberParam.parse(ctx.params.number)) }));
   step('/effect', progress.EffectInput, (a, n, i, _p, k) => progress.approveEffect(db, a, n, i, k));
   route('GET', `${ORG}/analytics`, async (ctx) => ({

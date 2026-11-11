@@ -1,3 +1,4 @@
+import { RetentionSettings } from '../components/Retention';
 import { useEffect, useState } from 'react';
 import { api, errorText } from '../lib/api';
 import { useLoad, useSession } from '../lib/session';
@@ -130,6 +131,7 @@ export function Settings() {
           <AddByName label="Новое подразделение" min={2} onAdd={(n) => send('/departments', 'POST', { name: n }, 'Подразделение добавлено')} />
         </section>
       </div>
+      <RetentionSettings />
     </div>
   );
 

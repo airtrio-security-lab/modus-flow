@@ -19,12 +19,12 @@ export function ItemOrigin({ number }: { number: number }) {
     <section className="panel stack origin" aria-label="Откуда взялось обращение">
       <p className="small">
         <b>Возникло на заседании</b> <a href={`#/meetings/${data.meetingId}${data.startMs !== null ? `?t=${data.startMs}` : ''}`}>«{data.title}»</a>
-        {data.startMs !== null ? <> · ▶ {fmt(data.startMs)}</> : null}
+        {data.startMs !== null ? <> · {data.recordingAvailable ? '▶ ' : ''}{fmt(data.startMs)}{data.recordingAvailable === false ? ' (запись удалена по сроку хранения)' : ''}</> : null}
         {data.speaker ? ` · говорит ${data.speaker}` : ''}
       </p>
       <blockquote className="quote-block">{data.quote}</blockquote>
       <p className="small muted">
-        {data.transcriptSource === 'prepared' ? 'По подготовленной расшифровке (демо). ' : data.transcriptSource === 'manual' ? 'По расшифровке, введённой вручную. ' : 'По расшифровке локального движка. '}
+        {data.transcriptSource === 'prepared' ? 'По подготовленной расшифровке (демо). ' : data.transcriptSource === 'manual' ? 'По расшифровке, введённой вручную. ' : data.transcriptSource === 'minutes' ? 'По письменному протоколу (без записи). ' : 'По расшифровке локального движка. '}
         {data.confirmedBy ? `Подтвердил(а) ${data.confirmedBy}${data.confirmedAt ? `, ${dateTime(data.confirmedAt)}` : ''}.` : ''}
       </p>
     </section>

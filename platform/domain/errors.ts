@@ -5,6 +5,7 @@ export const ERROR_STATUS = {
   forbidden: 403,
   not_found: 404,
   conflict: 409,
+  gone: 410,
   idempotency_mismatch: 409,
   invalid_transition: 409,
   checks_failed: 409,

@@ -559,8 +559,9 @@ export interface MeetingView {
   participants: { membershipId: string; name: string; jobTitle: string | null; department: string | null; consent: Consent; consentAt: string | null }[];
   myConsent: Consent | null;
   allConsented: boolean;
-  recording: { source: 'microphone' | 'upload'; contentType: string; sizeBytes: number; durationMs: number | null; sha256: string; createdAt: string; uploadedBy: string } | null;
-  transcripts: { id: string; source: 'engine' | 'manual' | 'prepared'; engine: string | null; text: string; sha256: string; createdAt: string; createdBy: string }[];
+  recording: { source: 'microphone' | 'upload'; contentType: string; sizeBytes: number; durationMs: number | null; sha256: string; createdAt: string; uploadedBy: string; purgedAt: string | null } | null;
+  legalHold?: boolean;
+  transcripts: { id: string; source: 'engine' | 'manual' | 'prepared' | 'minutes'; engine: string | null; text: string; sha256: string; createdAt: string; createdBy: string; purgedAt: string | null }[];
   analyses: { id: string; transcriptId: string; method: 'rules' | 'model'; model: string | null; createdAt: string; createdBy: string }[];
   findings: MeetingFinding[];
   engine: { configured: boolean; model: string | null };
@@ -575,7 +576,8 @@ export interface ItemOrigin {
   type: FindingType;
   speaker: string | null;
   confidence: string | null;
-  transcriptSource: 'engine' | 'manual' | 'prepared';
+  transcriptSource: 'engine' | 'manual' | 'prepared' | 'minutes';
+  recordingAvailable: boolean | null;
   confirmedBy: string | null;
   confirmedAt: string | null;
 }

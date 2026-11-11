@@ -42,6 +42,7 @@ const SOURCE_LABEL = {
   engine: (e: string | null) => `Расшифровано движком ${e ?? ''} на этом компьютере`,
   manual: () => 'Расшифровка введена вручную',
   prepared: () => 'Подготовленная расшифровка для демонстрации — не распознана из этой записи',
+  minutes: () => 'Письменный протокол заседания — запись не велась',
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -259,7 +260,9 @@ export function MeetingPage({ id }: { id: string }) {
             <h2 id="rec-h" className="section-title">
               Запись
             </h2>
-            {data.recording ? (
+            {data.recording?.purgedAt ? (
+              <p className="notice">Запись удалена {dateTime(data.recording.purgedAt)}: истёк срок хранения или её удалил администратор. Решения и подтверждённые находки сохранены.</p>
+            ) : data.recording ? (
               <>
                 <AudioPlayer meetingId={data.id} audioRef={player} />
                 <p className="small muted">
@@ -271,9 +274,13 @@ export function MeetingPage({ id }: { id: string }) {
             ) : data.can.record ? (
               <Recorder meetingId={data.id} onSaved={reload} />
             ) : organizer ? (
-              <p className="notice warn">
-                Запись станет доступна, когда согласие дадут все: ждём {waiting.map((p) => `${p.name} (${CONSENT[p.consent].label})`).join(', ')}.
-              </p>
+              <div className="stack">
+                <p className="notice warn">
+                  Запись станет доступна, когда согласие дадут все: ждём {waiting.map((p) => `${p.name} (${CONSENT[p.consent].label})`).join(', ')}. Согласие каждый
+                  даёт только сам.
+                </p>
+                <p className="small">Можно провести заседание без записи: ведите письменный протокол в разделе «Расшифровка» ниже — согласие на запись для этого не нужно.</p>
+              </div>
             ) : (
               <p className="small muted">Запись ведёт организатор. {waiting.length ? `Согласие ещё не дали: ${waiting.map((p) => p.name).join(', ')}.` : 'Все участники дали согласие.'}</p>
             )}
@@ -612,7 +619,7 @@ function TranscriptPanel({ view, onDone, onSeek }: { view: MeetingView; onDone: 
   const s = useSession();
   const t = view.transcripts.at(-1) ?? null;
   const [text, setText] = useState('');
-  const [source, setSource] = useState<'manual' | 'prepared'>('manual');
+  const [source, setSource] = useState<'manual' | 'prepared' | 'minutes'>(view.recording ? 'manual' : 'minutes');
   const [busy, setBusy] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [open, setOpen] = useState(!t);
@@ -635,7 +642,7 @@ function TranscriptPanel({ view, onDone, onSeek }: { view: MeetingView; onDone: 
   return (
     <section className="panel stack" aria-labelledby="tr-h">
       <h2 id="tr-h" className="section-title">
-        Расшифровка
+        {view.recording ? 'Расшифровка' : 'Расшифровка или письменный протокол'}
       </h2>
       {t ? (
         <>
@@ -646,7 +653,7 @@ function TranscriptPanel({ view, onDone, onSeek }: { view: MeetingView; onDone: 
               const at = m ? (Number(m[1]) * 60 + Number(m[2])) * 1000 : null;
               return (
                 <li key={i}>
-                  {at !== null && view.recording ? (
+                  {at !== null && view.recording && !view.recording.purgedAt ? (
                     <button type="button" className="ts" onClick={() => onSeek(at)} aria-label={`Прослушать с ${m![1]}:${m![2]}`}>
                       ▶ {m![1]}:{m![2]}
                     </button>
@@ -685,7 +692,7 @@ function TranscriptPanel({ view, onDone, onSeek }: { view: MeetingView; onDone: 
             <div className="stack">
               <div className="field">
                 <div className="spread">
-                  <label htmlFor="tr-text">Текст расшифровки: строки вида «[мм:сс] Имя Фамилия: реплика»</label>
+                  <label htmlFor="tr-text">{source === 'minutes' ? 'Протокол: строки вида «Имя Фамилия: что сказано», пункты под «Решили:»' : 'Текст расшифровки: строки вида «[мм:сс] Имя Фамилия: реплика»'}</label>
                   <button
                     type="button"
                     className="btn quiet small"
@@ -702,7 +709,10 @@ function TranscriptPanel({ view, onDone, onSeek }: { view: MeetingView; onDone: 
               <fieldset className="field">
                 <legend>Откуда текст</legend>
                 <label className="check">
-                  <input type="radio" name="tr-src" checked={source === 'manual'} onChange={() => setSource('manual')} /> Набран вручную по записи или заметкам
+                  <input type="radio" name="tr-src" checked={source === 'minutes'} onChange={() => setSource('minutes')} /> Письменный протокол заседания без записи
+                </label>
+                <label className="check">
+                  <input type="radio" name="tr-src" checked={source === 'manual'} onChange={() => setSource('manual')} /> Расшифровка, набранная вручную по записи
                 </label>
                 <label className="check">
                   <input type="radio" name="tr-src" checked={source === 'prepared'} onChange={() => setSource('prepared')} /> Подготовленная расшифровка (демо) — будет так и помечена
@@ -841,7 +851,7 @@ function FindingCard({ view, f, onDone, onSeek }: { view: MeetingView; f: Meetin
         <h3 id={fid('h')} className="finding-h">
           <span className={`finding-type t-${f.type}`}>{FINDING_LABEL[f.type]}</span> {f.title}
         </h3>
-        {f.startMs !== null && view.recording ? (
+        {f.startMs !== null && view.recording && !view.recording.purgedAt ? (
           <button type="button" className="ts" onClick={() => onSeek(f.startMs!)} aria-label={`Прослушать фрагмент с ${fmt(f.startMs)}`}>
             ▶ {fmt(f.startMs)}
           </button>

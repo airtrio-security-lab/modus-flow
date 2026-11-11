@@ -186,22 +186,24 @@ export async function uploadRecording(
 
 export async function downloadRecording(db: Database, actor: OrgActor, meetingId: string) {
   return withTx(db, orgTx(actor), async (c) => {
-    const { rows } = await c.query<{ content_type: string; data: Buffer; sha256: string }>(
+    const { rows } = await c.query<{ content_type: string; data: Buffer | null; sha256: string }>(
       'SELECT content_type, data, sha256 FROM meeting_recordings WHERE meeting_id = $1',
       [meetingId],
     );
     if (!rows[0]) throw notFound('Записи нет или нет доступа');
+    if (!rows[0].data) throw new AppError('gone', 'Запись удалена: истёк срок хранения или её удалил администратор');
     await audit(c, { orgId: actor.orgId, actorUserId: actor.userId, action: 'meeting.recording_played', entityType: 'meeting', entityId: meetingId, data: {} });
-    return { contentType: rows[0].content_type, data: rows[0].data, sha256: rows[0].sha256 };
+    return { contentType: rows[0].content_type, data: rows[0].data!, sha256: rows[0].sha256 };
   });
 }
 
 // ---------------------------------------------------------------------------
 // Transcripts
 // ---------------------------------------------------------------------------
-export const TranscriptInput = z.object({ text: z.string().min(20).max(100000), source: z.enum(['manual', 'prepared']) }).strict();
+/** minutes = a written protocol of a meeting held without recording (no consent needed: nothing is recorded). */
+export const TranscriptInput = z.object({ text: z.string().min(20).max(100000), source: z.enum(['manual', 'prepared', 'minutes']) }).strict();
 
-async function storeTranscript(c: Client, actor: OrgActor, meetingId: string, body: string, source: 'engine' | 'manual' | 'prepared', engine: string | null) {
+async function storeTranscript(c: Client, actor: OrgActor, meetingId: string, body: string, source: 'engine' | 'manual' | 'prepared' | 'minutes', engine: string | null) {
   const clean = body.replace(/\r\n?/g, '\n');
   const hash = sha256(clean);
   const existing = await c.query<{ id: string }>('SELECT id FROM meeting_transcripts WHERE meeting_id = $1 AND sha256 = $2', [meetingId, hash]);
@@ -241,11 +243,12 @@ export async function analyze(db: Database, actor: OrgActor, meetingId: string, 
   if (!isLead(actor)) throw forbidden('Анализ запускает руководитель — участник заседания');
   const t = await withTx(db, orgTx(actor), async (c) => {
     const m = await loadMeeting(c, meetingId);
-    const { rows } = await c.query<{ id: string; text: string; sha256: string }>(
-      'SELECT id, text, sha256 FROM meeting_transcripts WHERE id = $1 AND meeting_id = $2',
+    const { rows } = await c.query<{ id: string; text: string; sha256: string; purged_at: Date | null }>(
+      'SELECT id, text, sha256, purged_at FROM meeting_transcripts WHERE id = $1 AND meeting_id = $2',
       [input.transcriptId, meetingId],
     );
     if (!rows[0]) throw notFound('Расшифровка не найдена');
+    if (rows[0].purged_at) throw new AppError('gone', 'Расшифровка удалена по сроку хранения');
     const done = await c.query<{ id: string }>('SELECT id FROM meeting_protocols WHERE transcript_id = $1 AND method = $2', [input.transcriptId, input.method]);
     return { meeting: m, transcript: rows[0], existing: done.rows[0]?.id ?? null };
   });
@@ -407,7 +410,7 @@ export async function getMeeting(db: Database, actor: OrgActor, id: string, deps
       await c.query(
         `SELECT m.id, m.title, m.scope, m.department_id AS "departmentId", d.name AS department, i.number AS "ideaNumber",
                 m.organizer_membership_id AS "organizerMembershipId", o.display_name AS organizer, m.created_at AS "createdAt",
-                m.recording_started_at AS "recordingStartedAt", m.ended_at AS "endedAt"
+                m.recording_started_at AS "recordingStartedAt", m.ended_at AS "endedAt", m.legal_hold AS "legalHold"
            FROM meetings m JOIN employees o ON o.membership_id = m.organizer_membership_id
            LEFT JOIN departments d ON d.id = m.department_id LEFT JOIN ideas i ON i.id = m.idea_id
           WHERE m.id = $1 AND m.organization_id = app_org_id()`,
@@ -424,13 +427,13 @@ export async function getMeeting(db: Database, actor: OrgActor, id: string, deps
     const recording = (
       await c.query(
         `SELECT r.source, r.content_type AS "contentType", r.size_bytes AS "sizeBytes", r.duration_ms AS "durationMs", r.sha256,
-                r.created_at AS "createdAt", e.display_name AS "uploadedBy"
+                r.created_at AS "createdAt", e.display_name AS "uploadedBy", r.purged_at AS "purgedAt"
            FROM meeting_recordings r JOIN employees e ON e.membership_id = r.uploaded_by_membership_id WHERE r.meeting_id = $1`,
         [id],
       )
     ).rows[0] ?? null;
     const transcripts = await c.query(
-      `SELECT t.id, t.source, t.engine, t.text, t.sha256, t.created_at AS "createdAt", e.display_name AS "createdBy"
+      `SELECT t.id, t.source, t.engine, t.text, t.sha256, t.created_at AS "createdAt", e.display_name AS "createdBy", t.purged_at AS "purgedAt"
          FROM meeting_transcripts t JOIN employees e ON e.membership_id = t.created_by_membership_id
         WHERE t.meeting_id = $1 ORDER BY t.created_at`,
       [id],
@@ -470,7 +473,7 @@ export async function getMeeting(db: Database, actor: OrgActor, id: string, deps
         consent: !!me && !m.recordingStartedAt,
         record: organizer && allConsented && !recording,
         review: isLead(actor),
-        transcribe: isLead(actor) && !!recording && !!deps.engine,
+        transcribe: isLead(actor) && !!recording && !(recording as { purgedAt?: unknown }).purgedAt && !!deps.engine,
         addTranscript: isLead(actor),
       },
     };
@@ -483,7 +486,8 @@ export async function itemOrigin(db: Database, actor: OrgActor, number: number) 
     const idea = await loadIdea(c, number);
     const { rows } = await c.query(
       `SELECT m.id AS "meetingId", m.title, k.audio_start_ms AS "startMs", k.quote, k.finding_type AS type, k.speaker_label AS speaker,
-              k.confidence, t.source AS "transcriptSource", d.display_name AS "confirmedBy", k.decided_at AS "confirmedAt"
+              k.confidence, t.source AS "transcriptSource", d.display_name AS "confirmedBy", k.decided_at AS "confirmedAt",
+              (SELECT r.purged_at IS NULL FROM meeting_recordings r WHERE r.meeting_id = m.id) AS "recordingAvailable"
          FROM protocol_candidates k
          JOIN meeting_protocols p ON p.id = k.protocol_id JOIN meeting_transcripts t ON t.id = p.transcript_id
          JOIN meetings m ON m.id = t.meeting_id LEFT JOIN employees d ON d.membership_id = k.decided_by_membership_id
