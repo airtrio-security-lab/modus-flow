@@ -1,8 +1,9 @@
-import { api } from '../lib/api';
+import { useEffect, useState } from 'react';
+import { api, errorText } from '../lib/api';
 import { ThemeToggle } from '../lib/env';
 import { LiteToggle } from '../lib/lite';
 import { useLoad, useSession } from '../lib/session';
-import type { Contribution } from '../lib/types';
+import type { Contribution, EmployeeProfile } from '../lib/types';
 import { ErrorBox, Loading, PageHead, StatusChip } from '../components/ui';
 
 /**
@@ -102,6 +103,8 @@ export function Profile() {
         </div>
       ) : null}
 
+      <Questionnaire />
+
       <section className="panel stack">
         <h2 className="section-title">Настройки на этом устройстве</h2>
         <div className="row">
@@ -113,5 +116,84 @@ export function Profile() {
         </div>
       </section>
     </div>
+  );
+}
+
+/**
+ * Short questionnaire for MODUS ADVISOR (ADR-0013): skills, preferences and
+ * hours a week. Seen by the person and by leads who pick executors, never by
+ * colleagues. Nothing here is filled in automatically.
+ */
+function Questionnaire() {
+  const s = useSession();
+  const { data, error, reload } = useLoad(() => api<EmployeeProfile>(`/orgs/${s.org}/me/profile`), [s.org]);
+  const [skills, setSkills] = useState('');
+  const [prefs, setPrefs] = useState('');
+  const [hours, setHours] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  useEffect(() => {
+    if (!data) return;
+    setSkills(data.skills.join(', '));
+    setPrefs(data.preferences ?? '');
+    setHours(data.weeklyHours === null ? '' : String(data.weeklyHours));
+  }, [data]);
+  const list = skills
+    .split(/[,;\n]/)
+    .map((x) => x.trim())
+    .filter(Boolean);
+  const tooShort = list.some((x) => x.length < 2 || x.length > 40);
+  const h = hours.trim() === '' ? null : Number(hours);
+  const badHours = h !== null && (!Number.isInteger(h) || h < 0 || h > 60);
+
+  async function save(e: React.FormEvent) {
+    e.preventDefault();
+    if (busy || tooShort || badHours || list.length > 12) return;
+    setBusy(true);
+    setErr(null);
+    try {
+      await api(`/orgs/${s.org}/me/profile`, { method: 'PUT', json: { skills: list, preferences: prefs.trim() || undefined, weeklyHours: h } });
+      await reload();
+      s.toast('Анкета сохранена');
+    } catch (x) {
+      setErr(errorText(x));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <form className="panel stack" onSubmit={(e) => void save(e)} noValidate aria-labelledby="q-h">
+      <h2 id="q-h" className="section-title">
+        Анкета: в чём я могу помочь
+      </h2>
+      <p className="small muted">
+        По анкете помощник Совета предлагает руководителю, кому поручить внедрение. Анкету видите вы и руководители, которые подбирают исполнителей;
+        коллеги её не видят.
+      </p>
+      {error ? <p className="notice error">{errorText(error)}</p> : null}
+      <div className="field">
+        <label htmlFor="q-skills">Навыки и темы, через запятую</label>
+        <input id="q-skills" className="input" value={skills} onChange={(e) => setSkills(e.target.value)} placeholder="Сканеры, принтеры этикеток, 1С склад" />
+        <span className="hint">{list.length > 12 ? 'Не больше 12 навыков' : tooShort ? 'Каждый навык — от 2 до 40 символов' : `${list.length} из 12`}</span>
+      </div>
+      <div className="grid-2">
+        <div className="field">
+          <label htmlFor="q-prefs">Что хотелось бы делать</label>
+          <textarea id="q-prefs" className="textarea" rows={2} maxLength={500} value={prefs} onChange={(e) => setPrefs(e.target.value)} placeholder="Настройка оборудования, утренние смены" />
+        </div>
+        <div className="field">
+          <label htmlFor="q-hours">Часов в неделю на улучшения</label>
+          <input id="q-hours" className="input" inputMode="numeric" value={hours} onChange={(e) => setHours(e.target.value)} placeholder="Например, 4" />
+          <span className="hint">{badHours ? 'Целое число от 0 до 60' : '0 — сейчас не готов(а) брать задачи'}</span>
+        </div>
+      </div>
+      {err ? <p className="notice error">{err}</p> : null}
+      <div>
+        <button type="submit" className="btn primary" disabled={busy || tooShort || badHours || list.length > 12}>
+          {busy ? 'Сохраняем…' : 'Сохранить анкету'}
+        </button>
+      </div>
+    </form>
   );
 }

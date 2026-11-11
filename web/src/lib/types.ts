@@ -410,3 +410,73 @@ export interface CouncilListRow {
 export interface Contribution {
   items: { number: number; title: string; status: Status; department: string | null; authored: boolean; credited: boolean; xp: number }[];
 }
+
+// ---- MODUS ADVISOR (0008, ADR-0013) ----------------------------------------
+export interface AdvisorStatus {
+  rules: { available: boolean; label: string };
+  model: { configured: boolean; provider: string | null; model: string | null; reachable: boolean };
+  note: string;
+}
+export interface EmployeeProfile {
+  skills: string[];
+  preferences: string | null;
+  weeklyHours: number | null;
+  updatedAt: string | null;
+}
+export interface ProtocolRow {
+  id: string;
+  title: string;
+  method: 'rules' | 'model';
+  model: string | null;
+  createdAt: string;
+  createdBy: string;
+  total: number;
+  proposed: number;
+  accepted: number;
+}
+export interface ProtocolCandidate {
+  id: string;
+  ord: number;
+  quoteStart: number;
+  quoteEnd: number;
+  quote: string;
+  title: string;
+  kind: Kind;
+  raiser: string | null;
+  status: 'proposed' | 'accepted' | 'dismissed';
+  itemNumber: number | null;
+  decidedBy: string | null;
+  decidedAt: string | null;
+}
+export interface ProtocolView {
+  id: string;
+  title: string;
+  text: string;
+  sha256: string;
+  method: 'rules' | 'model';
+  model: string | null;
+  methodLabel: string;
+  createdAt: string;
+  createdBy: string;
+  candidates: ProtocolCandidate[];
+  canDecide: boolean;
+}
+export interface ExecutorSuggestion {
+  membershipId: string;
+  name: string;
+  jobTitle: string | null;
+  department: string | null;
+  skills: string[];
+  matched: string[];
+  weeklyHours: number | null;
+  load: number;
+  reasons: string[];
+}
+export interface ExecutorView {
+  method: string;
+  explanation: string;
+  profiles: number;
+  suggestions: ExecutorSuggestion[];
+  confirmed: { candidate: string; name: string; confirmedBy: string; createdAt: string; reasons: string[] }[];
+  canConfirm: boolean;
+}

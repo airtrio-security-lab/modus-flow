@@ -1,6 +1,7 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import { createDatabase, withAdminTx, type Database } from '../db/pool.ts';
+import { saveMyProfile } from '../modules/advisor.ts';
 import { migrate } from '../db/migrate.ts';
 import type { OrgActor, OrgRole } from '../domain/model.ts';
 import * as admin from '../modules/admin.ts';
@@ -387,6 +388,12 @@ async function main() {
     }
   });
   const esc = await db.pool.query<{ n: number }>('SELECT escalate_overdue() AS n');
+
+  // ---- questionnaires for MODUS ADVISOR (fictional, filled «by the people themselves») ----
+  await saveMyProfile(db, itLead, { skills: ['Сканеры', 'Принтеры этикеток', 'Настройка ТСД', '1С склад'], preferences: 'Автоматизация рутинных операций', weeklyHours: 6 });
+  await saveMyProfile(db, engineer, { skills: ['Сканеры', 'Ремонт оборудования', 'Принтеры'], preferences: 'Выездные работы, оборудование', weeklyHours: 3 });
+  await saveMyProfile(db, storekeeper, { skills: ['Приёмка', 'Этикетки', 'Инвентаризация'], preferences: 'Утренние смены', weeklyHours: 2 });
+  await saveMyProfile(db, designer, { skills: ['Чертежи', 'Спецификации'], weeklyHours: 0 });
 
   const personas = [owner, ops, whHead, itLead, storekeeper, engineer, sysAdmin].map((p) => ({
     userId: p.userId,

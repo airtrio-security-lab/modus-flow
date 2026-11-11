@@ -160,6 +160,14 @@ lost, everyone sees the stage, the owner sees what needs attention. Migrations 0
 | GET | `/api/v1/orgs/:org/ideas/:n/council` | the round table: item, seats with real roles and stance, entries, decisions, questions to the author, similar items, `can` flags for the caller |
 | POST | `…/ideas/:n/council/entries` | `{kind: argument_for\|argument_against\|recommendation\|dissent, recommendation?, body}`; originators argue but never recommend; open stages only; append-only |
 | POST | `…/ideas/:n/council/handoff` | maintainer (not an originator) → stage `decision`, the decision owner is notified |
+| GET | `/api/v1/orgs/:org/advisor/status` | members; which method works: rules (always, «без ИИ») and the optional local model (configured, reachable). ADR-0013 |
+| GET / PUT | `/api/v1/orgs/:org/me/profile` | own questionnaire: `{skills ≤ 12, preferences?, weeklyHours 0–60}`; leads read others' via suggestions only |
+| GET / POST | `/api/v1/orgs/:org/protocols` | leads; POST `{title, text ≤ 20 000, method: rules\|model}` stores the text verbatim + SHA-256 and the candidates with exact quotes; idempotent |
+| GET | `/api/v1/orgs/:org/protocols/:id` | source text, method label, candidates with offsets, status, item number, who decided |
+| POST | `…/protocols/:id/candidates/:c/accept` | lead confirms `{kind, title, problem, proposal?, categoryId?, departmentId?, raisedBy?}` → ordinary item, `source_channel = meeting`, no XP |
+| POST | `…/protocols/:id/candidates/:c/dismiss` | lead; kept as history |
+| GET | `…/ideas/:n/executors` | maintainer / decision owner: suggestions from questionnaires with reasons, confirmed people |
+| POST | `…/ideas/:n/executors` | `{candidate, reasons[]}`; maintainer or decision owner, not an originator; once per person; does not set the implementer |
 | GET | `…/ideas/:n/progress` | XP awarded for the item, effect approval, whether the caller may approve it |
 | POST | `…/ideas/:n/effect` | decision owner, not an originator, after a confirmed implementation: `{xp ≤ xpEffectMax, rationale ≥ 20}`, once |
 

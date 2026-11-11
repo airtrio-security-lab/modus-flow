@@ -28,7 +28,7 @@ the rules name a responsible person; everything is logged.
   the originators; hand-off to the decision owner only by the maintainer (stage `review → decision`).
   Entries never change a status. Asking the author, starting a pilot and deciding remain the existing
   workflow steps with their existing rights. The page states who decides.
-* **AI advisor: not implemented.** No AI service is connected and none was approved (paid services need
+* **AI advisor: superseded by ADR-0013** (minimal advisor, rules labelled «без ИИ», optional local model). Original note: No AI service is connected and none was approved (paid services need
   the owner's consent). The Council shows similar items from text search and says that the advisor is
   not connected. If added later, its output is labelled as a recommendation and it may not close items,
   award XP, assign credit or decide.

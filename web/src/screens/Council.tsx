@@ -6,6 +6,8 @@ import { useLoad, useSession } from '../lib/session';
 import { STATUS } from '../lib/status';
 import type { CouncilEntry, CouncilListRow, CouncilRole, CouncilSeat, CouncilView, Recommendation, Stance } from '../lib/types';
 import { ErrorBox, Loading, PageHead, StatusChip } from '../components/ui';
+import { AdvisorPanel, advisorMethodLine, useAdvisorStatus } from '../components/Advisor';
+import type { ExecutorView } from '../lib/types';
 
 /**
  * «Совет королевства» — the round table (owner brief 2026-11-11, ADR-0012).
@@ -151,6 +153,7 @@ export function RoundTable({ number }: { number: number }) {
   const s = useSession();
   const { data, error, loading, reload } = useLoad(() => api<CouncilView>(`/orgs/${s.org}/ideas/${number}/council`), [s.org, number]);
   const [seat, setSeat] = useState<string | null>(null);
+  const advisorLine = advisorMethodLine(useAdvisorStatus());
   const { ref, w } = useWidth();
   const done = async (text: string) => {
     s.toast(text);
@@ -166,6 +169,7 @@ export function RoundTable({ number }: { number: number }) {
   const compact = data.seats.length > 10 || w < 560;
   const selected = data.seats.find((x) => x.membershipId === seat) ?? null;
   const resolution = due(it.resolutionDueAt);
+  const leads = data.seats.some((x) => x.membershipId === s.membershipId && (x.roles.includes('maintainer') || x.roles.includes('decision_owner')));
 
   return (
     <div className="stack-lg">
@@ -201,9 +205,9 @@ export function RoundTable({ number }: { number: number }) {
       <div className="council">
         <div className="council-scene" ref={ref}>
           {compact ? (
-            <SeatList seats={data.seats} selected={seat} onSelect={setSeat} />
+            <SeatList seats={data.seats} selected={seat} onSelect={setSeat} advisor={advisorLine} />
           ) : (
-            <TableScene view={data} selected={seat} onSelect={setSeat} />
+            <TableScene view={data} selected={seat} onSelect={setSeat} advisor={advisorLine} />
           )}
           <Journal view={data} />
         </div>
@@ -237,6 +241,8 @@ export function RoundTable({ number }: { number: number }) {
 
           <ResponsibleActions view={data} onDone={done} />
 
+          <AdvisorPanel number={it.number} leads={leads} onDone={done} />
+
           <section className="panel stack">
             <h2 className="section-title">Похожие обращения</h2>
             {data.similar.length ? (
@@ -253,7 +259,7 @@ export function RoundTable({ number }: { number: number }) {
             ) : (
               <p className="small muted">Похожих по названию нет.</p>
             )}
-            <p className="small muted">Найдены поиском по совпадению текста. ИИ-советник в этой версии не подключён.</p>
+            <p className="small muted">Найдены по совпадению слов в названии — это поиск, не ИИ.</p>
           </section>
         </aside>
       </div>
@@ -261,11 +267,12 @@ export function RoundTable({ number }: { number: number }) {
   );
 }
 
-function TableScene({ view, selected, onSelect }: { view: CouncilView; selected: string | null; onSelect: (id: string | null) => void }) {
+function TableScene({ view, selected, onSelect, advisor }: { view: CouncilView; selected: string | null; onSelect: (id: string | null) => void; advisor: string }) {
   const W = 760;
-  const H = 660;
+  const H0 = 660; // the room; a strip below it holds the advisor's place
+  const H = H0 + 84;
   const cx = W / 2;
-  const cy = H / 2 + 6;
+  const cy = H0 / 2 + 6;
   const n = view.seats.length;
   const title = view.item.title.length > 30 ? `${view.item.title.slice(0, 29)}…` : view.item.title;
   return (
@@ -303,7 +310,44 @@ function TableScene({ view, selected, onSelect }: { view: CouncilView; selected:
         const y = cy - 34 + 216 * Math.sin(a);
         return <SeatMark key={seat.membershipId} seat={seat} x={x} y={y} selected={selected === seat.membershipId} onSelect={() => onSelect(selected === seat.membershipId ? null : seat.membershipId)} />;
       })}
+      <AdvisorSeat x={cx} y={H - 46} line={advisor} />
     </svg>
+  );
+}
+
+/** The advisor's place: a dashed chair at the edge of the room — it advises, it has no vote. */
+function AdvisorSeat({ x, y, line }: { x: number; y: number; line: string }) {
+  const open = () => {
+    const el = document.getElementById('advisor');
+    el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    el?.focus({ preventScroll: true });
+  };
+  return (
+    <g
+      className="seat advisor-seat"
+      transform={`translate(${x} ${y})`}
+      role="button"
+      tabIndex={0}
+      aria-label={`Помощник Совета: ${line}. Без права голоса. Открыть подбор исполнителей`}
+      onClick={open}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          open();
+        }
+      }}
+    >
+      <rect x="-80" y="-34" width="160" height="70" rx="10" className="advisor-chair" />
+      <text y="-10" textAnchor="middle" className="seat-name">
+        Помощник Совета
+      </text>
+      <text y="10" textAnchor="middle" className="seat-role">
+        {line}
+      </text>
+      <text y="27" textAnchor="middle" className="seat-role">
+        без права голоса
+      </text>
+    </g>
   );
 }
 
@@ -358,7 +402,7 @@ function SeatMark({ seat, x, y, selected, onSelect }: { seat: CouncilSeat; x: nu
   );
 }
 
-function SeatList({ seats, selected, onSelect }: { seats: CouncilSeat[]; selected: string | null; onSelect: (id: string | null) => void }) {
+function SeatList({ seats, selected, onSelect, advisor }: { seats: CouncilSeat[]; selected: string | null; onSelect: (id: string | null) => void; advisor: string }) {
   return (
     <ul className="seat-list" aria-label="Участники Совета">
       {seats.map((s) => {
@@ -378,6 +422,17 @@ function SeatList({ seats, selected, onSelect }: { seats: CouncilSeat[]; selecte
           </li>
         );
       })}
+      <li className="advisor-row">
+        <a href="#advisor" onClick={(e) => { e.preventDefault(); document.getElementById('advisor')?.scrollIntoView({ behavior: 'smooth' }); }}>
+          <span className="seat-dot advisor-dot" aria-hidden="true">
+            П
+          </span>
+          <span className="seat-list-main">
+            <b>Помощник Совета</b>
+            <span className="small muted">{advisor}, без права голоса</span>
+          </span>
+        </a>
+      </li>
     </ul>
   );
 }
@@ -722,6 +777,22 @@ function DecideForm({ view, onDone }: { view: CouncilView; onDone: (t: string) =
   const [outcome, setOutcome] = useState<'merge' | 'reject' | 'close'>('merge');
   const [rationale, setRationale] = useState('');
   const [implementer, setImplementer] = useState('');
+  const [suggested, setSuggested] = useState<string | null>(null);
+  // An executor confirmed at the council is preselected; the decision owner can still choose anyone.
+  useEffect(() => {
+    let live = true;
+    api<ExecutorView>(`/orgs/${s.org}/ideas/${view.item.number}/executors`)
+      .then((x) => {
+        const last = x.confirmed.at(-1);
+        if (!live || !last) return;
+        setSuggested(last.name);
+        setImplementer((cur) => cur || last.candidate);
+      })
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, [s.org, view.item.number]);
   const { busy, err, run } = useAction(onDone);
   const label = { merge: 'Внедрить', reject: 'Отклонить', close: 'Закрыть' } as const;
   return (
@@ -762,6 +833,7 @@ function DecideForm({ view, onDone }: { view: CouncilView; onDone: (t: string) =
               </option>
             ))}
           </select>
+          {suggested ? <span className="hint">Подтверждён на Совете: {suggested}. Можно выбрать другого.</span> : null}
         </div>
       ) : null}
     </FormShell>

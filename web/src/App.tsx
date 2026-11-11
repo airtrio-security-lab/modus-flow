@@ -20,6 +20,7 @@ import { Profile } from './screens/Profile';
 import { Inbox } from './screens/Inbox';
 import { Settings } from './screens/Settings';
 import { Meeting } from './screens/Meeting';
+import { ProtocolPage } from './screens/Protocol';
 import { Board } from './screens/Board';
 
 export function App() {
@@ -119,6 +120,7 @@ function Shell() {
   let page: ReactNode;
   if (head === '') page = <Mine />;
   else if (head === 'new') page = <NewItem />;
+  else if (head === 'meeting' && route[1] === 'protocol') page = <ProtocolPage id={route[2]} key={route[2] ?? 'new'} />;
   else if (head === 'meeting') page = <Meeting />;
   else if (head === 'board') page = <Board />;
   else if (head === 'items' && route[1]) page = <ItemPage number={Number(route[1])} key={route[1]} />;

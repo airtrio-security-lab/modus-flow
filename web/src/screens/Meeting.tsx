@@ -5,6 +5,7 @@ import { STATUS } from '../lib/status';
 import type { Status } from '../lib/types';
 import { PageHead } from '../components/ui';
 import { plural } from '../lib/format';
+import { MeetingModes } from './Protocol';
 
 /**
  * «Разбор совещания»: questions heard at a meeting (or in a chat thread, or a
@@ -94,6 +95,7 @@ export function Meeting() {
         title="Разбор совещания"
         sub="Все вопросы с одной встречи, из чата или письма — за один раз. Каждый станет отдельным обращением со своим ответственным и сроком, а заслуга останется за тем, кто его поднял."
       />
+      <MeetingModes active="rows" />
 
       <div className="stack">
         <div className="segmented" role="group" aria-label="Откуда вопросы">

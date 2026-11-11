@@ -23,6 +23,8 @@ import { analytics, AnalyticsQuery } from '../modules/analytics.ts';
 import { kingdom } from '../modules/kingdom.ts';
 import * as progress from '../modules/progress.ts';
 import * as council from '../modules/council.ts';
+import * as advisor from '../modules/advisor.ts';
+import type { ModelConfig } from '../modules/advisor-model.ts';
 import { downloadAttachment, MAX_ATTACHMENT_BYTES, uploadAttachment } from '../modules/attachments.ts';
 import { SubmitInput, submitItem } from '../modules/intake.ts';
 import { SearchQuery, searchItems, SimilarQuery, similarItems } from '../modules/search.ts';
@@ -45,6 +47,10 @@ export interface AppConfig {
    * imitation of SSO for the hackathon demo (ADR-0009).
    */
   demo?: { personas: DemoPersonas; issue: (userId: string) => string };
+  /** Optional local model for MODUS ADVISOR (ADR-0013). Null: rules only, labelled as such. */
+  advisorModel?: ModelConfig | null;
+  /** Test seam for the model provider. */
+  advisorFetch?: typeof fetch;
 }
 
 export interface DemoPersonas {
@@ -301,6 +307,33 @@ export function createApp(config: AppConfig) {
   route('GET', `${IDEA}/progress`, async (ctx) => ({ status: 200, body: await progress.ideaProgress(db, await org(ctx), NumberParam.parse(ctx.params.number)) }));
   step('/council/entries', council.CouncilEntryInput, (a, n, i, _p, k) => council.addEntry(db, a, n, i, k));
   step('/council/handoff', council.HandoffInput, (a, n, i, _p, k) => council.handoff(db, a, n, i, k));
+  // ---- MODUS ADVISOR (0008, ADR-0013): proposes, a person confirms ---------
+  const model = config.advisorModel ?? null;
+  route('GET', `${ORG}/advisor/status`, async (ctx) => {
+    await org(ctx);
+    return { status: 200, body: await advisor.advisorStatus(model, config.advisorFetch) };
+  });
+  route('GET', `${ORG}/me/profile`, async (ctx) => ({ status: 200, body: await advisor.getMyProfile(db, await org(ctx)) }));
+  json('PUT', '/me/profile', advisor.ProfileInput, (a, i) => advisor.saveMyProfile(db, a, i));
+  route('GET', `${ORG}/protocols`, async (ctx) => ({ status: 200, body: await advisor.listProtocols(db, await org(ctx)) }));
+  route('POST', `${ORG}/protocols`, async (ctx) => {
+    const actor = await org(ctx);
+    const input = advisor.ProtocolInput.parse(await ctx.body());
+    return replied(await advisor.createProtocol(db, actor, input, idemKey(ctx.req), model, config.advisorFetch));
+  });
+  route('GET', `${ORG}/protocols/(?<id>${UUID})`, async (ctx) => ({ status: 200, body: await advisor.getProtocol(db, await org(ctx), ctx.params.id!) }));
+  route('POST', `${ORG}/protocols/(?<id>${UUID})/candidates/(?<c>${UUID})/accept`, async (ctx) => {
+    const actor = await org(ctx);
+    const input = advisor.AcceptCandidateInput.parse(await ctx.body());
+    return replied(await advisor.acceptCandidate(db, actor, ctx.params.id!, ctx.params.c!, input, idemKey(ctx.req)));
+  });
+  route('POST', `${ORG}/protocols/(?<id>${UUID})/candidates/(?<c>${UUID})/dismiss`, async (ctx) => {
+    const actor = await org(ctx);
+    z.object({}).strict().parse(await ctx.body());
+    return replied(await advisor.dismissCandidate(db, actor, ctx.params.id!, ctx.params.c!, idemKey(ctx.req)));
+  });
+  route('GET', `${IDEA}/executors`, async (ctx) => ({ status: 200, body: await advisor.suggestExecutors(db, await org(ctx), NumberParam.parse(ctx.params.number)) }));
+  step('/executors', advisor.ConfirmExecutorInput, (a, n, i, _p, k) => advisor.confirmExecutor(db, a, n, i, k));
   step('/effect', progress.EffectInput, (a, n, i, _p, k) => progress.approveEffect(db, a, n, i, k));
   route('GET', `${ORG}/analytics`, async (ctx) => ({
     status: 200,
