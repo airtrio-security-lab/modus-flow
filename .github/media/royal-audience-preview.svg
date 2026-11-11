@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="960" height="570" viewBox="0 0 960 570" role="img" aria-labelledby="title desc">
+<title id="title">MODUS FLOW — Король принимает посла</title>
+<desc id="desc">Зацикленная анимация королевской аудиенции из текущего SVG-прототипа: безликий посол входит в зал, король приветствует его; внизу показано подтверждение получения обращения. Это художественная визуализация, не запись геймплея.</desc>
+<defs>
+<linearGradient id="aud-bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0b1423"/><stop offset="1" stop-color="#253447"/></linearGradient>
+<radialGradient id="aud-halo"><stop offset="0" stop-color="#d1a265" stop-opacity=".65"/><stop offset="1" stop-color="#d1a265" stop-opacity="0"/></radialGradient>
+<linearGradient id="bottom" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#090f1b"/><stop offset="1" stop-color="#1a2636"/></linearGradient>
+</defs>
+<rect width="960" height="570" rx="8" fill="#0a111c"/>
+<rect width="960" height="470" fill="url(#aud-bg)"/>
+<ellipse cx="535" cy="240" rx="310" ry="240" fill="url(#aud-halo)">
+<animate attributeName="opacity" values=".55;.9;.6;.55" dur="5.7s" repeatCount="indefinite"/>
+</ellipse>
+<g fill="#182638" stroke="#967c58" stroke-width="3">
+<rect x="85" y="52" width="112" height="310"/><rect x="762" y="52" width="112" height="310"/>
+<rect x="215" y="20" width="108" height="335"/><rect x="639" y="20" width="108" height="335"/>
+<path d="M323 90 Q481 -36 639 90V352H323Z" fill="#1e3040"/>
+</g>
+<g fill="#d3b781" opacity=".2"><path d="M392 86Q480 4 570 86L556 310H406Z"/></g>
+<path d="M0 379L960 379V470H0Z" fill="#111923"/>
+<path d="M480 385L260 470M480 385L700 470" stroke="#b29564" stroke-width="3" opacity=".42"/>
+<g transform="translate(480 310)">
+<path d="M-105 73V-38H105V73Z" fill="#5f4333" stroke="#d6ad70" stroke-width="5"/>
+<path d="M-104 -38L-72 -88L-40 -49L0 -100L40 -49L72 -88L104 -38Z" fill="#b9965b"/>
+<rect x="-68" y="-20" width="136" height="90" fill="#293449"/>
+</g>
+<g fill="#070d15">
+<circle cx="480" cy="252" r="19"/>
+<path d="M450 274L510 274L534 362H424Z"/>
+<path d="M456 239L464 216L478 231L490 216L506 239Z" fill="#d8b571"/>
+<g>
+<path d="M515 293L555 264" stroke="#0b111b" stroke-width="17" stroke-linecap="round"/>
+<animateTransform attributeName="transform" type="rotate" values="-22 515 292;-22 515 292;-54 515 292;-54 515 292;-22 515 292" keyTimes="0;.59;.72;.84;1" dur="5.7s" repeatCount="indefinite"/>
+</g>
+</g>
+<g fill="#050a11" transform="translate(100 325)">
+<animateTransform attributeName="transform" type="translate" values="100 325;145 325;358 325;358 327;358 325" keyTimes="0;.13;.64;.83;1" dur="5.7s" repeatCount="indefinite"/>
+<circle cx="0" cy="-66" r="17"/>
+<path d="M-24 -43H23L37 49H-42Z"/>
+<path d="M-20 40L-25 94M16 40L21 94" stroke="#050a11" stroke-width="17" stroke-linecap="round"/>
+<path d="M35 -31L63 -9L49 0L27 -17Z"/>
+<path d="M49 -7L67 -17L80 6L61 15Z" fill="#c5a56b"/>
+</g>
+<path d="M110 393H850" stroke="#9a815d" opacity=".3"/>
+<rect y="470" width="960" height="100" fill="url(#bottom)"/>
+<rect x="46" y="494" width="32" height="2" fill="#d8b571"/>
+<text x="93" y="501" fill="#ccac77" font-size="14" font-family="Arial, Helvetica, sans-serif" letter-spacing="3">ВЕСТИ ИЗ ВЕЛИКОГО СОДРУЖЕСТВА</text>
+<text x="46" y="545" fill="#f0dec2" font-size="35" font-family="Georgia, 'Times New Roman', serif">Король принял вашего посла</text>
+</svg>

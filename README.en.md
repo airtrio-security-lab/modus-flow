@@ -43,6 +43,19 @@ Because organizational work can be explored spatially instead of disappearing in
   <sub>Original animated branding · Not recorded gameplay and not a shipped 3D scene</sub>
 </div>
 
+### Royal audience · cinematic preview
+
+<div align="center">
+  <img src=".github/media/royal-audience-preview.svg" width="100%" alt="Animated faceless silhouettes: an envoy enters the King's hall and the King accepts an audience" />
+  <sub>Illustrative animation based on the audience prototype (PR #14), not recorded 3D gameplay or a Google Flow render.</sub>
+</div>
+
+An employee sends an envoy for their own issue. The King acknowledges receipt, and the sender sees a short cinematic scene. Review, formal implementation decisions and calling the Council remain **separate, authorized service workflows**. Accepting an envoy is not approving a proposal.
+
+**We plan to produce the final desktop and mobile cinematic clips using [Google Flow](https://labs.google/fx/tools/flow).** Only anonymous, faceless silhouettes are allowed — no human faces or portraits. Until approved footage exists, the preview above shows an animated SVG representation of the current prototype.
+
+[Royal audience prototype — PR #14](https://github.com/airtrio-security-lab/modus-flow/pull/14) · [Google Flow video pipeline](docs/GOOGLE_FLOW_CINEMATICS.md)
+
 The **Great Commonwealth** is an optional visual workspace **over the service**. An organization stays one tenant. Each department can select a district aesthetic and hosts a Small Council. The Great Round Table serves the whole organization.
 
 | District culture | Architectural language | Small Council |
