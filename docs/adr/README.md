@@ -14,5 +14,7 @@
 | [0010](0010-workflow-invariants.md) | Workflow invariants in the database; invited independent reviewers; truthful chronology | Accepted |
 | [0011](0011-kingdom-map.md) | «Королевство»: department castles grow only from implemented items; no personal scores | Accepted (owner decision 2026-11-11) |
 | [0012](0012-castle-progress-and-council.md) | Castle XP and levels only from confirmed events; department rating; the Council advises, the decision owner decides | Accepted (owner brief 2026-11-11) |
+| [0016](0016-royal-messages.md) | «Королевские послания»: address by title and own choice, business text always, council invitations with facts and actions, reschedule/cancel, mandatory messages, on the existing notification mechanism | Accepted (owner brief 2026-11-11) |
+| [0015](0015-meeting-governance.md) | Personal consent or a written protocol; retention 30/90 days per organization; admin-only purge with reason; legal hold; immutable log; re-purge after restore | Accepted (owner decisions 2026-11-11) |
 | [0014](0014-living-kingdom-meetings.md) | Game titles separate from rights; council meetings with personal consent, recording, labelled transcripts, findings with evidence confirmed by a person; local engines only | Accepted (owner master prompt 2026-11-11) |
 | [0013](0013-modus-advisor-minimal.md) | MODUS ADVISOR: protocol → candidates with exact quotes → human confirmation; executor suggestions from questionnaires; rules labelled «без ИИ», optional local model only | Accepted (owner brief 2026-11-11) |

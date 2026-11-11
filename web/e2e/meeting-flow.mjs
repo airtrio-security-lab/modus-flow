@@ -74,7 +74,7 @@ try {
   });
   await as(storekeeper, async (page) => {
     await page.goto(`${BASE}/#/inbox`);
-    await page.locator('.note-headline', { hasText: 'Созван малый совет замка' }).first().click();
+    await page.locator('li.scroll', { hasText: 'Созван малый совет замка' }).first().getByRole('button', { name: 'Войти в Совет' }).click();
     await page.waitForURL(new RegExp(fresh));
     await page.getByRole('button', { name: 'Согласен(на) на запись' }).click();
     await expectText(page, 'Вы дали согласие');
@@ -144,7 +144,7 @@ try {
   // 4. Workflow: routing, notifications, kanban, origin on the card.
   await as(itLead, async (page) => {
     await page.goto(`${BASE}/#/inbox`);
-    await page.locator('.list-row', { hasText: 'В замок прибыл посол' }).filter({ hasText: 'Печать этикеток со сканера у ворот' }).first().waitFor();
+    await page.locator('li.scroll', { hasText: 'В замок прибыл посол' }).filter({ hasText: 'Печать этикеток со сканера у ворот' }).first().waitFor();
     await page.goto(`${BASE}/#/board`);
     await page.locator('.card', { hasText: 'Печать этикеток со сканера у ворот' }).first().waitFor();
     await page.goto(`${BASE}/#/items/${n}`);
@@ -154,7 +154,7 @@ try {
   });
   await as(storekeeper, async (page) => {
     await page.goto(`${BASE}/#/inbox`);
-    await page.locator('.list-row', { hasText: 'Ваш вопрос записан' }).first().waitFor();
+    await page.locator('li.scroll', { hasText: 'Ваш вопрос записан' }).first().waitFor();
     step('Асель: «Ваш вопрос записан» — заслуга за ней');
   });
 

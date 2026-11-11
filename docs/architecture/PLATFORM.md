@@ -183,6 +183,14 @@ lost, everyone sees the stage, the owner sees what needs attention. Migrations 0
 | POST | `…/meetings/:id/findings/:f/accept` | lead participant confirms → ordinary item (`source_channel = meeting`, note with timestamp); duplicates refused with the existing number |
 | POST | `…/meetings/:id/findings/:f/note` · `/dismiss` | keep in memory without an item / dismiss; once |
 | GET | `…/ideas/:n/origin` | the meeting, quote, timestamp, speaker and transcript source of an item — participants only |
+| POST | `…/meetings/:id/attendance` | `{attendance: confirmed\|declined}` — only for oneself; not for cancelled meetings (ADR-0016) |
+| POST | `…/meetings/:id/reschedule` · `/cancel` · `/participants` | organizer, before recording: `{scheduledAt}` (one message per new time) · `{reason}` · `{membershipId, present}` (removed ⇒ no access, no messages) |
+| GET / PUT | `/api/v1/orgs/:org/me/notification-preferences` | `{style: royal\|business, addressForm: title\|milord\|milady\|master\|neutral, groupRepeats, muted[]}`; mandatory events are never muted; channels: app only |
+| GET | `/api/v1/orgs/:org/notifications` | now with `headline`, `royal` (addressed to the reader or null), `message` (business, always), `category`, `urgent`, `meeting` facts (only while the reader has access), `meetingClosed` |
+| GET / PUT | `/api/v1/orgs/:org/retention` | org admin: retention days (defaults 30 / 90), per-meeting dates/sizes/expiry (no content), the immutable log (ADR-0015) |
+| POST | `…/meetings/:id/purge` · `/legal-hold` | org admin: `{what: recording\|transcript\|all, reason}` (refused under legal hold; logged) · `{hold, reason}` |
+| — | `npm run platform:retention` | daily with the schema owner: purge expired material, re-apply logged purges after a backup restore |
+| — | `npm run platform:escalate` | now also sends «Приближается срок» once per item and deadline |
 | GET | `…/ideas/:n/progress` | XP awarded for the item, effect approval, whether the caller may approve it |
 | POST | `…/ideas/:n/effect` | decision owner, not an originator, after a confirmed implementation: `{xp ≤ xpEffectMax, rationale ≥ 20}`, once |
 

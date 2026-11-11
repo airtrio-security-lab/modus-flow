@@ -14,6 +14,8 @@
     "verify": "scripts/verify.sh",
     "verify:quick": "scripts/verify.sh --quick",
     "gate:selftest": "scripts/gate-selftest.sh",
+    "asr:smoke": "node scripts/asr-smoke.mjs",
+    "asr:server": "python3 scripts/whisper-server.py",
     "hooks:install": "git config core.hooksPath .githooks",
     "platform:start": "node platform/main.ts",
     "platform:migrate": "node platform/cli/migrate.ts",
