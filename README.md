@@ -1,115 +1,142 @@
-# MODUS FLOW
-
-Internal employee feedback and improvement workflow for the Pavlodar Hub × Modus Trade hackathon.
-
-**Stage:** functional, isolated **demo**, not production-ready. Target production review: 14 November 2026.
-
-## Demo (Node.js >=22)
-```bash
-DEMO_MODE=true npm start
-# Open http://localhost:3000
-npm test
-```
-
-Switch between demo employee and manager in the UI. Create an idea/problem, send for review, change its status, and reopen as the author. Demo access is deliberately limited to `DEMO_MODE=true`; demo bearer tokens are publicly visible in the browser source. **Never expose this process to the public internet or use real employee data.**
-
-## MVP
-- Employee submission with validation and assigned author identity
-- Role-based state transitions, basic author-only visibility
-- Status history and responsive Russian UI
-- Built-in Node test suite; no third-party application dependencies
-
-## Architecture
-`public/` → browser UI; `src/server.js` → HTTP JSON API; `src/domain.js` → state machine; `test/` → domain regression tests.
-
-## Production blockers
-- Persistent PostgreSQL database, migrations and backups
-- SSO/real authentication, secure sessions, CSRF mitigation where applicable
-- Department/assignee routing, manager authorization scope, confidentiality model
-- Durable audit trail, event notifications, monitoring and rate limiting
-- Integration/e2e and threat-model tests, TLS and security review
-- Separate build/deploy with secret management and controlled demo-data migration
-
-See `docs/SPEC.md` and `docs/DELIVERY.md`.
+<div align="center">
+  <img src=".github/media/modus-flow-hero.svg" width="100%" alt="MODUS FLOW — a living world for decisions" />
+  <p><b>ONE COMPANY. MANY CIVILIZATIONS. ONE SHARED FUTURE.</b></p>
+  <p>Every idea has a journey. Every decision leaves a trace. Every verified improvement changes the world.</p>
+  <p><a href="README.ru.md">Русский</a> &nbsp;·&nbsp; <a href="#the-world">The world</a> &nbsp;·&nbsp; <a href="#architecture">Architecture</a> &nbsp;·&nbsp; <a href="#run-locally">Run locally</a></p>
+</div>
 
 ---
 
-## Platform (v1, in progress)
+<div align="center">
+  <img src=".github/media/modus-flow-cinematic.gif" width="100%" alt="Animated original MODUS FLOW brand scene with a central citadel and themed districts" />
+  <sub>Original animated brand artwork · Visual direction, not captured gameplay</sub>
+</div>
 
-The scalable MODUS FLOW platform is built **alongside** the prototype in `platform/` (ADR-0001):
-PostgreSQL with tenant isolation enforced by Row Level Security, a private Personal Lab, an explicit
-idea lifecycle, append-only history and an idempotent, transactional publication flow.
+<br />
 
-* Audit of the current repository: [`docs/audit/2026-11-09-phase0-audit.md`](docs/audit/2026-11-09-phase0-audit.md)
-* Independent security review and fixes: [`docs/audit/2026-11-09-security-review.md`](docs/audit/2026-11-09-security-review.md)
-* Architecture: [`docs/architecture/PLATFORM.md`](docs/architecture/PLATFORM.md) · Decisions: [`docs/adr/`](docs/adr/)
+## Ideas deserve more than an inbox.
 
-**Status:** Phase 1 (foundation) and Phase 2 (review → change request → objection → revision →
-verification with positive/negative evidence → decision, see
-[`docs/architecture/PHASE2-WORKFLOW.md`](docs/architecture/PHASE2-WORKFLOW.md)). The UI is Phase 3.
-Not production-ready: authentication is development-only until OIDC lands (ADR-0009).
+**MODUS FLOW** turns employee feedback into an accountable journey: submit a problem or proposal, engage the right people, record an authorized decision, verify implementation, and preserve what was learned.
 
-### Run locally (Node ≥ 22.18, PostgreSQL 16)
-```bash
-npm ci
-docker compose up -d postgres            # or any PostgreSQL 16
-cp .env.example .env && $EDITOR .env     # set MODUS_AUTH_SECRET (≥ 32 chars)
-# The API must use an unprivileged login (modus_api, created by docker compose);
-# migrations/seed use MIGRATION_DATABASE_URL. The server refuses to start as a superuser/owner.
-set -a && . ./.env && set +a
-npm run platform:seed-demo               # migrates, creates a FICTIONAL org, prints tokens
-npm run platform:start                   # http://127.0.0.1:3100/api/v1/health
-```
+An organization becomes **the Great Commonwealth**. Departments become districts. Their castles gain architectural identity and grow when improvements are **actually delivered**, not when someone clicks an XP button.
 
-### Feedback MVP demo (fictional «Модус Трейд — демо»)
-One process serves the API and the web app on http://127.0.0.1:3100. Sign-in is a demo imitation of
-SSO; all people and items are invented. Details: [`docs/architecture/PHASE3-UI.md`](docs/architecture/PHASE3-UI.md).
-```bash
+> **Working today:** PostgreSQL workflow and interactive React/SVG city. **In development:** cinematic, genuinely rendered 3D with Three.js / React Three Fiber. The animation above is original concept artwork, not a video of the current app.
+
+## The world
+
+| Civilization | District identity | Small Council |
+|:--|:--|:--|
+| **Camelot** | Knightly citadels, towers, guilds | Hall of Knights |
+| **Japanese Shogunate** | Tiered castles, gardens, timber and stone | Daimyō Hall |
+| **Kazakh Khanate** | The khan's orda, yurts and steppe architecture | Khan's Yurt |
+| **Mongol Realm** | Nomadic encampments, standards and fortifications | Council of Noyons |
+
+**One company. One Commonwealth.** Civilizations are elected *visual styles for departments*, not separate companies or an inference about a person's background. Game titles never grant business permissions. The **Great Round Table** belongs to the whole organization.
+
+## A decision becomes a story
+
+~~~~text
+Employee idea or problem
+        ↓
+Responsible department + deadline
+        ↓
+Small Council ── cross-team escalation ──→ Great Round Table
+        ↓                                     ↓
+Authorized human decision ←──────────────────┘
+        ↓
+Implementation → verified outcome → XP / castle growth
+        ↓
+Chronicle → Library of Decisions → Higher Archive
+~~~~
+
+**The advisor recommends. A person decides.** Current assistance is based on explicit rules, not a connected language model. Meeting recording requires each participant's consent and enforces access controls.
+
+## More than a map
+
+**Real work.** Submissions, Kanban, status history, routing, objections, evidence, authorized decisions, and deadlines.
+
+**A living interface.** Department districts, staff cards, councils, messengers, growth levels and an accessible non-game workspace.
+
+**Institutional memory.** Chronicle, reviewed decisions, Higher Archive, provenance and version history.
+
+**Anywhere.** Desktop and responsive mobile PWA. Workflows remain available without cinematic graphics.
+
+<div align="center">
+  <a href="docs/demo/city/c-desk.png"><img src="docs/demo/city/c-desk.png" width="66%" alt="Actual SVG city screenshot on desktop" /></a>
+  <a href="docs/demo/city/c-mob.png"><img src="docs/demo/city/c-mob.png" width="29%" alt="Actual mobile UI screenshot" /></a>
+  <p><sub>Real development-build screenshots · Current React/SVG UI, not future 3D</sub></p>
+</div>
+
+## Honest build status
+
+| System | Status in audited feat/kingdom-map baseline |
+|:--|:--|
+| Employee feedback, councils, decisions | Functional isolated demo |
+| PostgreSQL 16, RLS, audit, verified XP | Implemented; regression tests exist |
+| Four civilizations and department cards | React/SVG implementation |
+| Chronicle, Library, Higher Archive | Demo implementation; legal review needed |
+| Responsive mobile PWA | Implemented; real-device verification pending |
+| Cinematic real-time 3D | **In development, not shipped** |
+| AI advisor with an actual LLM | **Not connected**; rules available |
+| Production rollout with real employee data | **Not ready**; OIDC and operational/privacy controls needed |
+
+This describes an **audited baseline**, not a promise about concurrent work in progress. Read the [readiness audit](docs/audit/2026-11-11-final-readiness.md) and [architectural decisions](docs/adr/README.md).
+
+## Architecture
+
+~~~~text
+React + TypeScript + Vite       Current: SVG city, operational UI, mobile PWA
+             │
+             ▼
+Authorized HTTP API             Ideas · people · tasks · councils · knowledge
+             │
+             ▼
+PostgreSQL 16 + Row-Level Security
+Verified decisions · privacy · evidence · append-only XP
+             │
+             └── Planned visual presentation: Three.js + React Three Fiber
+                 (same API; no duplicate business state)
+~~~~
+
+The world is a **visual projection of verified business events**, never a second source of truth.
+
+## Run locally
+
+Requires **Node.js ≥ 22.18, PostgreSQL 16, Docker** and access to this private repository.
+
+~~~~bash
+git clone https://github.com/airtrio-security-lab/modus-flow.git
+cd modus-flow
+git switch feat/kingdom-map
 npm ci
 docker compose up -d postgres
+cp .env.example .env
+# Configure MODUS_AUTH_SECRET (at least 32 characters) and DB URLs.
+# Use only a fresh fictional demo database, never real employee data.
 export MIGRATION_DATABASE_URL=postgres://modus:modus-local-only@127.0.0.1:5432/modus
-npm run demo:seed        # fresh database only: 16 items in every status, castles, a Council session; writes .demo/personas.json
-npm run web:build        # builds web/dist
-npm run demo:start       # API as modus_api + web app + demo sign-in; refuses NODE_ENV=production
-npm run demo:e2e         # optional: Playwright walks through the main scenario
-npm run demo:kingdom     # optional, on a fresh seed: the 90-second kingdom scenario (Council → XP → level → rating)
-npm run demo:advisor     # optional, on a fresh seed: protocol → confirmed items → executor suggestion (rules, no AI; ADR-0013)
-npm run demo:meeting     # optional, on a fresh seed: council meeting with consent, recording, prepared transcript, findings, confirmation (ADR-0014)
-npm run demo:messages    # optional, on a fresh seed: the King calls the council → personal messages → decision → XP (ADR-0016)
-npm run demo:legacy      # optional, on a fresh seed: meeting → Летопись → Библиотека → re-application → Высший Архив (ADR-0017)
-npm run demo:final       # the final story: idea → envoy → council → decision → implementation → XP → castle → Летопись → Библиотека → Высший Архив
-RECORD=1 npm run demo:final   # the same at presentation pace, recorded as the fallback video .demo/final-demo.mp4
-npm run demo:councils    # optional, on a fresh seed: Japanese IT titles → small council in the Зал даймё → Great Round Table → decision → XP (ADR-0020)
-npm run demo:city        # optional, on a fresh seed: «Живое Королевство» — city camera, district screen, staff cards and privacy, style picker, workspace, phone (ADR-0019)
-npm run demo:record      # optional, on a fresh seed: records the kingdom scenario as a fallback video (.demo/kingdom-demo.mp4)
-```
-The final 3-minute story inside a 5-minute talk: [`docs/demo/final-3min.md`](docs/demo/final-3min.md); readiness for the pilot: [`docs/audit/2026-11-11-final-readiness.md`](docs/audit/2026-11-11-final-readiness.md).
-The city and the district screen: [`docs/demo/city-demo.md`](docs/demo/city-demo.md) (a 90–120 s version and the extended one); civilizations and councils: [`docs/demo/councils-demo.md`](docs/demo/councils-demo.md) (12 steps and a 90 s version).
-The 90-second click paths for a live demo: [`docs/demo/meeting-90s.md`](docs/demo/meeting-90s.md) (meeting → work → XP) and [`docs/demo/kingdom-90s.md`](docs/demo/kingdom-90s.md) (idea → council → XP).
-Or all of it in one command (Docker + Node ≥ 22.18): `./scripts/demo-local.sh`.
+npm run demo:seed
+npm run web:build
+npm run demo:start
+# http://127.0.0.1:3100
+~~~~
 
-### Platform tests
-Integration tests use a real PostgreSQL; each test file creates and drops its own database.
-They fail (never skip) when `TEST_DATABASE_URL` is missing.
-```bash
+The demo uses fictional people and an SSO imitation: **never expose the demo server to the public internet**. See the [platform architecture](docs/architecture/PLATFORM.md) and [city walkthrough](docs/demo/city-demo.md).
+
+### Test the real flow
+
+~~~~bash
 export TEST_DATABASE_URL=postgres://modus:modus-local-only@127.0.0.1:5432/postgres
-npm run check          # syntax + TypeScript
-npm test               # legacy prototype tests + platform tests
-```
+npm run verify         # Local: typecheck, database tests, web build
+npm run demo:city      # Requires fresh seeded demo
+npm run demo:final     # Idea → Council → implementation → legacy
+~~~~
 
-## Local release gate (GitHub CI does not run while the account has a billing problem)
+GitHub Actions were blocked by account billing in the audited baseline. Local reported passes must not be represented as independently verified GitHub CI.
 
-```bash
-npm run hooks:install     # once: pre-commit (typecheck + unit + staged tests), pre-push (full gate)
-npm run verify            # full gate: typecheck, prototype tests, PostgreSQL tests, web build — stops at the first failure
-npm run gate:selftest     # proves in a throw-away clone that a commit with a failing test is refused
-```
+## Design as an experience. Engineer as evidence.
 
-All of these checks are **local**; a green local run is not a green CI run.
+Our visual ambition is premium cinematic strategy-game art direction: credible architecture, restrained materials, deliberate light, beautiful motion, clear typography. The engineering standard is just as exacting: authorization, traceable decisions, honest model labels, idempotent XP and the separation of fact from simulation.
 
-## Scheduled jobs (schema-owner connection)
+Created by **Air Trio Security Lab** in the Modus Trade hackathon context. This repository is private; no public license is implied. External artwork, code and fonts require appropriate licensing.
 
-```bash
-npm run platform:escalate    # every 15 min: overdue items and «Приближается срок» (once per deadline)
-npm run platform:retention   # daily: purge meeting audio after 30 days and transcripts after 90 (org settings), re-apply purges after a backup restore
-```
+<div align="center"><h3>MODUS FLOW</h3><sub>Make progress visible. Make decisions accountable.</sub></div>
