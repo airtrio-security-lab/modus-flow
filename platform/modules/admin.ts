@@ -58,7 +58,7 @@ const log = (c: Client, a: OrgActor, action: string, type: string, id: string, d
 export async function getDirectory(db: Database, actor: OrgActor) {
   return withTx(db, orgTx(actor), async (c) => {
     const departments = await c.query(
-      `SELECT d.id, d.name, d.active, d.head_membership_id AS "headMembershipId", e.display_name AS head, d.headcount
+      `SELECT d.id, d.name, d.active, d.head_membership_id AS "headMembershipId", e.display_name AS head, d.headcount, d.civilization
          FROM departments d LEFT JOIN employees e ON e.membership_id = d.head_membership_id
         WHERE d.organization_id = app_org_id() ORDER BY d.name`,
     );

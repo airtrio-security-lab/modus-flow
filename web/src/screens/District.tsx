@@ -5,7 +5,8 @@ import { STATUS } from '../lib/status';
 import { useLoad, useSession } from '../lib/session';
 import type { District as DistrictData, DistrictItem, StaffCard, Status } from '../lib/types';
 import { ErrorBox, Loading, StatusChip } from '../components/ui';
-import { CIVS, CivCastle, DistrictHouses, type Civ } from '../components/civ';
+import { CIVS, CivCastle, DistrictHouses, civOf, type Civ } from '../components/civ';
+import { CouncilScene } from '../components/scenes';
 import { HERALDRY } from './Kingdom';
 
 /**
@@ -56,7 +57,7 @@ export function DistrictPage({ id, tab }: { id: string; tab?: string }) {
   if (!data) return null;
   const color = HERALDRY[data.colorIndex % HERALDRY.length]!;
   return (
-    <div className="district stack-lg">
+    <div className={`district stack-lg civ-${civOf(data.civilization.id)}`}>
       <a className="back-link" href="#/kingdom">
         ← Город
       </a>
@@ -116,6 +117,9 @@ function DistrictHeader({ d, color, onPick }: { d: DistrictData; color: string; 
             ) : null}
           </p>
         </div>
+        <p className="small">
+          Место совета: <a href={`#/castles/${d.id}/council`}>{d.civilization.hall}</a>
+        </p>
         <p>
           Глава:{' '}
           {d.head ? (
@@ -271,11 +275,41 @@ function questionnaireText(p: StaffCard) {
   return null;
 }
 
+/** A small sign of what the title stands for (a function, not a rating); the same shapes in every civilization. */
+const KIND_LABEL: Record<string, string> = {
+  castle_head: 'глава подразделения',
+  deputy: 'заместитель, назначен администратором',
+  authorized: 'ведёт или решает обращения',
+  master: 'подтверждённые результаты',
+  novice: 'начинающий, выбрано самим сотрудником',
+  king: 'звание владельца',
+  regent: 'звание заместителя владельца',
+};
+function TitleMark({ kind }: { kind: StaffCard['titleKind'] }) {
+  const label = kind ? KIND_LABEL[kind] : undefined;
+  if (!label) return null;
+  const shape =
+    kind === 'castle_head' || kind === 'king' ? 'M2,13 L4,5 L8,9 L12,3 L16,9 L20,5 L22,13 Z'
+    : kind === 'deputy' || kind === 'regent' ? 'M12,2 L21,6 V12 C21,17 16,21 12,22 C8,21 3,17 3,12 V6 Z'
+    : kind === 'authorized' ? 'M12,2 L14,14 L12,22 L10,14 Z M5,15 H19 V17 H5 Z'
+    : kind === 'master' ? 'M4,6 H16 V11 H4 Z M9,11 H11 V22 H9 Z'
+    : 'M12,22 V10 M12,12 C8,12 6,9 6,5 C10,5 12,8 12,12 M12,10 C12,6 15,3 19,3 C19,7 16,10 12,10';
+  return (
+    <span className="title-mark" title={label}>
+      <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+        <path d={shape} />
+      </svg>
+      <span className="sr-only">{label}</span>
+    </span>
+  );
+}
+
 function StaffCardView({ p, onOpen }: { p: StaffCard; onOpen: () => void }) {
   const a = p.achievements;
   const confirmed = a.implemented + a.ideasImplemented + a.effectsConfirmed + a.confirmedAsExecutor;
   return (
-    <button type="button" className={`staff-card group-${p.group}`} onClick={onOpen} aria-label={`${p.name}: открыть карточку`}>
+    <button type="button" className={`staff-card group-${p.group} kind-${p.titleKind ?? 'none'}`} onClick={onOpen} aria-label={`${p.name}: открыть карточку`}>
+      <TitleMark kind={p.titleKind} />
       <span className="staff-top">
         <Avatar p={p} />
         <span className="staff-who">
@@ -285,6 +319,7 @@ function StaffCardView({ p, onOpen }: { p: StaffCard; onOpen: () => void }) {
             <span className="row-tight">
               {p.isHead ? <span className="flag">глава</span> : null}
               {p.title ? <span className="title-chip">{p.title}</span> : null}
+              {p.honor ? <span className="honor-chip" title="Почётное звание за подтверждённые достижения, показано по выбору сотрудника">{p.honor}</span> : null}
             </span>
           ) : null}
         </span>
@@ -579,13 +614,29 @@ function InitiativesTab({ d }: { d: DistrictData }) {
 // Совет · Наследие · Развитие
 // ---------------------------------------------------------------------------
 function CouncilTab({ d }: { d: DistrictData }) {
+  const small = d.council.open.filter((c) => !c.great);
+  const great = d.council.open.filter((c) => c.great);
+  const civ = civOf(d.civilization.id);
+  const agenda = small.slice(0, 5).map((c) => `&agenda=${c.number}`).join('');
   return (
     <div className="stack-lg">
+      <CouncilScene place={civ} color={HERALDRY[d.colorIndex % HERALDRY.length]} seats={d.staff.slice(0, 8).map(() => civ)} label={`${d.civilization.hall} — малый совет подразделения «${d.name}»`} />
+      <p className="muted small">
+        Малый совет обсуждает обращения подразделения: участники, повестка, доводы, рекомендации. Решение принимает ответственный за решение — по тем же
+        правилам, что и везде. Межотдельские и стратегические вопросы передают к Большому Круглому столу.
+      </p>
+      {d.canCallCouncil ? (
+        <div>
+          <a className="btn primary" href={`#/meetings/new?department=${d.id}&title=${encodeURIComponent(`${d.civilization.hall}: ${d.name}`)}${agenda}`}>
+            Созвать Малый совет
+          </a>
+        </div>
+      ) : null}
       <section className="stack">
-        <h2 className="section-title">У Круглого стола</h2>
-        {d.council.open.length ? (
+        <h2 className="section-title">У малого совета · {d.civilization.hall}</h2>
+        {small.length ? (
           <ul className="district-list">
-            {d.council.open.map((c) => (
+            {small.map((c) => (
               <li key={c.number}>
                 <a href={`#/council/${c.number}`}>
                   <span className="num">№{c.number}</span> {c.title}
@@ -595,7 +646,24 @@ function CouncilTab({ d }: { d: DistrictData }) {
             ))}
           </ul>
         ) : (
-          <p className="muted small">Сейчас у Совета нет обращений этого подразделения.</p>
+          <p className="muted small">Сейчас у малого совета нет обращений.</p>
+        )}
+      </section>
+      <section className="stack">
+        <h2 className="section-title">Переданы к Большому Круглому столу</h2>
+        {great.length ? (
+          <ul className="district-list">
+            {great.map((c) => (
+              <li key={c.number}>
+                <a href={`#/council/${c.number}`}>
+                  <span className="num">№{c.number}</span> {c.title}
+                </a>
+                <span className="small muted">рассматривается в Большом совете компании</span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="muted small">Вопросов подразделения у Большого совета нет.</p>
         )}
       </section>
       <section className="stack">
@@ -629,6 +697,7 @@ function CouncilTab({ d }: { d: DistrictData }) {
                   {date(m.at)}
                   {m.cancelled ? ' · отменено' : ''}
                   {m.idea ? ` · обращение №${m.idea}` : ''}
+                  {m.great ? ' · Большой совет' : ''}
                 </span>
               </li>
             ))}
@@ -636,11 +705,6 @@ function CouncilTab({ d }: { d: DistrictData }) {
         ) : (
           <p className="muted small">Нет заседаний, где вы участник.</p>
         )}
-        {d.canCallCouncil ? (
-          <a className="btn" href={`#/meetings/new?department=${d.id}&title=${encodeURIComponent(`Малый совет: ${d.name}`)}`}>
-            Созвать малый совет с записью
-          </a>
-        ) : null}
       </section>
     </div>
   );
@@ -759,7 +823,7 @@ function GrowthTab({ d, color }: { d: DistrictData; color: string }) {
 // ---------------------------------------------------------------------------
 function CivPicker({ d, color, onClose, onSaved }: { d: DistrictData; color: string; onClose: () => void; onSaved: () => void }) {
   const s = useSession();
-  const [pick, setPick] = useState<Civ>((d.civilization.id as Civ) ?? 'europe');
+  const [pick, setPick] = useState<Civ>(civOf(d.civilization.id));
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const box = useRef<HTMLDivElement>(null);

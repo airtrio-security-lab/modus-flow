@@ -2,25 +2,29 @@ import type { ReactNode } from 'react';
 import { Banner, Box, IsoCastle, P, Plate, Roof, STONE, STONE_DARK, TIMBER, shadeOf, type Shade } from './iso';
 
 /**
- * Architectural styles of the districts (ADR-0019): Средневековая Европа, Япония, Монголия,
- * Казахское ханство. Original drawings made of the same isometric primitives — no borrowed game
- * art. Every style has the same five levels; a level always looks the same; nothing is random.
- * The style is chosen by the department and says nothing about the people who work there.
+ * Architectural styles of the districts (ADR-0019, ADR-0020): Камелот, Японское княжество,
+ * Казахское ханство, Монгольская держава. Original drawings made of the same isometric primitives —
+ * no borrowed game art. Every style has the same five levels and the same number of buildings; a
+ * level always looks the same; nothing is random. The style is chosen by the department and says
+ * nothing about the people who work there. Names and titles come from the server registry
+ * (platform/domain/civilizations.ts); the copy below is only for drawing labels.
  */
-export type Civ = 'europe' | 'japan' | 'mongolia' | 'kazakh';
-export const CIVS: { id: Civ; name: string; motto: string }[] = [
-  { id: 'europe', name: 'Средневековая Европа', motto: 'Каменные крепости, башни и стены' },
-  { id: 'japan', name: 'Япония', motto: 'Многоярусные крыши, сады и мосты' },
-  { id: 'mongolia', name: 'Монголия', motto: 'Степная ставка, юрты и знамёна' },
-  { id: 'kazakh', name: 'Казахское ханство', motto: 'Ставка хана, караван-сарай и купола' },
+export type Civ = 'camelot' | 'japan' | 'mongolia' | 'kazakh';
+export const CIVS: { id: Civ; name: string; motto: string; hall: string }[] = [
+  { id: 'camelot', name: 'Камелот — Рыцарское королевство', motto: 'Замок, башни и стены, рыцарский двор, оружейная и мастерские', hall: 'Зал рыцарей' },
+  { id: 'japan', name: 'Японское княжество', motto: 'Замок, сады и мосты, многоярусные крыши', hall: 'Зал даймё' },
+  { id: 'kazakh', name: 'Казахское ханство', motto: 'Большая ханская юрта, ставка и поселение, орнаменты', hall: 'Ханская юрта' },
+  { id: 'mongolia', name: 'Монгольская держава', motto: 'Ставка правителя, юрты, туги и степные сооружения', hall: 'Совет нойонов' },
 ];
-export const civName = (id: string) => CIVS.find((c) => c.id === id)?.name ?? 'Средневековая Европа';
+export const civOf = (id: string | null | undefined): Civ => (CIVS.some((c) => c.id === id) ? (id as Civ) : 'camelot');
+export const civName = (id: string) => CIVS.find((c) => c.id === civOf(id))!.name;
+export const hallName = (id: string | null | undefined) => CIVS.find((c) => c.id === civOf(id))!.hall;
 const EDGE = '#4a4034';
 const GOLD = '#c99a2e';
 const PLATE = [2.6, 3.2, 3.8, 4.4, 5];
 /** Height of each style's drawing above the ground per level, in grid units — labels sit above it. */
 export const CIV_HEIGHT: Record<Civ, number[]> = {
-  europe: [5, 5.6, 5.6, 8.4, 11],
+  camelot: [5, 5.6, 5.6, 8.4, 11],
   japan: [3.6, 4.6, 5.8, 7, 8.6],
   mongolia: [3, 3.2, 3.6, 4.4, 5.6],
   kazakh: [3, 3.2, 4, 5.4, 7],
@@ -250,7 +254,7 @@ export function DistrictHouses({ civ, level, u, color }: { civ: string; level: n
   const spots: [number, number][] = [[plate + 1.6, -1.8], [-1.8, plate + 1.6], [plate + 1.9, 1.6], [1.6, plate + 1.9]];
   return (
     <g aria-hidden="true">
-      {spots.slice(0, Math.max(0, level - 1)).map(([x, y]) => (
+      {spots.slice(0, Math.max(0, level - 1)).map(([x, y], i) => (
         <g key={`${x}${y}`}>
           {civ === 'mongolia' || civ === 'kazakh' ? (
             <Yurt x={x} y={y} r={0.6} h={0.7} u={u} band={civ === 'kazakh' ? '#a2412f' : undefined} />
@@ -258,6 +262,21 @@ export function DistrictHouses({ civ, level, u, color }: { civ: string; level: n
             <g>
               <Box x0={x - 0.6} y0={y - 0.5} w={1.2} d={1} h={0.8} s={WHITE} u={u} />
               <Roof x0={x - 0.85} y0={y - 0.75} w={1.7} d={1.5} z={0.8} h={0.6} s={shadeOf(INK)} u={u} />
+            </g>
+          ) : i === 1 ? (
+            // Camelot's armory: stone, a forge chimney and a shield over the door.
+            <g>
+              <Box x0={x - 0.65} y0={y - 0.55} w={1.3} d={1.1} h={0.95} s={STONE} u={u} />
+              <Roof x0={x - 0.75} y0={y - 0.65} w={1.5} d={1.3} z={0.95} h={0.6} s={shadeOf('#55606e')} u={u} />
+              <Box x0={x + 0.25} y0={y - 0.45} w={0.3} d={0.3} z0={0.95} h={0.9} s={STONE_DARK} u={u} />
+              <path d={`M${P(x + 0.65, y, 0.75, u).x - u * 0.22},${P(x + 0.65, y, 0.75, u).y - u * 0.2} h${u * 0.44} v${u * 0.25} q0,${u * 0.25} ${-u * 0.22},${u * 0.35} q${-u * 0.22},${-u * 0.1} ${-u * 0.22},${-u * 0.35} Z`} fill={color} stroke={EDGE} strokeWidth="0.6" />
+            </g>
+          ) : i === 2 ? (
+            // A workshop with an open awning.
+            <g>
+              <Box x0={x - 0.6} y0={y - 0.5} w={1.2} d={1} h={0.8} s={TIMBER} u={u} />
+              <Roof x0={x - 0.7} y0={y - 0.6} w={1.4} d={1.2} z={0.8} h={0.75} s={shadeOf('#8a5a2b')} u={u} />
+              <Box x0={x + 0.6} y0={y - 0.5} w={0.5} d={1} z0={0.55} h={0.08} s={shadeOf(color)} u={u} />
             </g>
           ) : (
             <g>
@@ -297,6 +316,54 @@ export function IsoPlaza({ u, count }: { u: number; count: number }) {
         const y = Math.sin(a) * 1.9;
         return <Box key={i} x0={x - 0.18} y0={y - 0.18} w={0.36} d={0.36} h={0.6} s={{ top: GOLD, left: '#b0861f', right: '#8f6c17' }} u={u} />;
       })}
+    </g>
+  );
+}
+
+/**
+ * The place of a department's small council, in the style of its district: Зал даймё, Ханская юрта,
+ * Зал рыцарей, Совет нойонов. Drawn at the grid origin; the same size for every style.
+ */
+export function CouncilHall({ civ, u, color }: { civ: string; u: number; color: string }) {
+  const c = civOf(civ);
+  if (c === 'japan')
+    return (
+      <g>
+        <Plate r={1.7} u={u} s={{ top: '#cfd7b0', left: '#8a7355', right: '#735e44' }} />
+        <Box x0={-1.3} y0={-1} w={2.6} d={2} h={0.35} s={STONE_DARK} u={u} />
+        <Box x0={-1.15} y0={-0.85} w={2.3} d={1.7} z0={0.35} h={0.9} s={WHITE} u={u} />
+        <Roof x0={-1.55} y0={-1.25} w={3.1} d={2.5} z={1.25} h={1.05} s={shadeOf(INK)} u={u} />
+        {/* A stone lantern by the entrance. */}
+        <Box x0={1.35} y0={1.05} w={0.3} d={0.3} h={0.75} s={STONE} u={u} />
+        <Box x0={1.3} y0={1} w={0.4} d={0.4} z0={0.75} h={0.12} s={STONE} u={u} />
+        <Banner x={-1.2} y={1.1} z={0} color={color} u={u} len={1.9} />
+      </g>
+    );
+  if (c === 'kazakh')
+    return (
+      <g>
+        <Plate r={1.7} u={u} s={{ top: '#d6c99c', left: '#8a7355', right: '#735e44' }} />
+        <Yurt x={0} y={0} r={1.25} h={1.15} u={u} band="#a2412f" roof="#f2e8d0" crown={GOLD} />
+        <Banner x={1.25} y={-1.2} z={0} color={color} u={u} len={2.2} />
+        <Banner x={-1.2} y={1.25} z={0} color="#2f6f8a" u={u} len={2.2} />
+      </g>
+    );
+  if (c === 'mongolia')
+    return (
+      <g>
+        <Plate r={1.7} u={u} s={{ top: '#c9cf9b', left: '#8a7355', right: '#735e44' }} />
+        <Yurt x={0} y={0} r={1.25} h={1} u={u} band="#2f4f7a" felt="#f6f2e6" crown="#8a6440" />
+        <Tug x={1.3} y={-1} u={u} color="#f4efe2" />
+        <Tug x={-1} y={1.3} u={u} />
+      </g>
+    );
+  return (
+    <g>
+      <Plate r={1.7} u={u} />
+      <Box x0={-1.3} y0={-0.8} w={2.6} d={1.6} h={1.35} s={STONE} u={u} />
+      <Roof x0={-1.4} y0={-0.9} w={2.8} d={1.8} z={1.35} h={1.05} s={shadeOf('#55606e')} u={u} />
+      <Box x0={0.95} y0={-0.35} w={0.38} d={0.7} h={0.9} s={{ top: '#5a432c', left: '#5a432c', right: '#46331f' }} u={u} />
+      <Banner x={1.2} y={0.85} z={0} color={color} u={u} len={2.2} />
     </g>
   );
 }

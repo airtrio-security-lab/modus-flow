@@ -3,7 +3,7 @@ import { api, errorText } from '../lib/api';
 import { ThemeToggle } from '../lib/env';
 import { LiteToggle } from '../lib/lite';
 import { useLoad, useSession } from '../lib/session';
-import type { Contribution, EmployeeProfile } from '../lib/types';
+import type { Contribution, EmployeeProfile, TitleChoices } from '../lib/types';
 import { ErrorBox, Loading, PageHead, StatusChip } from '../components/ui';
 import { useTitles } from '../components/Titles';
 import { NotePrefs } from '../components/NotePrefs';
@@ -19,6 +19,60 @@ const ROLE: Record<string, string> = {
   decision_owner: 'Принимает решения',
   org_admin: 'Администратор',
 };
+
+const SOURCE: Record<string, string> = {
+  assigned: 'назначено администратором',
+  castle_head: 'как глава подразделения, в стиле его района',
+  civilization: 'по функции в подразделении, в стиле его района',
+  guild_default: 'звание гильдии подразделения',
+  neutral: 'вы выбрали нейтральное звание',
+  choice: 'выбрано вами',
+};
+
+/** The person's own choices about their title (ADR-0020): neutral, novice, an earned honor, the Camelot head form. */
+function TitleChoicesForm({ current, onSaved }: { current: TitleChoices | undefined; onSaved: () => void }) {
+  const s = useSession();
+  const [v, setV] = useState<TitleChoices | null>(null);
+  const [msg, setMsg] = useState<string | null>(null);
+  useEffect(() => {
+    if (current && !v) setV(current);
+  }, [current, v]);
+  if (!v) return <span className="muted small">…</span>;
+  const save = async (next: TitleChoices) => {
+    setV(next);
+    setMsg(null);
+    try {
+      await api(`/orgs/${s.org}/titles/choices`, { method: 'PUT', json: next });
+      setMsg('Сохранено');
+      onSaved();
+    } catch (e) {
+      setMsg(errorText(e));
+    }
+  };
+  return (
+    <div className="stack title-choices">
+      <label className="check">
+        <input type="checkbox" checked={v.neutral} onChange={(e) => void save({ ...v, neutral: e.target.checked })} /> Без игрового звания (показывать «Сотрудник»)
+      </label>
+      <label className="check">
+        <input type="checkbox" checked={v.showHonor} onChange={(e) => void save({ ...v, showHonor: e.target.checked })} /> Показывать почётное звание (Батыр, Баатур), если есть
+        подтверждённые достижения
+      </label>
+      <label className="check">
+        <input type="checkbox" checked={v.novice} onChange={(e) => void save({ ...v, novice: e.target.checked })} /> Звание «Оруженосец» в Камелоте (только по моему выбору)
+      </label>
+      <label className="field">
+        <span>Если я глава района Камелота</span>
+        <select className="select" value={v.headForm ?? ''} onChange={(e) => void save({ ...v, headForm: (e.target.value || null) as TitleChoices['headForm'] })}>
+          <option value="">«Лорд / Леди»</option>
+          <option value="lord">«Лорд»</option>
+          <option value="lady">«Леди»</option>
+        </select>
+      </label>
+      {msg ? <span className="small muted" role="status">{msg}</span> : null}
+    </div>
+  );
+}
 
 export function Profile() {
   const s = useSession();
@@ -53,10 +107,17 @@ export function Profile() {
             <dt>Игровое звание</dt>
             <dd>
               {title ? <span className={`title-chip rank-${title.rank}`}>{title.title}</span> : titles.data ? 'нет' : '…'}
+              {title?.honor ? <span className="honor-chip">{title.honor}</span> : null}
               <span className="small muted">
                 {' '}
-                {title?.source === 'assigned' ? 'назначено администратором' : title?.source === 'castle_head' ? 'как глава подразделения' : title ? 'звание гильдии подразделения' : ''}. Звание прав не даёт.
+                {SOURCE[title?.source ?? ''] ?? ''}. Звание прав не даёт.
               </span>
+            </dd>
+          </div>
+          <div>
+            <dt>Мой выбор звания</dt>
+            <dd>
+              <TitleChoicesForm current={titles.data?.choices} onSaved={() => void titles.reload()} />
             </dd>
           </div>
           <div>

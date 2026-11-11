@@ -68,7 +68,7 @@ try {
     await page.waitForSelector('.realm-map svg');
     const castles = await page.locator('.realm-castle').count();
     must(castles === 8, `castles: ${castles}`);
-    for (const civ of ['Япония', 'Казахское ханство', 'Монголия', 'Средневековая Европа']) must((await page.locator(`.realm-castle[aria-label*="${civ}"]`).count()) > 0, `no district in style ${civ}`);
+    for (const civ of ['Японское княжество', 'Казахское ханство', 'Монгольская держава', 'Камелот']) must((await page.locator(`.realm-castle[aria-label*="${civ}"]`).count()) > 0, `no district in style ${civ}`);
     for (const place of ['Королевский совет', 'Великая библиотека', 'Высший Архив', 'Площадь достижений']) await page.locator('.realm-place', { hasText: place }).first().waitFor();
     step('город: 8 районов в четырёх стилях, Совет, Библиотека, Архив, Площадь достижений');
 
@@ -99,7 +99,7 @@ try {
     await page.waitForURL(/#\/castles\/[0-9a-f-]{36}/);
     districtUrl = page.url().split('#')[1].split('/').slice(0, 3).join('/');
     await page.locator('.district-head h1', { hasText: 'Склад и логистика' }).waitFor();
-    await expectText(page, 'Япония');
+    await expectText(page, 'Казахское ханство');
     for (const g of ['Командование', 'Специалисты', 'Основной состав', 'Потребности отдела']) await page.getByRole('heading', { name: new RegExp(g) }).waitFor();
     const text = (await page.locator('.district').textContent()) ?? '';
     for (const secret of ['Адресное хранение', 'Только дневные смены', 'Хочу вести обучение', 'Утренние смены']) must(!text.includes(secret), `leaked to a peer: ${secret}`);
@@ -111,12 +111,12 @@ try {
     must((await page.getByRole('link', { name: 'Пригласить в Совет' }).count()) === 0, 'storekeeper cannot call a council');
     must((await page.getByRole('heading', { name: 'Назначить задачу' }).count()) === 0, 'storekeeper cannot assign');
     await page.keyboard.press('Escape');
-    step('замок открывает район: стиль «Япония», группы состава; чужие анкеты скрыты, загрузка «Нет данных», лишних кнопок нет');
+    step('замок открывает район: стиль «Казахское ханство», группы состава; чужие анкеты скрыты, загрузка «Нет данных», лишних кнопок нет');
 
     // Cinematic entry from a royal message: through the city to the palace, skippable at once.
     await page.goto(`${BASE}/#/inbox`);
     await page.locator('li.scroll', { hasText: 'Планёрка склада' }).first().getByRole('button', { name: 'Войти в Совет' }).click();
-    await page.locator('.realm-cinema', { hasText: 'Входим в Королевский совет' }).waitFor();
+    await page.locator('.realm-cinema', { hasText: 'Входим: Ханская юрта' }).waitFor();
     await page.getByRole('button', { name: 'Пропустить' }).click();
     await page.waitForURL(/#\/(meetings|council)\/[0-9a-f-]+$/);
     step('«Войти в Совет»: камера летит к дворцу, «Пропустить» сразу открывает заседание');
@@ -171,16 +171,16 @@ try {
     await page.goto(`${BASE}/#${districtUrl}/growth`);
     const xpBefore = await page.locator('.district-head .xpbar .small').textContent();
     await page.getByRole('button', { name: 'Сменить стиль района' }).click();
-    await page.getByRole('radio', { name: /Казахское ханство/ }).click();
+    await page.getByRole('radio', { name: /Камелот/ }).click();
     must((await page.locator('.sheet .civ-levels li').count()) === 5, 'five levels preview');
-    await page.getByRole('button', { name: 'Выбрать «Казахское ханство»' }).click();
-    await page.locator('.district-head', { hasText: 'Казахское ханство' }).waitFor();
-    await page.locator('.district-list', { hasText: 'Япония → Казахское ханство' }).waitFor();
+    await page.getByRole('button', { name: 'Выбрать «Камелот — Рыцарское королевство»' }).click();
+    await page.locator('.district-head', { hasText: 'Камелот — Рыцарское королевство' }).waitFor();
+    await page.locator('.district-list', { hasText: 'Казахское ханство → Камелот — Рыцарское королевство' }).waitFor();
     must((await page.locator('.district-head .xpbar .small').textContent()) === xpBefore, 'XP must not change with the style');
     await page.getByRole('button', { name: 'Сменить стиль района' }).click();
-    await page.getByRole('radio', { name: /Япония/ }).click();
-    await page.getByRole('button', { name: 'Выбрать «Япония»' }).click();
-    await page.locator('.district-head', { hasText: 'Япония' }).waitFor();
+    await page.getByRole('radio', { name: /Казахское ханство/ }).click();
+    await page.getByRole('button', { name: 'Выбрать «Казахское ханство»' }).click();
+    await page.locator('.district-head', { hasText: 'Казахское ханство' }).waitFor();
     step('глава сменил стиль: превью пяти уровней, запись в журнале, опыт не изменился (стиль возвращён)');
   });
 

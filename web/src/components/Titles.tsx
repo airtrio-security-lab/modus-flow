@@ -9,9 +9,9 @@ import type { GameTitle, TitlesView } from '../lib/types';
 export function useTitles() {
   const s = useSession();
   // Guests get 403 here and simply see no titles.
-  const { data } = useLoad(() => api<TitlesView>(`/orgs/${s.org}/titles`), [s.org]);
+  const { data, reload } = useLoad(() => api<TitlesView>(`/orgs/${s.org}/titles`), [s.org]);
   const map = new Map<string, GameTitle>((data?.titles ?? []).map((t) => [t.membershipId, t]));
-  return { data, get: (membershipId: string) => map.get(membershipId) ?? null };
+  return { data, reload, get: (membershipId: string) => map.get(membershipId) ?? null };
 }
 
 export function TitleChip({ title }: { title: GameTitle | null }) {

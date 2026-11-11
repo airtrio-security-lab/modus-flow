@@ -76,7 +76,7 @@ export function Inbox() {
     await s.refreshInbox();
   }
   /** «Войти в Совет» passes through the city: the camera flies to the palace (skippable, instant in light graphics). */
-  const councilEntry = (path: string) => `/kingdom?enter=${encodeURIComponent(path.replace(/^#/, ''))}`;
+  const councilEntry = (path: string, dept?: string | null) => `/kingdom?enter=${encodeURIComponent(path.replace(/^#/, ''))}${dept ? `&hall=${dept}` : ''}`;
   async function open(n: Notification, path: string, also: Notification[] = []) {
     const ids = [n, ...also].filter((x) => !x.readAt).map((x) => x.id);
     if (ids.length) await markRead(ids);
@@ -153,6 +153,10 @@ export function Inbox() {
                         <dd>{m.title}</dd>
                       </div>
                       <div>
+                        <dt>Где</dt>
+                        <dd>{m.council === 'great' ? 'Большой Круглый стол — совет компании' : `${m.hall} — малый совет подразделения`}</dd>
+                      </div>
+                      <div>
                         <dt>Созвал(а)</dt>
                         <dd>{m.organizer}</dd>
                       </div>
@@ -166,6 +170,19 @@ export function Inbox() {
                           <dd>
                             №{m.ideaNumber}
                             {m.ideaTitle ? ` «${m.ideaTitle}»` : ''}
+                          </dd>
+                        </div>
+                      ) : null}
+                      {m.agenda.length ? (
+                        <div>
+                          <dt>Повестка</dt>
+                          <dd>
+                            {m.agenda.map((a, i) => (
+                              <span key={a.number}>
+                                {i ? '; ' : ''}
+                                <a href={`#/items/${a.number}`}>№{a.number}</a> {a.title}
+                              </span>
+                            ))}
                           </dd>
                         </div>
                       ) : null}
@@ -188,7 +205,7 @@ export function Inbox() {
                   <div className="row">
                     {m && !m.cancelled ? (
                       <>
-                        <button className="btn primary small" onClick={() => void open(n, councilEntry(target!), more)}>
+                        <button className="btn primary small" onClick={() => void open(n, councilEntry(target!, m.departmentId), more)}>
                           Войти в Совет
                         </button>
                         {m.attendance !== 'confirmed' ? (

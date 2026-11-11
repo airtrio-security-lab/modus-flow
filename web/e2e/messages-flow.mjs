@@ -87,7 +87,7 @@ try {
   // 2–5. Personal messages; Олег opens his, confirms and enters the council.
   await as(by('Руководитель отдела продаж'), async (page) => {
     await page.goto(`${BASE}/#/inbox`);
-    await expectText(page, 'Миледи, вас призывают к Круглому столу!');
+    await expectText(page, 'Миледи, вас созывают к Большому Круглому столу!');
     step('2. Сауле выбрала обращение «Миледи» — так к ней и обращаются');
   });
   await as(whHead, async (page) => {
@@ -95,7 +95,7 @@ try {
     const scroll = page.locator('li.scroll', { hasText: 'Король созывает Совет' }).first();
     await scroll.waitFor();
     const text = await scroll.textContent();
-    for (const must of ['Милорд, вас призывают к Круглому столу!', 'Ваше мнение необходимо для принятия решения', 'Ерлан Касымов', `№${n}`, 'Почему вы', 'Что сделать']) {
+    for (const must of ['Милорд, вас созывают к Большому Круглому столу!', 'Ваше мнение необходимо для принятия решения', 'Ерлан Касымов', `№${n}`, 'Почему вы', 'Что сделать']) {
       if (!text?.includes(must)) throw new Error(`message lacks «${must}»: ${text}`);
     }
     step('2. Олег получил личное послание: «Милорд…», тема, кто созвал, когда, №, почему он, что сделать');

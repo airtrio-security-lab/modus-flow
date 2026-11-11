@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
+import { GREAT_COUNCIL, civilization } from '../domain/civilizations.ts';
 import { AppError, conflict, forbidden, notFound } from '../domain/errors.ts';
 import type { OrgActor } from '../domain/model.ts';
 import { extractFindings, formatMs, ITEM_TYPES, normQuote, type Finding, type FindingType } from '../domain/meeting.ts';
@@ -51,6 +52,8 @@ export const CreateMeetingInput = z
     departmentId: z.uuid().optional(),
     ideaNumber: z.number().int().positive().optional(),
     participants: z.array(z.uuid()).min(1).max(40),
+    /** Items the meeting will discuss (the agenda), in order. */
+    agenda: z.array(z.number().int().positive()).max(10).optional(),
     scheduledAt: z.iso.datetime({ offset: true }).optional(),
     /** The organizer agrees to be recorded by calling a recorded meeting. */
     organizerConsent: z.literal(true),
@@ -68,6 +71,12 @@ export async function createMeeting(db: Database, actor: OrgActor, input: z.infe
         [actor.orgId, input.departmentId ? 'castle' : 'royal', input.departmentId ?? null, idea?.id ?? null, input.title, actor.membershipId, input.scheduledAt ?? null],
       );
       const id = rows[0]!.id;
+      // The agenda: visible items only (RLS), in the given order, without repeats.
+      let pos = 0;
+      for (const n of [...new Set(input.agenda ?? [])]) {
+        const item = await loadIdea(c, n);
+        await c.query('INSERT INTO meeting_agenda (organization_id, meeting_id, idea_id, position) VALUES ($1, $2, $3, $4)', [actor.orgId, id, item.id, ++pos]);
+      }
       const people = [...new Set([actor.membershipId, ...input.participants])];
       for (const m of people) {
         const mine = m === actor.membershipId;
@@ -391,7 +400,7 @@ export async function decideFinding(db: Database, actor: OrgActor, meetingId: st
 // ---------------------------------------------------------------------------
 export async function listMeetings(db: Database, actor: OrgActor) {
   return withTx(db, orgTx(actor), async (c) => {
-    const { rows } = await c.query(
+    const { rows } = await c.query<{ id: string; title: string; scope: string; civilization: string | null; [k: string]: unknown }>(
       `SELECT m.id, m.title, m.scope, d.name AS department, i.number AS "ideaNumber", o.display_name AS organizer,
               m.created_at AS "createdAt", m.recording_started_at AS "recordingStartedAt", m.ended_at AS "endedAt",
               (SELECT consent FROM meeting_participants x WHERE x.meeting_id = m.id AND x.membership_id = app_membership_id()) AS "myConsent",
@@ -399,7 +408,8 @@ export async function listMeetings(db: Database, actor: OrgActor) {
               (SELECT count(*)::int FROM meeting_participants x WHERE x.meeting_id = m.id AND x.removed_at IS NULL) AS participants,
               (SELECT count(*)::int FROM meeting_participants x WHERE x.meeting_id = m.id AND x.consent = 'given' AND x.removed_at IS NULL) AS consented,
               m.scheduled_at AS "scheduledAt", m.cancelled_at AS "cancelledAt",
-              EXISTS (SELECT 1 FROM meeting_recordings r WHERE r.meeting_id = m.id) AS "hasRecording"
+              EXISTS (SELECT 1 FROM meeting_recordings r WHERE r.meeting_id = m.id) AS "hasRecording",
+              m.department_id AS "departmentId", d.civilization
          FROM meetings m
          JOIN employees o ON o.membership_id = m.organizer_membership_id
          LEFT JOIN departments d ON d.id = m.department_id
@@ -407,7 +417,11 @@ export async function listMeetings(db: Database, actor: OrgActor) {
         WHERE m.organization_id = app_org_id()
         ORDER BY m.created_at DESC LIMIT 100`,
     );
-    return rows;
+    return rows.map((r) => ({
+      ...r,
+      council: r.scope === 'royal' ? 'great' : 'small',
+      hall: r.scope === 'royal' ? GREAT_COUNCIL.hall : civilization(r.civilization).hall,
+    }));
   });
 }
 
@@ -464,12 +478,25 @@ export async function getMeeting(db: Database, actor: OrgActor, id: string, deps
         WHERE t.meeting_id = $1 ORDER BY p.created_at, k.ord`,
       [id],
     );
+    const agenda = await c.query<{ number: number; title: string; status: string }>(
+      `SELECT o.number, o.title, o.status FROM meeting_agenda a JOIN idea_overview o ON o.id = a.idea_id WHERE a.meeting_id = $1 ORDER BY a.position`,
+      [id],
+    );
+    const civ = m.departmentId
+      ? (await c.query<{ civ: string }>('SELECT civilization AS civ FROM departments WHERE id = $1', [m.departmentId])).rows[0]?.civ ?? null
+      : null;
+    const place =
+      m.scope === 'royal'
+        ? { council: 'great', hall: GREAT_COUNCIL.hall, civilization: null }
+        : { council: 'small', hall: civilization(civ).hall, civilization: civilization(civ).id };
     const me = participants.rows.find((p) => p.membershipId === actor.membershipId);
     const allConsented = participants.rows.length > 0 && participants.rows.every((p) => p.consent === 'given');
     const organizer = m.organizerMembershipId === actor.membershipId;
     return {
       ...m,
       participants: participants.rows,
+      agenda: agenda.rows,
+      place,
       myConsent: me?.consent ?? null,
       allConsented,
       recording,

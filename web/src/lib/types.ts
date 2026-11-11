@@ -181,7 +181,7 @@ export interface IdeaDetail {
 }
 
 export interface Directory {
-  departments: { id: string; name: string; active: boolean; headMembershipId: string | null; head: string | null; headcount?: number | null }[];
+  departments: { id: string; name: string; active: boolean; headMembershipId: string | null; head: string | null; headcount?: number | null; civilization?: string }[];
   categories: { id: string; name: string; description: string | null; sortOrder: number; active: boolean }[];
   members: { membershipId: string; name: string; department: string | null; jobTitle: string | null; roles: Role[]; access: 'member' | 'guest' }[];
   settings: { defaultFirstResponseHours: number; defaultResolutionDays: number; staleDays: number; escalationMembershipId: string | null } | null;
@@ -208,6 +208,10 @@ export interface Rule {
 export type NoteCategory = 'council' | 'items' | 'decisions' | 'deadlines' | 'castle' | 'legacy';
 export interface MeetingInvite {
   title: string;
+  departmentId: string | null;
+  hall: string;
+  council: 'small' | 'great';
+  agenda: { number: number; title: string }[];
   organizer: string;
   scheduledAt: string | null;
   ideaNumber: number | null;
@@ -385,6 +389,8 @@ export interface CouncilSeat {
   department: string | null;
   roles: CouncilRole[];
   headOf: string[];
+  title: string | null;
+  civilization: string | null;
   stance: Stance;
 }
 export interface CouncilEntry {
@@ -396,6 +402,8 @@ export interface CouncilEntry {
   author: string;
   authorMembershipId: string;
   mine: boolean;
+  /** Where the entry was made: the department's small council or the Great Round Table. */
+  council: 'small' | 'great';
 }
 export interface CouncilView {
   item: {
@@ -425,7 +433,9 @@ export interface CouncilView {
   decisions: { outcome: 'merge' | 'reject' | 'close'; rationale: string; createdAt: string; decidedBy: string }[];
   questions: { body: string; state: string; createdAt: string; author: string }[];
   similar: { number: number; title: string; status: Status }[];
-  can: { argue: boolean; recommend: boolean; handoff: boolean; askAuthor: boolean; pilot: boolean; decide: boolean };
+  can: { argue: boolean; recommend: boolean; handoff: boolean; askAuthor: boolean; pilot: boolean; decide: boolean; escalate: boolean };
+  place: CouncilPlace;
+  meetings: { id: string; title: string; scope: string; at: string; council: 'small' | 'great' }[];
 }
 export interface CouncilListRow {
   number: number;
@@ -445,6 +455,10 @@ export interface CouncilListRow {
   against: number;
   recommendations: number;
   dissent: number;
+  council: 'small' | 'great';
+  hall: string;
+  civilization: string | null;
+  departmentId: string | null;
 }
 export interface Contribution {
   items: { number: number; title: string; status: Status; department: string | null; authored: boolean; credited: boolean; xp: number }[];
@@ -524,13 +538,23 @@ export interface ExecutorView {
 export interface GameTitle {
   membershipId: string;
   title: string;
-  rank: 'king' | 'regent' | 'castle_head' | 'guild';
-  source: 'assigned' | 'castle_head' | 'guild_default';
+  rank: TitleKind;
+  source: 'assigned' | 'castle_head' | 'guild_default' | 'civilization' | 'neutral' | 'choice';
   castle: string | null;
+  civilization: string | null;
+  honor: string | null;
+}
+export interface TitleChoices {
+  neutral: boolean;
+  novice: boolean;
+  showHonor: boolean;
+  headForm: 'lord' | 'lady' | null;
 }
 export interface TitlesView {
   titles: GameTitle[];
   guilds: { departmentId: string; department: string; titles: string[] }[];
+  registry: { id: string; name: string; hall: string; titles: CivTitles }[];
+  choices: TitleChoices;
   note: string;
 }
 export type Consent = 'pending' | 'given' | 'declined';
@@ -602,6 +626,8 @@ export interface MeetingView {
   cancelReason: string | null;
   myConsent: Consent | null;
   allConsented: boolean;
+  agenda: { number: number; title: string; status: Status }[];
+  place: { council: 'small' | 'great'; hall: string; civilization: string | null };
   recording: { source: 'microphone' | 'upload'; contentType: string; sizeBytes: number; durationMs: number | null; sha256: string; createdAt: string; uploadedBy: string; purgedAt: string | null } | null;
   legalHold?: boolean;
   transcripts: { id: string; source: 'engine' | 'manual' | 'prepared' | 'minutes'; engine: string | null; text: string; sha256: string; createdAt: string; createdBy: string; purgedAt: string | null }[];
@@ -631,6 +657,9 @@ export interface StaffCard {
   name: string;
   jobTitle: string | null;
   title: string | null;
+  /** What the title stands for — a function or the person's choice, never a rating. */
+  titleKind: TitleKind | null;
+  honor: string | null;
   group: 'command' | 'specialist' | 'member';
   isHead: boolean;
   questionnaire: 'filled' | 'empty' | 'hidden';
@@ -660,7 +689,7 @@ export interface DistrictItem {
 export interface District {
   id: string;
   name: string;
-  civilization: { id: string; name: string };
+  civilization: { id: string; name: string; motto: string; hall: string; titles: CivTitles };
   colorIndex: number;
   head: { membershipId: string; name: string | null; title: string | null } | null;
   canChooseCivilization: boolean;
@@ -684,9 +713,9 @@ export interface District {
   tasks: DistrictItem[];
   initiatives: DistrictItem[];
   council: {
-    open: { number: number; title: string; entries: number }[];
+    open: { number: number; title: string; entries: number; great: boolean }[];
     decisions: { number: number; title: string; outcome: string; by: string; at: string }[];
-    meetings: { id: string; title: string; at: string; cancelled: boolean; idea: number | null }[];
+    meetings: { id: string; title: string; at: string; cancelled: boolean; idea: number | null; great: boolean }[];
   };
   legacy: { id: string; title: string; level: string; status: string; kind: string }[];
   development: {
@@ -710,6 +739,9 @@ export interface PersonCard {
   jobTitle: string | null;
   department: { id: string | null; name: string } | null;
   title: string | null;
+  titleKind: TitleKind | null;
+  honor: string | null;
+  civilization: string | null;
   self: boolean;
   questionnaire: 'filled' | 'empty' | 'hidden';
   skills: string[] | null;
@@ -721,3 +753,35 @@ export interface PersonCard {
   results: { number: number; title: string; role: string; xp: number }[];
   achievements: StaffCard['achievements'];
 }
+
+/** Civilization registry (ADR-0020): words only, no rights. */
+export type TitleKind = 'king' | 'regent' | 'castle_head' | 'guild' | 'deputy' | 'authorized' | 'master' | 'novice' | 'member';
+export interface CivTitles {
+  head: string;
+  deputy: string;
+  authorized: string;
+  master: string;
+  honor: string | null;
+  novice: string | null;
+  member: string;
+}
+export interface CouncilPlace {
+  level: 'small' | 'great';
+  hall: string;
+  department: { id: string; name: string; civilization: string; civilizationName: string; hall: string } | null;
+  escalation: {
+    by: string;
+    at: string;
+    reasonKind: string;
+    reasonTitle: string;
+    reason: string;
+    from: { name: string; hall: string; civilization: string } | null;
+  } | null;
+}
+export const ESCALATION_REASONS: Record<string, string> = {
+  cross_department: 'Межотдельский вопрос: затрагивает несколько подразделений',
+  strategic: 'Стратегическое изменение',
+  shared_resources: 'Общие ресурсы компании',
+  higher_authority: 'Нужны более высокие полномочия',
+  other: 'Другая причина',
+};

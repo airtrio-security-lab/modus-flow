@@ -1,6 +1,6 @@
 # ADR-0019 · «Живое Королевство»: the city of departments, the district screen, architectural styles
 
-**Status.** Accepted (owner master prompt 2026-11-11 «Живое Королевство: интерактивный город…»).
+**Status.** Accepted (owner master prompt 2026-11-11 «Живое Королевство: интерактивный город…»). Amended by ADR-0020: «Средневековая Европа» is now Камелот; titles come from the civilization registry.
 Migration `0014_city.sql`; domain `platform/domain/civilizations.ts`; module `platform/modules/district.ts`;
 web `web/src/lib/camera.ts`, `web/src/components/civ.tsx`, `web/src/screens/Kingdom.tsx`,
 `web/src/screens/District.tsx`, `web/src/screens/Person.tsx`. Tests: `test/platform/city.test.ts` (4),

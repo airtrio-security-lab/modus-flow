@@ -16,6 +16,7 @@ export interface IdeaRow {
   decision_owner_membership_id: string | null;
   raised_by_membership_id: string | null;
   implementer_membership_id: string | null;
+  department_id: string | null;
   current_revision_number: number;
   published_at: Date;
   updated_at: Date;
@@ -34,7 +35,7 @@ export async function loadIdea(c: Client, number: number, lock = false): Promise
   const { rows } = await c.query<IdeaRow>(
     `SELECT id, number, kind, stage, author_membership_id, maintainer_membership_id,
             decision_owner_membership_id, raised_by_membership_id, implementer_membership_id,
-            current_revision_number, published_at, updated_at
+            department_id, current_revision_number, published_at, updated_at
        FROM ideas WHERE organization_id = app_org_id() AND number = $1${lock ? ' FOR UPDATE' : ''}`,
     [number],
   );

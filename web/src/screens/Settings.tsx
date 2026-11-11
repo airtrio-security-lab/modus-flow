@@ -1,4 +1,5 @@
 import { KnowledgePrivacy } from '../components/KnowledgePrivacy';
+import { TitlesAdmin } from '../components/TitlesAdmin';
 import { RetentionSettings } from '../components/Retention';
 import { useEffect, useState } from 'react';
 import { api, errorText } from '../lib/api';
@@ -135,6 +136,7 @@ export function Settings() {
       <RetentionSettings />
 
       <KnowledgePrivacy />
+      <TitlesAdmin />
 
       <section className="panel stack" aria-labelledby="archivists-h">
         <h2 className="section-title" id="archivists-h">Архивариусы</h2>

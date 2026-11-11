@@ -77,6 +77,7 @@ export const NOTIFICATION_EVENTS = [
   'knowledge_in_library',
   'knowledge_archived',
   'knowledge_reverify',
+  'council_escalated',
 ] as const;
 export type NotificationEvent = (typeof NOTIFICATION_EVENTS)[number];
 

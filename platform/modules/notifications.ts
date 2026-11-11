@@ -2,6 +2,7 @@ import { withTx, type Client, type Database } from '../db/pool.ts';
 import { NOTIFICATION_EVENTS, type NotificationEvent, type OrgActor } from '../domain/model.ts';
 import { orgTx } from './context.ts';
 import { effectiveTitles, type EffectiveTitle } from './titles.ts';
+import { GREAT_COUNCIL, civilization } from '../domain/civilizations.ts';
 import { z } from 'zod';
 
 /**
@@ -75,6 +76,7 @@ const TEMPLATES: Record<NotificationEvent, (actor: string, title: string) => str
   knowledge_in_library: (a, t) => `${a} (Архивариус) вносит «${t}» в Библиотеку решений`,
   knowledge_archived: (a, t) => `${a} утверждает включение «${t}» в Высший Архив`,
   knowledge_reverify: (a, t) => `${a} запрашивает повторную проверку знания «${t}»`,
+  council_escalated: (a, t) => `${a} передаёт «${t}» из малого совета подразделения в Большой совет компании`,
 };
 
 /**
@@ -116,6 +118,7 @@ export const HEADLINES: Record<NotificationEvent, string> = {
   knowledge_in_library: 'Том внесён в Библиотеку',
   knowledge_archived: 'Том занял место в Высшем Архиве',
   knowledge_reverify: 'Знание требует проверки',
+  council_escalated: 'Вопрос передан к Большому Круглому столу',
 };
 
 /** Plain business headlines for people who switched the game wording off. */
@@ -152,6 +155,7 @@ export const BUSINESS_HEADLINES: Record<NotificationEvent, string> = {
   knowledge_in_library: 'Решение внесено в Библиотеку',
   knowledge_archived: 'Утверждено в Высший Архив',
   knowledge_reverify: 'Требуется повторная проверка',
+  council_escalated: 'Вопрос передан в Большой совет',
 };
 
 /** Groups for the inbox filter and for switching optional messages off. */
@@ -165,6 +169,7 @@ export const CATEGORY: Record<NotificationEvent, 'council' | 'items' | 'decision
   escalated: 'deadlines', deadline_soon: 'deadlines',
   castle_xp: 'castle', castle_level_up: 'castle', contribution_confirmed: 'castle', honor_board_recognition: 'castle',
   knowledge_submitted: 'legacy', knowledge_in_library: 'legacy', knowledge_archived: 'legacy', knowledge_reverify: 'legacy',
+  council_escalated: 'council',
 };
 /** Never switched off (also enforced by app_notification_enabled in the database). */
 export const MANDATORY: readonly NotificationEvent[] = [
@@ -172,7 +177,7 @@ export const MANDATORY: readonly NotificationEvent[] = [
   'deadline_soon', 'meeting_called', 'meeting_rescheduled', 'meeting_cancelled', 'verification_started',
 ];
 /** Urgent: may unfold once in the inbox (short, non-blocking animation). */
-export const URGENT: readonly NotificationEvent[] = ['meeting_called', 'council_handoff', 'assigned', 'deadline_soon', 'escalated'];
+export const URGENT: readonly NotificationEvent[] = ['council_escalated', 'meeting_called', 'council_handoff', 'assigned', 'deadline_soon', 'escalated'];
 
 export type AddressForm = 'title' | 'milord' | 'milady' | 'master' | 'neutral';
 export interface Preferences {
@@ -199,13 +204,26 @@ interface Ctx {
   addr: string;
   topic: string;
   required: boolean;
+  /** Meeting place: the small council of a civilization or the Great Round Table (ADR-0020). */
+  place?: { council: 'small' | 'great'; civ: string | null; hall: string; castle: string | null };
+  /** The reader heads a district and is addressed by their title (not a chosen form). */
+  headByTitle?: boolean;
+  /** For an escalation: the small council the item came from. */
+  from?: string | null;
   /** 'метода' for methods, 'знания' otherwise (knowledge messages). */
   noun?: string;
 }
 const ROYAL: Partial<Record<NotificationEvent, (x: Ctx) => string>> = {
-  meeting_called: (x) =>
-    `${x.addr}, вас призывают к Круглому столу! Совет собирается для рассмотрения вопроса: «${x.topic}». ` +
-    (x.required ? 'Ваше мнение необходимо для принятия решения.' : 'Ваше мнение поможет принять решение; участие — по желанию.'),
+  meeting_called: (x) => {
+    const need = x.required ? 'Ваше мнение необходимо для принятия решения.' : 'Ваше мнение поможет принять решение; участие — по желанию.';
+    // The small council speaks in the words of its civilization; the Great Round Table belongs to none.
+    if (x.place?.council === 'small') {
+      return `${civilization(x.place.civ).invite(x.addr)}: ${x.place.hall}${x.place.castle ? ` замка «${x.place.castle}»` : ''}. Вопрос: «${x.topic}». ${need}`;
+    }
+    if (x.place?.council === 'great') return `${GREAT_COUNCIL.invite(x.headByTitle ? null : x.addr)}! Совет собирается для рассмотрения вопроса: «${x.topic}». ${need}`;
+    return `${x.addr}, вас призывают к Круглому столу! Совет собирается для рассмотрения вопроса: «${x.topic}». ${need}`;
+  },
+  council_escalated: (x) => `${GREAT_COUNCIL.invite(x.headByTitle ? null : x.addr)}: вопрос «${x.topic}» передан${x.from ? ` из малого совета «${x.from}»` : ''}.`,
   meeting_rescheduled: (x) => `${x.addr}, Круглый стол «${x.topic}» переносится.`,
   meeting_cancelled: (x) => `${x.addr}, Совет «${x.topic}» отменён.`,
   meeting_recording_started: (x) => `${x.addr}, летописец начал запись Совета «${x.topic}».`,
@@ -233,6 +251,11 @@ const ROYAL: Partial<Record<NotificationEvent, (x: Ctx) => string>> = {
 
 export interface MeetingInvite {
   title: string;
+  departmentId: string | null;
+  /** Where it meets: «Зал даймё», «Ханская юрта»… or the Great Round Table. */
+  hall: string;
+  council: 'small' | 'great';
+  agenda: { number: number; title: string }[];
   organizer: string;
   scheduledAt: string | null;
   ideaNumber: number | null;
@@ -313,6 +336,10 @@ export async function inbox(c: Client, limit = 80): Promise<InboxItem[]> {
     p_consent: MeetingInvite['consent'] | null;
     created_at: Date;
     read_at: Date | null;
+    m_castle: string | null;
+    m_civ: string | null;
+    m_department: string | null;
+    esc_from: string | null;
   }>(
     `SELECT n.id, n.event_type, CASE WHEN n.event_type LIKE 'knowledge\_%' THEN app_knowledge_person(n.actor_membership_id) ELSE u.display_name END AS actor_name, n.actor_membership_id AS actor_id, r.title, i.number, n.meeting_id, k.id AS knowledge_id, k.title AS k_title,
             CASE WHEN k.kind = 'method' THEN 'метода' ELSE 'знания' END AS k_noun,
@@ -334,7 +361,10 @@ export async function inbox(c: Client, limit = 80): Promise<InboxItem[]> {
               OR (mt.scope = 'royal' AND om.roles && ARRAY['decision_owner']::text[])
               OR (mt.scope = 'castle' AND EXISTS (SELECT 1 FROM departments d WHERE d.id = mt.department_id AND d.head_membership_id = mt.organizer_membership_id))
             END AS m_required,
-            mp.attendance AS p_attendance, mp.consent AS p_consent, n.created_at, n.read_at
+            mp.attendance AS p_attendance, mp.consent AS p_consent, n.created_at, n.read_at,
+            md.name AS m_castle, md.civilization AS m_civ, mt.department_id AS m_department,
+            (SELECT fd.name FROM council_escalations ce JOIN departments fd ON fd.id = ce.from_department_id
+              WHERE ce.idea_id = n.idea_id AND n.event_type = 'council_escalated') AS esc_from
        FROM notifications n
        LEFT JOIN memberships am ON am.id = n.actor_membership_id
        LEFT JOIN users u ON u.id = am.user_id
@@ -346,12 +376,25 @@ export async function inbox(c: Client, limit = 80): Promise<InboxItem[]> {
        LEFT JOIN ideas mi ON mi.id = mt.idea_id
        LEFT JOIN idea_revisions mr ON mr.idea_id = mi.id AND mr.number = mi.current_revision_number
        LEFT JOIN meeting_participants mp ON mp.meeting_id = mt.id AND mp.membership_id = app_membership_id()
+       LEFT JOIN departments md ON md.id = mt.department_id
        LEFT JOIN knowledge_items k ON k.id = n.knowledge_id -- RLS: only knowledge the reader may still see
       WHERE n.recipient_membership_id = app_membership_id()
       ORDER BY n.created_at DESC LIMIT $1`,
     [limit],
   );
   const titles = await effectiveTitles(c);
+  // Heads addressed by their title get the collective «Главы владений» at the Great Round Table.
+  const headByTitle = prefs.addressForm === 'title' && title?.rank === 'castle_head';
+  const meetingIds = [...new Set(rows.map((r) => r.meeting_id).filter((x): x is string => !!x && rows.some((y) => y.meeting_id === x && y.m_title !== null)))];
+  const agendas = new Map<string, { number: number; title: string }[]>();
+  if (meetingIds.length) {
+    const a = await c.query<{ meeting_id: string; number: number; title: string }>(
+      `SELECT a.meeting_id, o.number, o.title FROM meeting_agenda a JOIN idea_overview o ON o.id = a.idea_id
+        WHERE a.meeting_id = ANY($1::uuid[]) ORDER BY a.meeting_id, a.position`,
+      [meetingIds],
+    );
+    for (const x of a.rows) agendas.set(x.meeting_id, [...(agendas.get(x.meeting_id) ?? []), { number: x.number, title: x.title }]);
+  }
   return rows.map((r) => {
     const topic = r.title ?? r.m_title ?? r.k_title ?? (r.event_type.startsWith('knowledge_') ? 'знание недоступно' : '—');
     const royalFn = prefs.style === 'royal' ? ROYAL[r.event_type] : undefined;
@@ -361,12 +404,31 @@ export async function inbox(c: Client, limit = 80): Promise<InboxItem[]> {
     if (prefs.style === 'royal' && r.event_type === 'meeting_called') {
       // The headline names the King or the Regent only when the real sender holds that title.
       headline =
-        actorTitle?.rank === 'king' ? 'Король созывает Совет' : actorTitle?.rank === 'regent' ? 'Регент созывает Совет' : r.m_scope === 'castle' ? 'Созван малый совет замка' : 'Созван Королевский совет';
+        actorTitle?.rank === 'king'
+          ? 'Король созывает Совет'
+          : actorTitle?.rank === 'regent'
+            ? 'Регент созывает Совет'
+            : r.m_scope === 'castle'
+              ? `Созван малый совет: ${civilization(r.m_civ).hall}`
+              : `Созван ${GREAT_COUNCIL.name}`;
     }
+    const place =
+      r.m_title !== null
+        ? {
+            council: (r.m_scope === 'royal' ? 'great' : 'small') as 'small' | 'great',
+            civ: r.m_civ,
+            hall: r.m_scope === 'royal' ? GREAT_COUNCIL.name : civilization(r.m_civ).hall,
+            castle: r.m_castle,
+          }
+        : undefined;
     const meeting: MeetingInvite | null =
       r.m_title !== null
         ? {
             title: r.m_title,
+            departmentId: r.m_department,
+            hall: place!.hall,
+            council: place!.council,
+            agenda: agendas.get(r.meeting_id!) ?? [],
             organizer: r.m_organizer ?? '—',
             scheduledAt: r.m_scheduled?.toISOString() ?? null,
             ideaNumber: r.m_idea_number,
@@ -391,7 +453,7 @@ export async function inbox(c: Client, limit = 80): Promise<InboxItem[]> {
       event: r.event_type,
       category: CATEGORY[r.event_type],
       message: TEMPLATES[r.event_type](r.actor_name ?? 'Система', topic),
-      royal: royalFn ? royalFn({ addr, topic, required, noun: r.k_noun ?? undefined }) : null,
+      royal: royalFn ? royalFn({ addr, topic, required, noun: r.k_noun ?? undefined, place, headByTitle, from: r.esc_from }) : null,
       headline,
       urgent: URGENT.includes(r.event_type),
       ideaNumber: r.number,

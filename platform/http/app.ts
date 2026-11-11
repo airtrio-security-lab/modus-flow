@@ -30,6 +30,7 @@ import * as legacy from '../modules/legacy.ts';
 import * as kprivacy from '../modules/knowledge-privacy.ts';
 import * as district from '../modules/district.ts';
 import * as titles from '../modules/titles.ts';
+import { CIVILIZATIONS, ESCALATION_REASONS, GREAT_COUNCIL } from '../domain/civilizations.ts';
 import * as retention from '../modules/retention.ts';
 import type { TranscribeConfig } from '../modules/transcribe.ts';
 import { engineReachable } from '../modules/transcribe.ts';
@@ -322,6 +323,7 @@ export function createApp(config: AppConfig) {
   route('GET', `${IDEA}/progress`, async (ctx) => ({ status: 200, body: await progress.ideaProgress(db, await org(ctx), NumberParam.parse(ctx.params.number)) }));
   step('/council/entries', council.CouncilEntryInput, (a, n, i, _p, k) => council.addEntry(db, a, n, i, k));
   step('/council/handoff', council.HandoffInput, (a, n, i, _p, k) => council.handoff(db, a, n, i, k));
+  step('/council/escalate', council.EscalateInput, (a, n, i, _p, k) => council.escalate(db, a, n, i, k));
   // ---- MODUS ADVISOR (0008, ADR-0013): proposes, a person confirms ---------
   const model = config.advisorModel ?? null;
   route('GET', `${ORG}/advisor/status`, async (ctx) => {
@@ -352,7 +354,12 @@ export function createApp(config: AppConfig) {
 
   // ---- Living kingdom (0009, ADR-0014): titles, meetings, recordings, findings ----
   const mdeps: meetings.MeetingDeps = { model, engine: config.transcribeEngine ?? null, fetchImpl: config.advisorFetch };
+  route('GET', `${ORG}/civilizations`, async (ctx) => {
+    await org(ctx);
+    return { status: 200, body: { civilizations: CIVILIZATIONS.map((c) => ({ id: c.id, name: c.name, motto: c.motto, hall: c.hall, titles: c.titles })), great: { name: GREAT_COUNCIL.name, hall: GREAT_COUNCIL.hall }, escalationReasons: ESCALATION_REASONS } };
+  });
   route('GET', `${ORG}/titles`, async (ctx) => ({ status: 200, body: await titles.listTitles(db, await org(ctx)) }));
+  json('PUT', '/titles/choices', titles.TitleChoicesInput, (a, i) => titles.saveTitleChoices(db, a, i));
   json('PUT', `/titles/(?<m>${UUID})`, titles.AssignTitleInput, (a, i, p) => titles.assignTitle(db, a, p.m!, i));
   route('DELETE', `${ORG}/titles/(?<m>${UUID})`, async (ctx) => ({ status: 200, body: await titles.clearTitle(db, await org(ctx), ctx.params.m!) }));
   json('PUT', `/guild-titles/(?<d>${UUID})`, titles.GuildTitlesInput, (a, i, p) => titles.setGuildTitles(db, a, p.d!, i));

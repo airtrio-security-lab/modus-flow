@@ -2,7 +2,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import { createDatabase, withAdminTx, type Database } from '../db/pool.ts';
 import { saveMyProfile } from '../modules/advisor.ts';
-import { assignTitle, setGuildTitles } from '../modules/titles.ts';
+import { assignTitle, saveTitleChoices } from '../modules/titles.ts';
 import { createMeeting, setConsent } from '../modules/meetings.ts';
 import * as legacy from '../modules/legacy.ts';
 import { savePreferences } from '../modules/notifications.ts';
@@ -408,28 +408,30 @@ async function main() {
   await saveMyProfile(db, wms, { skills: ['Складская программа', 'Штрихкодирование', 'Отчёты по остаткам'], weeklyHours: 3 });
   await saveMyProfile(db, forklift, { skills: ['Погрузчик', 'Приёмка паллет'], preferences: 'Только дневные смены', weeklyHours: 2 });
 
-  // ---- «Живое Королевство» (ADR-0019): architectural styles of the districts — a picture, no rights ----
-  await setCivilization(db, whHead, D.warehouse, 'japan');
-  await setCivilization(db, salesHead, D.sales, 'kazakh');
+  // ---- «Живое Королевство» and civilizations (ADR-0019, ADR-0020): styles of the districts — a picture, no rights ----
+  await setCivilization(db, itLead, D.it, 'japan');
+  await setCivilization(db, whHead, D.warehouse, 'kazakh');
+  await setCivilization(db, salesHead, D.sales, 'camelot');
   await setCivilization(db, svcHead, D.service, 'mongolia');
-  await setCivilization(db, sysAdmin, D.pnr, 'kazakh');
+  await setCivilization(db, sysAdmin, D.pnr, 'camelot');
   await setCivilization(db, sysAdmin, D.purchasing, 'japan');
   await setCivilization(db, sysAdmin, D.design, 'mongolia');
+  // More (fictional) people of the IT district, so its Japanese titles are visible.
+  const itDeputy = await mk('Арман Жаксыбеков', 'Ведущий разработчик', 'ИТ-разработка', ['employee']);
+  const itAnalyst = await mk('Елена Смирнова', 'Системный аналитик', 'ИТ-разработка', ['employee', 'maintainer'], 'Самурай ИТ: ведёт обращения, участвует в малом совете');
+  const itDev = await mk('Тимофей Ли', 'Разработчик', 'ИТ-разработка', ['employee'], 'Разработчик: предлагает техническую инициативу');
+  await saveMyProfile(db, itDeputy, { skills: ['Интеграции', 'Складская программа', 'Архитектура'], weeklyHours: 4 });
+  await saveMyProfile(db, itAnalyst, { skills: ['Требования', 'Отчёты'], weeklyHours: 3 });
+  await saveMyProfile(db, itDev, { skills: ['Сканеры', 'Печать этикеток'], preferences: 'Хочу больше задач по оборудованию', weeklyHours: 5 });
 
   // ---- game titles (ADR-0014): decoration only, no rights; editable by the admin ----
-  const guilds: [string, string[]][] = [
-    [D.warehouse, ['Хранитель крепости', 'Мастер запасов', 'Смотритель']],
-    [D.sales, ['Магистр торговли', 'Мастер переговоров', 'Посланник']],
-    [D.it, ['Архимаг технологий', 'Архитектор систем', 'Мастер механизмов']],
-    [D.service, ['Мастер-наладчик', 'Механик гильдии', 'Подмастерье']],
-    [D.purchasing, ['Верховный казначей', 'Казначей', 'Хранитель бюджета']],
-    [D.design, ['Главный зодчий', 'Зодчий', 'Чертёжник']],
-    [D.pnr, ['Мастер пуска', 'Наладчик', 'Подмастерье']],
-  ];
-  for (const [d, titles] of guilds) await setGuildTitles(db, sysAdmin, d, { titles });
+  // Titles come from the civilization registry by function (ADR-0020); the admin names only King, Regent and deputies.
   await assignTitle(db, sysAdmin, owner.membershipId, { rank: 'king' });
   await assignTitle(db, sysAdmin, ops.membershipId, { rank: 'regent' });
-  await assignTitle(db, sysAdmin, storekeeper.membershipId, { rank: 'guild', title: 'Мастер запасов' });
+  await assignTitle(db, sysAdmin, itDeputy.membershipId, { rank: 'deputy' });
+  // Choices made by the (fictional) people themselves: an earned honor shown, the Camelot head form.
+  await saveTitleChoices(db, storekeeper, { neutral: false, novice: false, showHonor: true, headForm: null });
+  await saveTitleChoices(db, salesHead, { neutral: false, novice: false, showHonor: false, headForm: 'lady' });
 
   // ---- forms of address chosen by the people themselves (fictional; never guessed from names) ----
   await savePreferences(db, whHead, { style: 'royal', addressForm: 'milord', groupRepeats: true, muted: [] });
@@ -483,7 +485,7 @@ async function main() {
     reason: 'Записано по итогам решения',
   });
 
-  const personas = [owner, ops, whHead, salesHead, itLead, storekeeper, engineer, archivistBase, sysAdmin].map((p) => ({
+  const personas = [owner, ops, whHead, salesHead, itLead, storekeeper, engineer, archivistBase, sysAdmin, itAnalyst, itDev].map((p) => ({
     userId: p.userId,
     name: p.name,
     title: p.title,

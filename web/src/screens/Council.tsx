@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode } from 'react';
 import { api, newKey } from '../lib/api';
-import { dateTime, due } from '../lib/format';
+import { dateTime, due, plural } from '../lib/format';
+import { go } from '../lib/router';
+import { CouncilScene } from '../components/scenes';
 import { useRemembered } from '../lib/remember';
 import { useLoad, useSession } from '../lib/session';
 import { STATUS } from '../lib/status';
-import type { CouncilEntry, CouncilListRow, CouncilRole, CouncilSeat, CouncilView, Recommendation, Stance } from '../lib/types';
+import { ESCALATION_REASONS, type CouncilEntry, type CouncilListRow, type CouncilRole, type CouncilSeat, type CouncilView, type Recommendation, type Stance } from '../lib/types';
 import { ErrorBox, Loading, PageHead, StatusChip } from '../components/ui';
 import { AdvisorPanel, advisorMethodLine, useAdvisorStatus } from '../components/Advisor';
 import type { ExecutorView } from '../lib/types';
@@ -99,44 +101,64 @@ export function CouncilList() {
       {error ? <ErrorBox error={error} retry={() => void reload()} /> : null}
       {loading && !data ? <Loading rows={4} /> : null}
       {data && !rows.length ? <div className="empty">Сейчас на Совете нет обращений{scope !== 'all' ? ' по этому фильтру' : ''}.</div> : null}
+      <CouncilScene place="great" seats={[...new Set(rows.filter((r) => r.council === 'great').map((r) => r.civilization ?? 'camelot'))]} label="Большой Круглый стол — совет компании: все цивилизации на равных" />
+      <section className="stack" aria-labelledby="cg-great">
+        <h2 id="cg-great" className="section-title">
+          Большой Круглый стол ({rows.filter((r) => r.council === 'great').length})
+        </h2>
+        <p className="small muted">Межотдельские, стратегические вопросы, общие ресурсы и эскалации из малых советов. Решает ответственный за решение.</p>
+        {rows.some((r) => r.council === 'great') ? (
+          <CouncilRows list={rows.filter((r) => r.council === 'great')} />
+        ) : (
+          <p className="small muted">Сейчас у Большого совета нет вопросов.</p>
+        )}
+      </section>
+      <h2 className="section-title">Малые советы подразделений</h2>
       {GROUPS.map((g) => {
-        const list = rows.filter((r) => g.statuses.includes(r.status));
+        const list = rows.filter((r) => r.council !== 'great' && g.statuses.includes(r.status));
         if (!list.length) return null;
         return (
           <section key={g.title} className="stack" aria-labelledby={`cg-${g.title}`}>
             <h2 id={`cg-${g.title}`} className="section-title">
               {g.title} ({list.length})
             </h2>
-            <ul className="council-list">
-              {list.map((r) => {
-                const d = due(r.resolutionDueAt);
-                return (
-                  <li key={r.number}>
-                    <a href={`#/council/${r.number}`}>
-                      <span className="num">Обращение №{r.number}</span>
-                      <span className="title">{r.title}</span>
-                      <span className="meta">
-                        <span>Инициатор: {r.initiator}</span>
-                        <span>{r.decisionOwner ? `Решает: ${r.decisionOwner}` : 'Ответственный за решение не назначен'}</span>
-                        {r.department ? <span>{r.department}</span> : null}
-                      </span>
-                      <span className="meta">
-                        <span>
-                          Аргументов за: {r.for}, против: {r.against}
-                        </span>
-                        <span>Рекомендаций: {r.recommendations}</span>
-                        {r.dissent ? <span>Разногласий: {r.dissent}</span> : null}
-                        {d ? <span className={d.late ? 'flag red' : ''}>Срок решения {d.text}</span> : null}
-                      </span>
-                    </a>
-                  </li>
-                );
-              })}
-            </ul>
+            <CouncilRows list={list} />
           </section>
         );
       })}
     </div>
+  );
+}
+
+function CouncilRows({ list }: { list: CouncilListRow[] }) {
+  return (
+    <ul className="council-list">
+      {list.map((r) => {
+        const d = due(r.resolutionDueAt);
+        return (
+          <li key={r.number}>
+            <a href={`#/council/${r.number}`}>
+              <span className="num">Обращение №{r.number}</span>
+              <span className="title">{r.title}</span>
+              <span className="meta">
+                <span>{r.council === 'great' ? 'Большой Круглый стол' : r.hall}</span>
+                <span>Инициатор: {r.initiator}</span>
+                <span>{r.decisionOwner ? `Решает: ${r.decisionOwner}` : 'Ответственный за решение не назначен'}</span>
+                {r.department ? <span>{r.department}</span> : null}
+              </span>
+              <span className="meta">
+                <span>
+                  Аргументов за: {r.for}, против: {r.against}
+                </span>
+                <span>Рекомендаций: {r.recommendations}</span>
+                {r.dissent ? <span>Разногласий: {r.dissent}</span> : null}
+                {d ? <span className={d.late ? 'flag red' : ''}>Срок решения {d.text}</span> : null}
+              </span>
+            </a>
+          </li>
+        );
+      })}
+    </ul>
   );
 }
 
@@ -180,7 +202,7 @@ export function RoundTable({ number }: { number: number }) {
 
   return (
     <div className="stack-lg">
-      <PageHead title={`Совет: обращение №${it.number}`} sub={it.title}>
+      <PageHead title={`${data.place.level === 'great' ? 'Большой Круглый стол' : data.place.hall}: обращение №${it.number}`} sub={it.title}>
         <a className="btn" href={`#/items/${it.number}`}>
           Карточка обращения
         </a>
@@ -190,6 +212,13 @@ export function RoundTable({ number }: { number: number }) {
           </a>
         ) : null}
       </PageHead>
+
+      <CouncilScene
+        place={data.place.level === 'great' ? 'great' : (data.place.department?.civilization ?? 'camelot')}
+        seats={data.seats.map((x) => x.civilization ?? 'camelot')}
+        label={data.place.level === 'great' ? 'Большой Круглый стол — представители всех подразделений на равных' : `${data.place.hall} — малый совет «${data.place.department?.name ?? ''}»`}
+      />
+      <PlacePanel view={data} onDone={done} />
 
       <section className="council-status panel">
         <div>
@@ -492,7 +521,9 @@ function EntryRow({ e, showAuthor = true }: { e: CouncilEntry; showAuthor?: bool
   const tone = e.kind === 'argument_for' ? 'pro' : e.kind === 'argument_against' ? 'con' : e.kind === 'dissent' ? 'dis' : 'mid';
   return (
     <li className={`entry tone-${tone}`}>
-      <span className="entry-kind">{entryLabel(e)}</span>
+      <span className="entry-kind">
+        {entryLabel(e)} <span className={`entry-where ${e.council}`}>{e.council === 'great' ? 'Большой совет' : 'малый совет'}</span>
+      </span>
       <span className="entry-body">{e.body}</span>
       <span className="small muted">
         {showAuthor ? `${e.author}, ` : ''}
@@ -887,3 +918,89 @@ function Journal({ view }: { view: CouncilView }) {
   );
 }
 
+
+// ---------------------------------------------------------------------------
+// Small council → Great Round Table (ADR-0020)
+// ---------------------------------------------------------------------------
+function PlacePanel({ view, onDone }: { view: CouncilView; onDone: (t: string) => Promise<void> }) {
+  const s = useSession();
+  const p = view.place;
+  const small = view.entries.filter((e) => e.council === 'small').length;
+  const smallMeetings = view.meetings.filter((m) => m.council === 'small');
+  const [open, setOpen] = useState(false);
+  const [kind, setKind] = useState('cross_department');
+  const [reason, setReason] = useState('');
+  const act = useAction(onDone);
+  return (
+    <section className={`panel stack council-place ${p.level}`} aria-labelledby="place-h">
+      <h2 id="place-h" className="section-title">
+        {p.level === 'great' ? 'Вопрос у Большого Круглого стола' : `Вопрос у малого совета: ${p.hall}`}
+      </h2>
+      {p.escalation ? (
+        <p className="small">
+          Передал(а) <b>{p.escalation.by}</b> {dateTime(p.escalation.at)}
+          {p.escalation.from ? ` из малого совета «${p.escalation.from.name}» (${p.escalation.from.hall})` : ''}. Причина: <b>{p.escalation.reasonTitle}</b> — {p.escalation.reason}
+        </p>
+      ) : (
+        <p className="small muted">
+          {p.department ? `Подразделение «${p.department.name}», ${p.department.civilizationName}.` : 'Обращение без подразделения.'} Межотдельский или стратегический
+          вопрос можно передать к Большому Круглому столу — один раз, с причиной.
+        </p>
+      )}
+      <p className="small">
+        История в подразделении: {small} {plural(small, 'запись', 'записи', 'записей')} малого совета
+        {smallMeetings.length ? `, заседания: ${smallMeetings.map((m) => m.title).join('; ')}` : ''}.
+      </p>
+      {view.meetings.length ? (
+        <ul className="plain small">
+          {view.meetings.map((m) => (
+            <li key={m.id}>
+              <a href={`#/meetings/${m.id}`}>{m.title}</a> — {m.council === 'great' ? 'Большой совет' : 'малый совет'}, {dateTime(m.at)}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {view.can.escalate ? (
+        open ? (
+          <FormShell
+            title="Передать в Большой совет"
+            busy={act.busy}
+            err={act.err}
+            submit="Передать к Большому Круглому столу"
+            disabled={reason.trim().length < 10}
+            onSubmit={() =>
+              void act
+                .run(`/orgs/${s.org}/ideas/${view.item.number}/council/escalate`, { reasonKind: kind, reason: reason.trim() }, 'Вопрос передан к Большому Круглому столу: главы подразделений и участники получили приглашение')
+                .then((ok) => {
+                  // The camera shows the way from the district's castle to the palace (skippable).
+                  if (ok) go(`/kingdom?enter=${encodeURIComponent(`/council/${view.item.number}`)}${p.department ? `&from=${p.department.id}` : ''}`);
+                })
+            }
+          >
+            <div className="field">
+              <label htmlFor="esc-kind">Почему нужен Большой совет</label>
+              <select id="esc-kind" className="select" value={kind} onChange={(e) => setKind(e.target.value)}>
+                {Object.entries(ESCALATION_REASONS).map(([k, v]) => (
+                  <option key={k} value={k}>
+                    {v}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="field">
+              <label htmlFor="esc-reason">Пояснение</label>
+              <textarea id="esc-reason" className="textarea" rows={3} value={reason} onChange={(e) => setReason(e.target.value)} maxLength={1000} placeholder="Например: сервер печати нужен и складу, и продажам" />
+            </div>
+            <p className="small muted">Решение по-прежнему принимает {view.item.decisionOwner ?? 'ответственный за решение'}. Голосования с юридической силой нет.</p>
+          </FormShell>
+        ) : (
+          <div>
+            <button type="button" className="btn" onClick={() => setOpen(true)}>
+              Передать в Большой совет
+            </button>
+          </div>
+        )
+      ) : null}
+    </section>
+  );
+}

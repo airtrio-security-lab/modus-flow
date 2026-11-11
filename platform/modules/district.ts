@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { AppError, forbidden, notFound } from '../domain/errors.ts';
 import type { OrgActor } from '../domain/model.ts';
-import { CIVILIZATION_IDS, civilizationName } from '../domain/civilizations.ts';
+import { CIVILIZATION_IDS, civilization, civilizationName } from '../domain/civilizations.ts';
 import { levelFor } from '../domain/progress.ts';
 import { withTx, type Client, type Database } from '../db/pool.ts';
 import { orgTx } from './context.ts';
@@ -98,6 +98,9 @@ export async function district(db: Database, actor: OrgActor, id: string) {
         name: p.name,
         jobTitle: p.job,
         title: titles.get(p.id)?.title ?? null,
+        // What the title stands for (head, deputy, authorized, master…) — a function, never a rating.
+        titleKind: titles.get(p.id)?.rank ?? null,
+        honor: titles.get(p.id)?.honor ?? null,
         group: command ? 'command' : specialist ? 'specialist' : 'member',
         isHead: p.id === d.head,
         // Questionnaire: self-declared, visible to the person and to leads.
@@ -135,8 +138,8 @@ export async function district(db: Database, actor: OrgActor, id: string) {
 
     // Meetings: participants only (0009) — others see nothing, not even titles.
     const meetings = (
-      await c.query<{ id: string; title: string; at: Date; cancelled: boolean; idea: number | null }>(
-        `SELECT m.id, m.title, coalesce(m.scheduled_at, m.created_at) AS at, m.cancelled_at IS NOT NULL AS cancelled, i.number AS idea
+      await c.query<{ id: string; title: string; at: Date; cancelled: boolean; idea: number | null; great: boolean }>(
+        `SELECT m.id, m.title, coalesce(m.scheduled_at, m.created_at) AS at, m.cancelled_at IS NOT NULL AS cancelled, i.number AS idea, m.scope = 'royal' AS great
            FROM meetings m LEFT JOIN ideas i ON i.id = m.idea_id
           WHERE m.organization_id = app_org_id() AND (m.department_id = $1 OR i.department_id = $1) ORDER BY at DESC LIMIT 30`,
         [id],
@@ -151,8 +154,9 @@ export async function district(db: Database, actor: OrgActor, id: string) {
       )
     ).rows;
     const council = (
-      await c.query<{ number: number; title: string; entries: number }>(
-        `SELECT o.number, o.title, (SELECT count(*)::int FROM council_entries ce WHERE ce.idea_id = o.id) AS entries
+      await c.query<{ number: number; title: string; entries: number; great: boolean }>(
+        `SELECT o.number, o.title, (SELECT count(*)::int FROM council_entries ce WHERE ce.idea_id = o.id) AS entries,
+                EXISTS (SELECT 1 FROM council_escalations x WHERE x.idea_id = o.id) AS great
            FROM idea_overview o WHERE o.department_id = $1 AND ${OPEN} AND o.status IN ('in_review', 'decision', 'in_verification', 'needs_info') ORDER BY o.published_at`,
         [id],
       )
@@ -173,7 +177,7 @@ export async function district(db: Database, actor: OrgActor, id: string) {
     return {
       id: d.id,
       name: d.name,
-      civilization: { id: d.civilization, name: civilizationName(d.civilization) },
+      civilization: { id: d.civilization, name: civilizationName(d.civilization), motto: civilization(d.civilization).motto, hall: civilization(d.civilization).hall, titles: civilization(d.civilization).titles },
       colorIndex,
       head: d.head ? { membershipId: d.head, name: headName, title: titles.get(d.head)?.title ?? null } : null,
       canChooseCivilization: d.head === actor.membershipId || actor.roles.includes('org_admin'),
@@ -275,6 +279,9 @@ export async function person(db: Database, actor: OrgActor, membershipId: string
       jobTitle: p.job,
       department: p.department ? { id: dept?.id ?? null, name: p.department } : null,
       title: titles.get(p.id)?.title ?? null,
+      titleKind: titles.get(p.id)?.rank ?? null,
+      honor: titles.get(p.id)?.honor ?? null,
+      civilization: titles.get(p.id)?.civilization ?? null,
       self,
       questionnaire: mayRead ? (prof ? 'filled' : 'empty') : 'hidden',
       skills: mayRead ? (prof?.skills ?? null) : null,

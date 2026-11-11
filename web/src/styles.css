@@ -1091,3 +1091,32 @@ button.ts:hover { border-color: var(--accent); color: var(--accent-ink); }
   :root:not([data-lite='on']) .realm-stroll { animation: realm-stroll 9s ease-in-out infinite; transform-box: fill-box; }
   @keyframes realm-stroll { 0%, 100% { transform: translateX(0); } 45% { transform: translateX(22px); } 50% { transform: translateX(22px) scaleX(-1); } 95% { transform: translateX(0) scaleX(-1); } }
 }
+
+/* ADR-0020: civilizations, titles and councils. Ornaments are original CSS/SVG patterns; they mark the district's style only. */
+.staff-card { position: relative; padding-top: 20px; }
+.staff-card::before { content: ''; position: absolute; left: 0; right: 0; top: 0; height: 8px; border-radius: var(--r-md) var(--r-md) 0 0; opacity: 0.9; }
+.civ-camelot .staff-card::before { background: #6f7680 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='8'%3E%3Cpath d='M0 0h6v4h4V0h6v8H0z' fill='%2355606e'/%3E%3C/svg%3E") repeat-x; }
+.civ-japan .staff-card::before { background: #f4efe1 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='8'%3E%3Cpath d='M0 8a8 8 0 0 1 16 0' fill='none' stroke='%233d4452' stroke-width='1.4'/%3E%3Cpath d='M4 8a4 4 0 0 1 8 0' fill='none' stroke='%23a2412f' stroke-width='1.2'/%3E%3C/svg%3E") repeat-x; }
+.civ-kazakh .staff-card::before { background: #a2412f url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='8'%3E%3Cpath d='M8 0l4 4-4 4-4-4z' fill='%23f4d79a'/%3E%3C/svg%3E") repeat-x; }
+.civ-mongolia .staff-card::before { background: #2f4f7a url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='8'%3E%3Cpath d='M1 7V1h6v4H4V3' fill='none' stroke='%23e08a2e' stroke-width='1.3'/%3E%3Cpath d='M9 1v6h6V3h-3v2' fill='none' stroke='%23e08a2e' stroke-width='1.3'/%3E%3C/svg%3E") repeat-x; }
+.title-mark { position: absolute; top: 14px; right: 12px; display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: var(--column); border: 1px solid var(--line-strong); }
+.title-mark svg path { fill: var(--ink-2); stroke: var(--ink-2); stroke-width: 0.6; }
+.honor-chip { display: inline-flex; align-items: center; padding: 2px 10px; border-radius: 999px; font-size: var(--fs-xs); font-weight: 600; background: #eef3fb; border: 1px solid #7a93b8; color: #233b5c; white-space: nowrap; margin-left: 6px; }
+.scene { margin: 0; border-radius: var(--r-md); overflow: hidden; border: 1px solid var(--line); background: #2b3134; }
+.scene svg { display: block; width: 100%; height: clamp(110px, 18vw, 170px); }
+.scene figcaption { padding: 8px 12px; font-size: var(--fs-sm); font-weight: 600; background: var(--surface); color: var(--ink); border-top: 1px solid var(--line); }
+@media (prefers-reduced-motion: no-preference) {
+  :root:not([data-lite='on']) .scene-arrive { animation: scene-arrive 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) both; transform-box: fill-box; }
+  @keyframes scene-arrive { from { opacity: 0; translate: 0 -14px; } to { opacity: 1; translate: 0 0; } }
+}
+.entry-where { margin-left: 6px; font-size: 11px; font-weight: 600; padding: 1px 8px; border-radius: 999px; background: var(--column); color: var(--ink-2); }
+.entry-where.great { background: #2b3134; color: #f3e2a6; }
+.council-place.great { border-left: 4px solid #c99a2e; }
+.council-place.small { border-left: 4px solid var(--line-strong); }
+.agenda { margin: 0; padding-left: 20px; display: grid; gap: 6px; }
+.title-choices .check { font-size: var(--fs-sm); }
+.realm-hall:hover .realm-plate, .realm-hall:focus-visible .realm-plate { stroke: #22282b; stroke-width: 2; }
+.realm-hall { cursor: pointer; outline: none; }
+.realm-hall:focus-visible .realm-plate { stroke: var(--accent); stroke-width: 3; }
+/* Hall names appear when the camera is close enough to read them; the hall stays clickable and named for screen readers. */
+.realm-map:not(.is-close) .realm-hall > g:last-of-type { display: none; }

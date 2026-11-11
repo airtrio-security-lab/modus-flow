@@ -5,7 +5,9 @@ import { go } from '../lib/router';
 import { useLoad, useSession } from '../lib/session';
 import { DEMO_TRANSCRIPT } from '../lib/demoMeeting';
 import type { Consent, FindingType, Kind, MeetingFinding, MeetingRow, MeetingView } from '../lib/types';
-import { ErrorBox, Loading, PageHead } from '../components/ui';
+import { ErrorBox, Loading, PageHead, StatusChip } from '../components/ui';
+import { CouncilScene } from '../components/scenes';
+import { hallName } from '../components/civ';
 
 /**
  * Council meetings with recording (ADR-0014). Recording needs the consent of
@@ -114,6 +116,9 @@ export function NewMeeting() {
   const [title, setTitle] = useState(q.get('title') ?? '');
   const [departmentId, setDepartmentId] = useState(q.get('department') ?? '');
   const ideaNumber = Number(q.get('idea')) || undefined;
+  // The agenda: items to discuss, prefilled from the district's small council or the item page.
+  const [agenda, setAgenda] = useState<number[]>(() => [...new Set([...(ideaNumber ? [ideaNumber] : []), ...q.getAll('agenda').map(Number).filter((n) => n > 0)])].slice(0, 10));
+  const open = useLoad(() => api<{ number: number; title: string; department: string | null; council: string }[]>(`/orgs/${s.org}/council`), [s.org]);
   // «Пригласить в Совет» from a staff card starts with that person (still editable before sending).
   const [picked, setPicked] = useState<Set<string>>(() => new Set(q.getAll('participant').filter((id) => id !== s.membershipId)));
   const [filter, setFilter] = useState('');
@@ -146,11 +151,13 @@ export function NewMeeting() {
           organizerConsent: true,
           ...(departmentId ? { departmentId } : {}),
           ...(ideaNumber ? { ideaNumber } : {}),
+          ...(agenda.length ? { agenda } : {}),
           ...(when ? { scheduledAt: new Date(when).toISOString() } : {}),
         },
       });
-      s.toast('Заседание созвано: участники получили уведомление и запрос согласия');
-      go(`/meetings/${r.id}`);
+      s.toast('Заседание созвано: участники получили приглашение и запрос согласия');
+      // The camera takes the organizer to the council place, then the meeting opens (skippable).
+      go(`/kingdom?enter=${encodeURIComponent(`/meetings/${r.id}`)}${departmentId ? `&hall=${departmentId}` : ''}`);
     } catch (x) {
       setErr(errorText(x));
       setBusy(false);
@@ -168,12 +175,12 @@ export function NewMeeting() {
           <div className="field">
             <label htmlFor="mt-scope">Совет</label>
             <select id="mt-scope" className="select" value={departmentId} onChange={(e) => setDepartmentId(e.target.value)}>
-              <option value="">Королевский совет (межотдельский)</option>
+              <option value="">Большой Круглый стол (совет компании)</option>
               {dir?.departments
                 .filter((d) => d.active)
                 .map((d) => (
                   <option key={d.id} value={d.id}>
-                    Малый совет замка «{d.name}»
+                    Малый совет «{d.name}» — {hallName(d.civilization)}
                   </option>
                 ))}
             </select>
@@ -189,6 +196,32 @@ export function NewMeeting() {
           </div>
         </div>
       </section>
+      <fieldset className="panel stack">
+        <legend className="section-title">Повестка: {agenda.length}</legend>
+        <p className="small muted">Обращения, которые совет обсудит. Участники увидят повестку в приглашении.</p>
+        {open.data?.length ? (
+          <ul className="pick-list">
+            {open.data.map((i) => (
+              <li key={i.number}>
+                <label className="check">
+                  <input
+                    type="checkbox"
+                    checked={agenda.includes(i.number)}
+                    disabled={!agenda.includes(i.number) && agenda.length >= 10}
+                    onChange={(e) => setAgenda(e.target.checked ? [...agenda, i.number] : agenda.filter((n) => n !== i.number))}
+                  />
+                  <span>
+                    №{i.number} {i.title}
+                    <span className="muted">{i.department ? `, ${i.department}` : ''}{i.council === 'great' ? ', у Большого совета' : ''}</span>
+                  </span>
+                </label>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="small muted">Сейчас нет обращений на рассмотрении.</p>
+        )}
+      </fieldset>
       <fieldset className="panel stack">
         <legend className="section-title">Участники: {picked.size}</legend>
         <input className="input" value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="Найти по имени, подразделению, должности" aria-label="Найти участника" />
@@ -258,7 +291,7 @@ export function MeetingPage({ id }: { id: string }) {
     <div className="stack-lg">
       <PageHead
         title={data.title}
-        sub={`${data.scope === 'castle' ? `Малый совет замка «${data.department}»` : 'Королевский совет'} · созвал(а) ${data.organizer} · ${data.scheduledAt ? `назначено на ${dateTime(data.scheduledAt)}` : 'время не назначено'}`}
+        sub={`${data.scope === 'castle' ? `${data.place.hall} — малый совет «${data.department}»` : 'Большой Круглый стол — совет компании'} · созвал(а) ${data.organizer} · ${data.scheduledAt ? `назначено на ${dateTime(data.scheduledAt)}` : 'время не назначено'}`}
       >
         {data.ideaNumber ? (
           <a className="btn" href={`#/council/${data.ideaNumber}`}>
@@ -272,6 +305,31 @@ export function MeetingPage({ id }: { id: string }) {
         ) : null}
       </PageHead>
 
+      <CouncilScene
+        place={data.place.council === 'great' ? 'great' : (data.place.civilization ?? 'camelot')}
+        seats={data.participants.map(() => (data.place.council === 'great' ? 'camelot' : (data.place.civilization ?? 'camelot')))}
+        label={data.place.council === 'great' ? 'Большой Круглый стол' : `${data.place.hall} — малый совет «${data.department}»`}
+      />
+      <section className="panel stack" aria-labelledby="agenda-h">
+        <h2 id="agenda-h" className="section-title">
+          Повестка
+        </h2>
+        {data.agenda.length ? (
+          <ol className="agenda">
+            {data.agenda.map((a) => (
+              <li key={a.number}>
+                <a href={`#/council/${a.number}`}>
+                  №{a.number} {a.title}
+                </a>{' '}
+                <StatusChip status={a.status} />
+              </li>
+            ))}
+          </ol>
+        ) : (
+          <p className="small muted">Повестка не задана{data.ideaNumber ? `; обращение заседания — №${data.ideaNumber}` : ''}.</p>
+        )}
+        <p className="small muted">Доводы, рекомендации и решения по каждому вопросу — на странице его совета. Решение принимает ответственный за решение.</p>
+      </section>
       {data.cancelledAt ? (
         <p className="notice error" role="status">
           Заседание отменено {dateTime(data.cancelledAt)}

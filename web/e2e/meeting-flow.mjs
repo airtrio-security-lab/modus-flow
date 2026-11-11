@@ -48,13 +48,13 @@ const meetingId = (page) => /#\/meetings\/([0-9a-f-]{36})/.exec(page.url())?.[1]
 try {
   // 1. A person, their castle and their game title — next to the real job, without rights.
   await as(storekeeper, async (page) => {
-    await page.locator('.who .title-chip', { hasText: 'Мастер запасов' }).waitFor();
+    await page.locator('.who .title-chip', { hasText: 'Шебер' }).waitFor();
     await page.goto(`${BASE}/#/me`);
     await expectText(page, 'Звание прав не даёт');
-    await page.locator('.identity .title-chip', { hasText: 'Мастер запасов' }).waitFor();
+    await page.locator('.identity .title-chip', { hasText: 'Шебер' }).waitFor();
     const identity = await page.locator('.identity').textContent();
-    if (!identity?.includes('Кладовщик') || !identity.includes('Мастер запасов')) throw new Error(`identity: ${identity}`);
-    step('Асель: должность «Кладовщик» и звание «Мастер запасов» рядом; звание прав не даёт');
+    if (!identity?.includes('Кладовщик') || !identity.includes('Шебер')) throw new Error(`identity: ${identity}`);
+    step('Асель: должность «Кладовщик» и звание «Шебер» рядом; звание прав не даёт');
   });
 
   // 2. A lead calls a meeting; the participant consents; recording with indicator, pause, stop, save.
@@ -75,11 +75,11 @@ try {
   });
   await as(storekeeper, async (page) => {
     await page.goto(`${BASE}/#/inbox`);
-    await page.locator('li.scroll', { hasText: 'Созван малый совет замка' }).first().getByRole('button', { name: 'Войти в Совет' }).click();
+    await page.locator('li.scroll', { hasText: 'Созван малый совет: Ханская юрта' }).first().getByRole('button', { name: 'Войти в Совет' }).click();
     await page.waitForURL(new RegExp(fresh));
     await page.getByRole('button', { name: 'Согласен(на) на запись' }).click();
     await expectText(page, 'Вы дали согласие');
-    step('Асель получила уведомление «Созван малый совет замка» и сама дала согласие');
+    step('Асель получила уведомление «Созван малый совет: Ханская юрта» и сама дала согласие');
   });
   await as(whHead, async (page) => {
     await page.goto(`${BASE}/#/meetings/${fresh}`);

@@ -8,7 +8,7 @@ import type { Castle, CastleDetail, Envoy, Kingdom as KingdomData } from '../lib
 import { ErrorBox, Loading, PageHead, StatusChip } from '../components/ui';
 import { HowItWorks } from '../components/HowItWorks';
 import { IsoCastle, IsoCouncil, IsoLibrary, P, Scaffold, Tree } from '../components/iso';
-import { CIV_HEIGHT, CivCastle, DistrictHouses, IsoArchive, IsoPlaza, civName, type Civ } from '../components/civ';
+import { CIV_HEIGHT, CivCastle, CouncilHall, DistrictHouses, IsoArchive, IsoPlaza, civName, civOf, hallName } from '../components/civ';
 import { useCamera } from '../lib/camera';
 
 /**
@@ -288,8 +288,22 @@ function Realm({
     [flyTo],
   );
 
-  // The cinematic entry to the Council: whole city → palace → the agenda. «Пропустить» goes at once.
+  // The cinematic entry to a council: a small council flies to its hall, the Great Round Table to the palace;
+  // a hand-over flies from the district's castle to the palace. «Пропустить» goes at once.
   const [entering, setEntering] = useState(!!enterCouncil);
+  const cinema = useMemo(() => {
+    const p = new URLSearchParams(location.hash.split('?')[1] ?? '');
+    const hall = placed.find((x) => x.castle.id === p.get('hall'));
+    const from = placed.find((x) => x.castle.id === p.get('from'));
+    if (hall) {
+      const plate = [2.6, 3.2, 3.8, 4.4, 5][hall.castle.level - 1]!;
+      const off = P(-plate - 2.6, 0.6, 0, L.u);
+      return { to: { x: hall.pos.x + off.x, y: hall.pos.y + off.y }, start: null, text: `Входим: ${hallName(hall.castle.civilization)} — малый совет «${hall.castle.name}»…` };
+    }
+    if (from) return { to: L.capital, start: from.pos, text: `Вопрос «${from.castle.name}» передаётся к Большому Круглому столу…` };
+    return { to: L.capital, start: null, text: 'Входим к Большому Круглому столу…' };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [placed, L]);
   useEffect(() => {
     if (!enterCouncil) return;
     let gone = false;
@@ -298,7 +312,11 @@ function Realm({
       gone = true;
       location.hash = enterCouncil;
     };
-    void flyTo(L.capital, 3.2, 1100).then(() => window.setTimeout(goIn, lite ? 0 : 350));
+    void (async () => {
+      if (cinema.start) await flyTo(cinema.start, 2.6, 600);
+      await flyTo(cinema.to, 3.2, 1100);
+      window.setTimeout(goIn, lite ? 0 : 350);
+    })();
     return () => {
       gone = true;
     };
@@ -348,6 +366,15 @@ function Realm({
           />
         ),
       })),
+      ...placed.map((p) => {
+        const plate = [2.6, 3.2, 3.8, 4.4, 5][p.castle.level - 1]!;
+        const off = P(-plate - 2.6, 0.6, 0, L.u);
+        const at = { x: p.pos.x + off.x, y: p.pos.y + off.y };
+        return {
+          y: at.y,
+          node: <HallMark key={`h-${p.castle.id}`} c={p.castle} at={at} L={L} color={p.color} onEnter={enter(`#/castles/${p.castle.id}/council`, at, 3)} />,
+        };
+      }),
       ...figures.map((f) => ({ y: f.p.y, node: <EnvoyMark key={`e-${f.e.number}`} e={f.e} at={f.p} s={L.s} color={f.color} label={f.st.label} home={!!f.st.home} /> })),
     ].sort((a, b) => a.y - b.y);
     return (
@@ -407,7 +434,7 @@ function Realm({
 
       <div className={`realm${lite ? ' is-lite' : ''}`} ref={ref}>
         <div
-          className={`realm-map${zoomed ? ' is-zoomed' : ''}`}
+          className={`realm-map${zoomed ? ' is-zoomed' : ''}${cam.zoom > 1.8 ? ' is-close' : ''}`}
           tabIndex={0}
           role="group"
           aria-label="Карта города. Стрелки — перемещение, плюс и минус — масштаб, ноль — весь город"
@@ -424,7 +451,7 @@ function Realm({
           </svg>
           {entering && enterCouncil ? (
             <div className="realm-cinema" role="status">
-              <span>Входим в Королевский совет…</span>
+              <span>{cinema.text}</span>
               <button
                 type="button"
                 className="btn small"
@@ -810,7 +837,7 @@ function CastleMark({
   const onKey = (e: KeyboardEvent) => {
     if (e.key === 'Enter' || e.key === ' ') onEnter(e);
   };
-  const civ = (c.civilization in CIV_HEIGHT ? c.civilization : 'europe') as Civ;
+  const civ = civOf(c.civilization);
   const plate = [2.6, 3.2, 3.8, 4.4, 5][c.level - 1]!;
   const bottom = P(plate, plate, 0, L.u).y;
   const height = CIV_HEIGHT[civ][c.level - 1]!;
@@ -843,6 +870,31 @@ function CastleMark({
         </g>
       ) : null}
       <LabelPlate y={above ? -height * L.u - L.font * 2.45 - 18 : bottom + 10} title={c.name} sub={`Ур. ${c.level} · ${c.levelName}`} font={L.font} />
+    </g>
+  );
+}
+
+/** The small council place of a district (Зал даймё, Ханская юрта, Зал рыцарей, Совет нойонов): opens its real meetings. */
+function HallMark({ c, at, L, color, onEnter }: { c: Castle; at: Pt; L: Layout; color: string; onEnter: (e: { preventDefault: () => void; ctrlKey?: boolean; metaKey?: boolean; button?: number }) => void }) {
+  const hall = hallName(c.civilization);
+  const label = `${hall} — малый совет подразделения «${c.name}»: заседания и обращения`;
+  return (
+    <g
+      transform={`translate(${at.x},${at.y})`}
+      className="realm-hall"
+      role="link"
+      tabIndex={0}
+      aria-label={label}
+      data-hall={c.id}
+      onClick={(e) => onEnter(e)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') onEnter(e);
+      }}
+    >
+      <title>{label}</title>
+      <ellipse cy={-L.u * 0.6} rx={L.u * 3.2} ry={L.u * 2.4} fill="transparent" />
+      <CouncilHall civ={c.civilization} u={L.u * 0.85} color={color} />
+      <LabelPlate y={P(1.7, 1.7, 0, L.u * 0.85).y + 6} title={hall} font={L.font * 0.62} />
     </g>
   );
 }

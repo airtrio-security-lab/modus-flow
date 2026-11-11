@@ -55,7 +55,8 @@ test('the King calls the council: personal address, details, reason, required pa
   assert.equal(head.headline, 'Король созывает Совет');
   assert.equal(
     head.royal,
-    'Милорд, вас призывают к Круглому столу! Совет собирается для рассмотрения вопроса: «Сервер печати: решение по складу». Ваше мнение необходимо для принятия решения.',
+    // A meeting without a department is the Great Round Table (ADR-0020); the head chose «Милорд».
+    'Милорд, вас созывают к Большому Круглому столу! Совет собирается для рассмотрения вопроса: «Сервер печати: решение по складу». Ваше мнение необходимо для принятия решения.',
   );
   assert.match(head.message, /^Собственник Демо созывает заседание «Сервер печати: решение по складу»/);
   assert.deepEqual(
@@ -90,7 +91,7 @@ test('the headline never imitates the King; an invitation without authority is n
     await meetings.createMeeting(db, w.maintainer.actor, { title: 'Малый совет склада', departmentId: f.departments.sklad, participants: [w.colleague.membershipId], organizerConsent: true })
   ).body.id;
   const msg = (await listInbox(db, w.colleague.actor)).find((x) => x.meetingId === id)!;
-  assert.equal(msg.headline, 'Созван малый совет замка');
+  assert.equal(msg.headline, 'Созван малый совет: Зал рыцарей');
   assert.equal(msg.meeting?.required, false);
   assert.match(msg.royal!, /участие — по желанию/);
   // A «King» title on an employee is just words: no right to call a meeting appears.

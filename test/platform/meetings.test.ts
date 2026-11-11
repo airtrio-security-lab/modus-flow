@@ -69,7 +69,8 @@ test('titles are separate from rights: a «King» title gives an employee nothin
   // Defaults: the department head and the guild's junior title.
   await titles.setGuildTitles(db, w.admin.actor, f.departments.sklad, { titles: ['Хранитель крепости', 'Мастер запасов', 'Смотритель'] });
   const map = new Map((await titles.listTitles(db, w.author.actor)).titles.map((x) => [x.membershipId, x]));
-  assert.equal(map.get(f.head.membershipId)?.title, 'Глава замка «Склад»');
+  // ADR-0020: the head's title comes from the district's civilization (Камелот by default; no form chosen → «Лорд / Леди»).
+  assert.equal(map.get(f.head.membershipId)?.title, 'Лорд / Леди');
   assert.equal(map.get(w.author.membershipId)?.title, 'Смотритель');
   assert.equal(map.get(w.author.membershipId)?.source, 'guild_default');
   // An employee cannot write titles directly either.
@@ -81,7 +82,7 @@ test('only a lead calls a meeting; participants are notified by the real organiz
   const id = await meeting('Планёрка склада');
   const inbox = await listInbox(db, w.author.actor);
   const n = inbox.find((x) => x.event === 'meeting_called')!;
-  assert.equal(n.headline, 'Созван Королевский совет');
+  assert.equal(n.headline, 'Созван Большой Круглый стол');
   assert.match(n.message, /^Мария Ведущая созывает заседание «Планёрка склада»/);
   assert.equal(n.meetingId, id);
   const [row] = await ownerQuery<{ actor: string }>(db, `SELECT actor_membership_id AS actor FROM notifications WHERE meeting_id = $1 AND recipient_membership_id = $2`, [id, w.author.membershipId]);
