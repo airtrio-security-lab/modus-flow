@@ -210,6 +210,8 @@ export interface Notification {
   event: string;
   message: string;
   ideaNumber: number | null;
+  meetingId?: string | null;
+  headline?: string;
   createdAt: string;
   readAt: string | null;
 }
@@ -479,4 +481,101 @@ export interface ExecutorView {
   suggestions: ExecutorSuggestion[];
   confirmed: { candidate: string; name: string; confirmedBy: string; createdAt: string; reasons: string[] }[];
   canConfirm: boolean;
+}
+
+// ---- Living kingdom (0009, ADR-0014) ---------------------------------------
+export interface GameTitle {
+  membershipId: string;
+  title: string;
+  rank: 'king' | 'regent' | 'castle_head' | 'guild';
+  source: 'assigned' | 'castle_head' | 'guild_default';
+  castle: string | null;
+}
+export interface TitlesView {
+  titles: GameTitle[];
+  guilds: { departmentId: string; department: string; titles: string[] }[];
+  note: string;
+}
+export type Consent = 'pending' | 'given' | 'declined';
+export interface MeetingRow {
+  id: string;
+  title: string;
+  scope: 'royal' | 'castle';
+  department: string | null;
+  ideaNumber: number | null;
+  organizer: string;
+  createdAt: string;
+  recordingStartedAt: string | null;
+  endedAt: string | null;
+  myConsent: Consent | null;
+  participants: number;
+  consented: number;
+  hasRecording: boolean;
+}
+export type FindingType =
+  | 'idea'
+  | 'problem'
+  | 'task'
+  | 'deadline'
+  | 'owner_candidate'
+  | 'proposed_solution'
+  | 'decision'
+  | 'risk'
+  | 'objection'
+  | 'open_question'
+  | 'insight';
+export interface MeetingFinding {
+  id: string;
+  analysisId: string;
+  ord: number;
+  type: FindingType;
+  quote: string;
+  quoteStart: number;
+  quoteEnd: number;
+  title: string;
+  kind: Kind;
+  startMs: number | null;
+  speakerLabel: string | null;
+  speakerMembershipId: string | null;
+  confidence: 'high' | 'medium' | 'low' | null;
+  basis: string | null;
+  status: 'proposed' | 'accepted' | 'dismissed' | 'noted';
+  itemNumber: number | null;
+  decidedBy: string | null;
+  decidedAt: string | null;
+}
+export interface MeetingView {
+  id: string;
+  title: string;
+  scope: 'royal' | 'castle';
+  departmentId: string | null;
+  department: string | null;
+  ideaNumber: number | null;
+  organizerMembershipId: string;
+  organizer: string;
+  createdAt: string;
+  recordingStartedAt: string | null;
+  endedAt: string | null;
+  participants: { membershipId: string; name: string; jobTitle: string | null; department: string | null; consent: Consent; consentAt: string | null }[];
+  myConsent: Consent | null;
+  allConsented: boolean;
+  recording: { source: 'microphone' | 'upload'; contentType: string; sizeBytes: number; durationMs: number | null; sha256: string; createdAt: string; uploadedBy: string } | null;
+  transcripts: { id: string; source: 'engine' | 'manual' | 'prepared'; engine: string | null; text: string; sha256: string; createdAt: string; createdBy: string }[];
+  analyses: { id: string; transcriptId: string; method: 'rules' | 'model'; model: string | null; createdAt: string; createdBy: string }[];
+  findings: MeetingFinding[];
+  engine: { configured: boolean; model: string | null };
+  model: { configured: boolean; model: string | null };
+  can: { consent: boolean; record: boolean; review: boolean; transcribe: boolean; addTranscript: boolean };
+}
+export interface ItemOrigin {
+  meetingId: string;
+  title: string;
+  startMs: number | null;
+  quote: string;
+  type: FindingType;
+  speaker: string | null;
+  confidence: string | null;
+  transcriptSource: 'engine' | 'manual' | 'prepared';
+  confirmedBy: string | null;
+  confirmedAt: string | null;
 }

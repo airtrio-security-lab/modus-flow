@@ -763,3 +763,47 @@ fieldset.field legend { font-size: var(--fs-sm); font-weight: 500; margin-bottom
 }
 nav.segmented { justify-self: start; width: fit-content; max-width: 100%; }
 .candidate > .segmented { justify-self: start; width: fit-content; }
+
+/* ---- Living kingdom (0009, ADR-0014): titles, meetings, findings ------ */
+.title-chip { display: inline-flex; align-items: center; padding: 2px 10px; border-radius: 999px; font-size: var(--fs-xs); font-weight: 600; background: #fbf6e8; border: 1px solid #c9a46c; color: #5a4209; white-space: nowrap; }
+.title-chip.rank-king { background: #fff2c9; border-color: #b8860b; }
+.title-chip.rank-regent { background: #f3ecfa; border-color: #6a4a86; color: #4b2f66; }
+.who .title-chip { margin: 4px 0 2px; }
+.identity { display: grid; gap: 10px; margin: 0; }
+.identity > div { display: grid; grid-template-columns: 160px 1fr; gap: 12px; align-items: baseline; }
+.identity dt { font-size: var(--fs-sm); color: var(--ink-2); }
+.identity dd { margin: 0; }
+@media (max-width: 560px) { .identity > div { grid-template-columns: 1fr; gap: 2px; } }
+.castle-people { list-style: none; padding: 0; margin: 0; display: grid; gap: 6px; }
+.castle-people li { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; }
+.note-headline { display: block; font-size: var(--fs-xs); font-weight: 700; color: var(--accent-ink); margin-bottom: 2px; }
+.label-like { font-size: var(--fs-sm); font-weight: 500; }
+.pick-list { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 2px 16px; max-height: 360px; overflow: auto; }
+.meeting-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(340px, 1fr); gap: 20px; align-items: start; }
+@media (max-width: 960px) { .meeting-grid { grid-template-columns: 1fr; } }
+.consent-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 6px; }
+.consent-list li { display: flex; justify-content: space-between; gap: 12px; align-items: center; flex-wrap: wrap; }
+.consent-me { padding: 12px; border-radius: var(--r-sm); background: var(--accent-tint); }
+.rec-indicator { position: sticky; top: 8px; z-index: 5; display: inline-flex; align-items: center; gap: 10px; width: fit-content; padding: 8px 14px; border-radius: 999px; background: #b42318; color: #fff; font-weight: 700; font-size: var(--fs-sm); box-shadow: 0 4px 16px rgba(180, 35, 24, .3); }
+.rec-indicator.is-paused { background: #7a4408; }
+.rec-dot { width: 12px; height: 12px; border-radius: 50%; background: #fff; animation: rec-blink 1.2s steps(2, start) infinite; }
+.rec-indicator.is-paused .rec-dot { animation: none; opacity: .6; }
+@keyframes rec-blink { to { visibility: hidden; } }
+@media (prefers-reduced-motion: reduce) { .rec-dot { animation: none; } }
+.btn.danger { background: #b42318; border-color: #b42318; color: #fff; }
+.audio { width: 100%; }
+.source-label { padding: 8px 12px; border-radius: var(--r-sm); font-size: var(--fs-sm); font-weight: 600; background: var(--accent-tint); color: var(--accent-ink); }
+.source-label.src-prepared { background: var(--amber-tint); color: var(--amber); border: 1px dashed var(--amber); }
+.transcript { list-style: none; padding: 0; margin: 0; display: grid; gap: 4px; font-size: var(--fs-sm); max-height: 420px; overflow: auto; }
+.transcript li { display: grid; grid-template-columns: 74px 1fr; gap: 8px; align-items: baseline; }
+.ts { font: 600 var(--fs-xs)/1 var(--font); padding: 4px 8px; border-radius: 999px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink); white-space: nowrap; width: fit-content; }
+button.ts { cursor: pointer; min-height: 28px; }
+button.ts:hover { border-color: var(--accent); color: var(--accent-ink); }
+.finding[data-status='dismissed'] { opacity: .7; }
+.finding-h { font-size: var(--fs-md, 17px); font-weight: 600; line-height: 1.35; margin: 0; }
+.finding-type { display: inline-flex; padding: 2px 8px; margin-right: 6px; border-radius: 6px; font-size: var(--fs-xs); font-weight: 700; background: var(--column); color: var(--ink); vertical-align: 2px; }
+.finding-type.t-decision { background: var(--green-tint); color: var(--green); }
+.finding-type.t-problem, .finding-type.t-risk, .finding-type.t-objection { background: var(--red-tint); color: var(--red); }
+.finding-type.t-idea, .finding-type.t-proposed_solution, .finding-type.t-task { background: var(--accent-tint); color: var(--accent-ink); }
+.finding-type.t-open_question, .finding-type.t-insight { background: var(--amber-tint); color: var(--amber); }
+.origin { background: #fbfaf6; }

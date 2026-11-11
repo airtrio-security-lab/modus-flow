@@ -340,3 +340,15 @@ test('someone else’s task cannot be changed; implementation XP is awarded once
   const xp = await ownerQuery<{ kind: string; xp: number }>(db, 'SELECT x.kind, x.xp FROM xp_awards x JOIN ideas i ON i.id = x.idea_id WHERE i.number = $1 AND i.organization_id = $2 ORDER BY x.kind', [n, w.acmeId]);
   assert.deepEqual(xp.map((x) => [x.kind, x.xp]), [['effect', 50], ['implementation', 100]]);
 });
+
+test('the prepared demo transcript in the app is exactly the one generated with the demo audio', async () => {
+  const { readFileSync } = await import('node:fs');
+  const file = readFileSync('docs/demo/planerka-demo.txt', 'utf8').trimEnd();
+  const src = readFileSync('web/src/lib/demoMeeting.ts', 'utf8');
+  const inApp = JSON.parse(/DEMO_TRANSCRIPT = (".*");/.exec(src)![1]!) as string;
+  assert.equal(inApp, file);
+  // Its timestamps are increasing and the template finds the scenario's seven findings.
+  const starts = parseTranscript(file).map((s) => s.startMs!);
+  assert.deepEqual([...starts].sort((a, b) => a - b), starts);
+  assert.deepEqual(extractFindings(file).map((x) => x.type), ['problem', 'problem', 'idea', 'objection', 'insight', 'open_question', 'decision']);
+});

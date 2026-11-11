@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { api } from '../lib/api';
 import { plural } from '../lib/format';
 import { LiteToggle, useLite } from '../lib/lite';
+import { useTitles } from '../components/Titles';
 import { useLoad, useSession } from '../lib/session';
 import type { Castle, CastleDetail, Envoy, Kingdom as KingdomData } from '../lib/types';
 import { ErrorBox, Loading, PageHead, StatusChip } from '../components/ui';
@@ -372,6 +373,8 @@ function CastleDetails({ c, color, envoys }: { c: Castle; color: string; envoys:
         </>
       ) : null}
 
+      <CastlePeople castle={c} />
+
       <h3 className="realm-sub-h">Обращения в работе</h3>
       {envoys.length ? (
         <ul className="realm-envoys">
@@ -618,5 +621,38 @@ function EnvoyMark({ e, at, s, color, label, home }: { e: Envoy; at: Pt; s: numb
         ) : null}
       </a>
     </g>
+  );
+}
+
+/** People of the castle with their real job and game title; leads can call the castle's small council. */
+function CastlePeople({ castle }: { castle: Castle }) {
+  const s = useSession();
+  const titles = useTitles();
+  const people = (s.directory?.members ?? []).filter((m) => m.access === 'member' && m.department === castle.name);
+  return (
+    <>
+      <h3 className="realm-sub-h">Участники замка: {people.length}</h3>
+      {people.length ? (
+        <ul className="castle-people">
+          {people.map((m) => {
+            const t = titles.get(m.membershipId);
+            return (
+              <li key={m.membershipId}>
+                <b>{m.name}</b>
+                <span className="small muted">{m.jobTitle ?? ''}</span>
+                {t ? <span className={`title-chip rank-${t.rank}`}>{t.title}</span> : null}
+              </li>
+            );
+          })}
+        </ul>
+      ) : (
+        <p className="muted small">В справочнике нет сотрудников этого подразделения.</p>
+      )}
+      {(s.isLead || s.isAdmin) && people.length ? (
+        <a className="btn small" href={`#/meetings/new?department=${castle.id}&title=${encodeURIComponent(`Малый совет: ${castle.name}`)}`}>
+          Созвать малый совет с записью
+        </a>
+      ) : null}
+    </>
   );
 }

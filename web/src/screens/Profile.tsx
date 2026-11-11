@@ -5,6 +5,7 @@ import { LiteToggle } from '../lib/lite';
 import { useLoad, useSession } from '../lib/session';
 import type { Contribution, EmployeeProfile } from '../lib/types';
 import { ErrorBox, Loading, PageHead, StatusChip } from '../components/ui';
+import { useTitles } from '../components/Titles';
 
 /**
  * «Мой профиль»: who I am here, what I raised and what my implemented ideas
@@ -22,6 +23,8 @@ export function Profile() {
   const s = useSession();
   const { data, error, loading, reload } = useLoad(() => api<Contribution>(`/orgs/${s.org}/me/contribution`), [s.org]);
   const me = s.directory?.members.find((m) => m.membershipId === s.membershipId);
+  const titles = useTitles();
+  const title = titles.get(s.membershipId);
   const implemented = data?.items.filter((i) => i.xp > 0) ?? [];
   const open = data?.items.filter((i) => !['implemented', 'rejected', 'closed'].includes(i.status)) ?? [];
 
@@ -30,13 +33,39 @@ export function Profile() {
       <PageHead title="Мой профиль" sub={[me?.jobTitle, me?.department].filter(Boolean).join(', ') || s.orgName} />
       <section className="panel stack">
         <h2 className="section-title">{s.me.displayName}</h2>
-        <div className="row">
-          {s.roles.map((r) => (
-            <span key={r} className="level-chip">
-              {ROLE[r] ?? r}
-            </span>
-          ))}
-        </div>
+        <dl className="identity">
+          <div>
+            <dt>Должность</dt>
+            <dd>{[me?.jobTitle, me?.department].filter(Boolean).join(', ') || 'не указана в справочнике'}</dd>
+          </div>
+          <div>
+            <dt>Права в системе</dt>
+            <dd className="row">
+              {s.roles.map((r) => (
+                <span key={r} className="level-chip">
+                  {ROLE[r] ?? r}
+                </span>
+              ))}
+            </dd>
+          </div>
+          <div>
+            <dt>Игровое звание</dt>
+            <dd>
+              {title ? <span className={`title-chip rank-${title.rank}`}>{title.title}</span> : titles.data ? 'нет' : '…'}
+              <span className="small muted">
+                {' '}
+                {title?.source === 'assigned' ? 'назначено администратором' : title?.source === 'castle_head' ? 'как глава подразделения' : title ? 'звание гильдии подразделения' : ''}. Звание прав не даёт.
+              </span>
+            </dd>
+          </div>
+          <div>
+            <dt>Достижения</dt>
+            <dd>
+              {implemented.length ? `Внедрено идей: ${implemented.length} — опыт получает замок подразделения` : 'Пока нет внедрённых идей'}.{' '}
+              <a href="#/kingdom">Мой замок</a>
+            </dd>
+          </div>
+        </dl>
         <div className="row">
           <a className="btn primary" href="#/new">
             Подать обращение

@@ -120,10 +120,11 @@ export async function inbox(c: Client, limit = 50): Promise<InboxItem[]> {
     number: number | null;
     meeting_id: string | null;
     meeting_title: string | null;
+    meeting_scope: string | null;
     created_at: Date;
     read_at: Date | null;
   }>(
-    `SELECT n.id, n.event_type, u.display_name AS actor_name, r.title, i.number, n.meeting_id, mt.title AS meeting_title, n.created_at, n.read_at
+    `SELECT n.id, n.event_type, u.display_name AS actor_name, r.title, i.number, n.meeting_id, mt.title AS meeting_title, mt.scope AS meeting_scope, n.created_at, n.read_at
        FROM notifications n
        LEFT JOIN memberships am ON am.id = n.actor_membership_id
        LEFT JOIN users u ON u.id = am.user_id
@@ -140,7 +141,7 @@ export async function inbox(c: Client, limit = 50): Promise<InboxItem[]> {
     message: TEMPLATES[r.event_type](r.actor_name ?? 'Система', r.title ?? r.meeting_title ?? '—'),
     ideaNumber: r.number,
     meetingId: r.meeting_id,
-    headline: HEADLINES[r.event_type],
+    headline: r.event_type === 'meeting_called' && r.meeting_scope === 'castle' ? 'Созван малый совет замка' : HEADLINES[r.event_type],
     createdAt: r.created_at.toISOString(),
     readAt: r.read_at?.toISOString() ?? null,
   }));

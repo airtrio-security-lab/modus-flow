@@ -8,6 +8,7 @@ import type { CouncilEntry, CouncilListRow, CouncilRole, CouncilSeat, CouncilVie
 import { ErrorBox, Loading, PageHead, StatusChip } from '../components/ui';
 import { AdvisorPanel, advisorMethodLine, useAdvisorStatus } from '../components/Advisor';
 import type { ExecutorView } from '../lib/types';
+import { CouncilTabs } from './Meetings';
 
 /**
  * «Совет королевства» — the round table (owner brief 2026-11-11, ADR-0012).
@@ -88,7 +89,13 @@ export function CouncilList() {
             </button>
           </div>
         ) : null}
+        {s.isLead || s.isAdmin ? (
+          <a className="btn" href="#/meetings/new">
+            Созвать заседание с записью
+          </a>
+        ) : null}
       </PageHead>
+      <CouncilTabs active="items" />
       {error ? <ErrorBox error={error} retry={() => void reload()} /> : null}
       {loading && !data ? <Loading rows={4} /> : null}
       {data && !rows.length ? <div className="empty">Сейчас на Совете нет обращений{scope !== 'all' ? ' по этому фильтру' : ''}.</div> : null}
@@ -177,6 +184,11 @@ export function RoundTable({ number }: { number: number }) {
         <a className="btn" href={`#/items/${it.number}`}>
           Карточка обращения
         </a>
+        {s.isLead || s.isAdmin ? (
+          <a className="btn primary" href={`#/meetings/new?idea=${it.number}&title=${encodeURIComponent(`Совет по обращению №${it.number}`)}`}>
+            Созвать заседание с записью
+          </a>
+        ) : null}
       </PageHead>
 
       <section className="council-status panel">

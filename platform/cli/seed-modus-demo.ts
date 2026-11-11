@@ -2,6 +2,8 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import { createDatabase, withAdminTx, type Database } from '../db/pool.ts';
 import { saveMyProfile } from '../modules/advisor.ts';
+import { assignTitle, setGuildTitles } from '../modules/titles.ts';
+import { createMeeting, setConsent } from '../modules/meetings.ts';
 import { migrate } from '../db/migrate.ts';
 import type { OrgActor, OrgRole } from '../domain/model.ts';
 import * as admin from '../modules/admin.ts';
@@ -394,6 +396,32 @@ async function main() {
   await saveMyProfile(db, engineer, { skills: ['Сканеры', 'Ремонт оборудования', 'Принтеры'], preferences: 'Выездные работы, оборудование', weeklyHours: 3 });
   await saveMyProfile(db, storekeeper, { skills: ['Приёмка', 'Этикетки', 'Инвентаризация'], preferences: 'Утренние смены', weeklyHours: 2 });
   await saveMyProfile(db, designer, { skills: ['Чертежи', 'Спецификации'], weeklyHours: 0 });
+
+  // ---- game titles (ADR-0014): decoration only, no rights; editable by the admin ----
+  const guilds: [string, string[]][] = [
+    [D.warehouse, ['Хранитель крепости', 'Мастер запасов', 'Смотритель']],
+    [D.sales, ['Магистр торговли', 'Мастер переговоров', 'Посланник']],
+    [D.it, ['Архимаг технологий', 'Архитектор систем', 'Мастер механизмов']],
+    [D.service, ['Мастер-наладчик', 'Механик гильдии', 'Подмастерье']],
+    [D.purchasing, ['Верховный казначей', 'Казначей', 'Хранитель бюджета']],
+    [D.design, ['Главный зодчий', 'Зодчий', 'Чертёжник']],
+    [D.pnr, ['Мастер пуска', 'Наладчик', 'Подмастерье']],
+  ];
+  for (const [d, titles] of guilds) await setGuildTitles(db, sysAdmin, d, { titles });
+  await assignTitle(db, sysAdmin, owner.membershipId, { rank: 'king' });
+  await assignTitle(db, sysAdmin, ops.membershipId, { rank: 'regent' });
+  await assignTitle(db, sysAdmin, storekeeper.membershipId, { rank: 'guild', title: 'Мастер запасов' });
+
+  // ---- a council meeting called in advance; each participant gave consent themselves (fictional) ----
+  const planerka = (
+    await createMeeting(db, whHead, {
+      title: 'Планёрка склада: приёмка и этикетки',
+      departmentId: D.warehouse,
+      participants: [storekeeper.membershipId, engineer.membershipId, itLead.membershipId],
+      organizerConsent: true,
+    })
+  ).body.id;
+  for (const p of [storekeeper, engineer, itLead]) await setConsent(db, p, planerka, 'given');
 
   const personas = [owner, ops, whHead, itLead, storekeeper, engineer, sysAdmin].map((p) => ({
     userId: p.userId,

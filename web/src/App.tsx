@@ -21,6 +21,8 @@ import { Inbox } from './screens/Inbox';
 import { Settings } from './screens/Settings';
 import { Meeting } from './screens/Meeting';
 import { ProtocolPage } from './screens/Protocol';
+import { MeetingPage, MeetingsList, NewMeeting } from './screens/Meetings';
+import { TitleChip, useTitles } from './components/Titles';
 import { Board } from './screens/Board';
 
 export function App() {
@@ -87,13 +89,14 @@ function Shell() {
   const s = useSession();
   const route = useRoute();
   const head = route[0] ?? '';
+  const myTitle = useTitles().get(s.membershipId);
 
   // Three views over the same data (owner brief 2026-11-11): the game (Королевство, Совет, Рейтинг)
   // and the work (Обращения, Доска). Secondary pages stay one click away.
   const ITEMS = ['', 'all', 'work', 'meeting', 'items'];
   const nav: NavItem[] = [
     { href: '#/kingdom', label: 'Королевство', short: 'Королевство', match: (p: string[]) => p[0] === 'kingdom' },
-    { href: '#/council', label: 'Совет', short: 'Совет', match: (p: string[]) => p[0] === 'council' },
+    { href: '#/council', label: 'Совет', short: 'Совет', match: (p: string[]) => p[0] === 'council' || p[0] === 'meetings' },
     { href: '#/', label: 'Обращения', short: 'Обращения', match: (p) => ITEMS.includes(p[0] ?? '') },
     { href: '#/board', label: 'Доска', short: 'Доска', match: (p: string[]) => p[0] === 'board' },
     { href: '#/rating', label: 'Рейтинг', short: 'Рейтинг', match: (p: string[]) => p[0] === 'rating' },
@@ -130,6 +133,9 @@ function Shell() {
   else if (head === 'rating') page = <RatingPage />;
   else if (head === 'council' && route[1]) page = <RoundTable number={Number(route[1])} key={route[1]} />;
   else if (head === 'council') page = <CouncilList />;
+  else if (head === 'meetings' && route[1] === 'new') page = <NewMeeting key={location.hash} />;
+  else if (head === 'meetings' && route[1]) page = <MeetingPage id={route[1]} key={route[1]} />;
+  else if (head === 'meetings') page = <MeetingsList />;
   else if (head === 'me') page = <Profile />;
   else if (head === 'overview' && (s.isLead || s.isAdmin)) page = <Overview />;
   else if (head === 'inbox') page = <Inbox />;
@@ -207,6 +213,7 @@ function Shell() {
         </nav>
         <div className="who">
           <div>{s.me.displayName}</div>
+          <TitleChip title={myTitle} />
           <div className="faint xs">{roleLine(s.roles)}</div>
           <div className="row">
             <button className="btn quiet small" onClick={s.signOut}>

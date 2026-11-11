@@ -19,12 +19,13 @@ export function Inbox() {
   }
   async function openOne(n: Notification) {
     if (!n.readAt) await markRead([n.id]);
-    if (n.ideaNumber) go(`/items/${n.ideaNumber}`);
+    if (n.meetingId) go(`/meetings/${n.meetingId}`);
+    else if (n.ideaNumber) go(`/items/${n.ideaNumber}`);
   }
 
   return (
     <div className="stack-lg">
-      <PageHead title="Уведомления" sub="Только об обращениях, в которых вы участвуете.">
+      <PageHead title="Уведомления" sub="Только об обращениях и заседаниях, в которых вы участвуете.">
         {unread.length > 0 && (
           <button className="btn small" onClick={() => void markRead(unread.map((n) => n.id))}>
             Отметить все прочитанными
@@ -40,7 +41,10 @@ export function Inbox() {
           {data?.map((n) => (
             <button key={n.id} className={`list-row note${n.readAt ? '' : ' unread'}`} onClick={() => void openOne(n)}>
               <span className="num">{n.ideaNumber ? `№${n.ideaNumber}` : ''}</span>
-              <span className="title">{n.message}</span>
+              <span className="title">
+                {n.headline ? <span className="note-headline">{n.headline}</span> : null}
+                {n.message}
+              </span>
               <span className="side xs faint">{ago(n.createdAt)}</span>
             </button>
           ))}

@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState, type ReactNode } from 'react';
 import { ItemKingdom } from '../components/ItemKingdom';
+import { ItemOrigin } from '../components/ItemOrigin';
 import { api, errorText } from '../lib/api';
 import { facts, type Facts } from '../lib/can';
 import { ago, bytes, dateTime, due } from '../lib/format';
@@ -84,6 +85,7 @@ export function ItemPage({ number }: { number: number }) {
         <Signal status={item.status} />
         <p className="now">{nowLine(item)}</p>
         <ItemKingdom item={item} />
+        <ItemOrigin number={item.number} />
       </header>
 
       {openQuestions.length > 0 && f.author && (
