@@ -86,6 +86,14 @@ export function ItemPage({ number }: { number: number }) {
         <p className="now">{nowLine(item)}</p>
         <ItemKingdom item={item} />
         <ItemOrigin number={item.number} />
+        {s.isLead || s.isAdmin || s.isArchivist ? (
+          <div className="row">
+            <a className="btn small" href={`#/library/new?idea=${item.number}`}>
+              Внести в Летопись
+            </a>
+            <span className="xs faint">Черновик карточки из этого обращения — проверите перед записью</span>
+          </div>
+        ) : null}
       </header>
 
       {openQuestions.length > 0 && f.author && (

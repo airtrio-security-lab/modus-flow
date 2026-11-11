@@ -4,6 +4,7 @@ import { createDatabase, withAdminTx, type Database } from '../db/pool.ts';
 import { saveMyProfile } from '../modules/advisor.ts';
 import { assignTitle, setGuildTitles } from '../modules/titles.ts';
 import { createMeeting, setConsent } from '../modules/meetings.ts';
+import * as legacy from '../modules/legacy.ts';
 import { savePreferences } from '../modules/notifications.ts';
 import { migrate } from '../db/migrate.ts';
 import type { OrgActor, OrgRole } from '../domain/model.ts';
@@ -62,6 +63,7 @@ async function main() {
   const buyer = await mk('Виктория Ким', 'Специалист по закупкам', 'Закупки', ['employee']);
   const designer = await mk('Данияр Сейткали', 'Инженер-проектировщик', 'Проектирование', ['employee']);
   const sysAdmin = await mk('Гульнара Ахметжанова', 'Администратор системы', 'ИТ-разработка', ['employee', 'org_admin'], 'Администратор: категории, правила, сроки');
+  const archivistBase = await mk('Лейла Садыкова', 'Архивариус', 'Руководство', ['employee'], 'Архивариус: проверяет знания, закрытых заседаний не видит');
 
   // ---- reference data -----------------------------------------------------
   const dep = async (name: string, head?: Person) => (await admin.createDepartment(db, sysAdmin, { name, head: head?.membershipId ?? null })).id;
@@ -428,7 +430,44 @@ async function main() {
   ).body.id;
   for (const p of [storekeeper, engineer, itLead]) await setConsent(db, p, planerka, 'given');
 
-  const personas = [owner, ops, whHead, salesHead, itLead, storekeeper, engineer, sysAdmin].map((p) => ({
+  // ---- «Наследие Королевства» (ADR-0017): the archivist role is granted by the admin; two real entries ----
+  await legacy.setArchivist(db, sysAdmin, archivistBase.membershipId, true);
+  const archivist: Person = { ...archivistBase, roles: ['employee', 'archivist'] };
+  const zones = await legacy.register(db, whHead, {
+    kind: 'improvement',
+    title: 'Цветная разметка зон приёмки и отгрузки',
+    card: {
+      problem: 'Новые сотрудники и водители путали зоны приёмки и отгрузки; коробки разных заказов перемешивались — около шести пересортов в месяц.',
+      options: 'Таблички без разметки; цветная разметка пола и таблички; отдельный сотрудник-распределитель у ворот.',
+      argumentsFor: 'Дёшево (около 20 литров краски), делается за одну субботу, понятно без обучения.',
+      argumentsAgainst: 'Разметка стирается под погрузчиками — нужно обновлять раз в полгода.',
+      decision: 'Три зоны с цветной разметкой: приёмка у ворот №1, контроль качества в центре, отгрузка у ворот №2, таблички над каждой зоной.',
+      reasons: 'Самый дешёвый вариант, который убирает путаницу без дополнительных людей.',
+      initiator: storekeeper.membershipId,
+      responsible: [whHead.membershipId, storekeeper.membershipId],
+      actions: [{ what: 'Нанести разметку и повесить таблички', due: '2026-10-18' }],
+      results: 'За месяц после разметки пересортов не было (до этого шесть в месяц) — по акту инвентаризации.',
+      positive: 'Новые сотрудники ориентируются с первого дня.',
+      negative: 'Через два месяца разметка у ворот №1 стёрлась — обновление нужно внести в план работ.',
+    },
+    sources: [{ type: 'idea', number: n1 }],
+    reason: 'Итог внедрения на складе',
+  });
+  await legacy.act(db, whHead, zones.id, { action: 'library_proposed', reason: 'Решение внедрено, эффект подтверждён актом' });
+  await legacy.act(db, archivist, zones.id, { action: 'library_accepted', reason: 'Проверила отчёт о внедрении и акт инвентаризации' });
+  await legacy.register(db, svcHead, {
+    kind: 'problem',
+    title: 'Нехватка СИЗ для выездов на стройку',
+    card: {
+      problem: 'На стройплощадку не пускают без касок и жилетов, а в сервисе было два комплекта на пятерых инженеров.',
+      decision: 'Закупить по комплекту на каждого инженера.',
+      results: 'Пять комплектов выданы под роспись.',
+    },
+    sources: [{ type: 'idea', number: n9 }],
+    reason: 'Записано по итогам решения',
+  });
+
+  const personas = [owner, ops, whHead, salesHead, itLead, storekeeper, engineer, archivistBase, sysAdmin].map((p) => ({
     userId: p.userId,
     name: p.name,
     title: p.title,

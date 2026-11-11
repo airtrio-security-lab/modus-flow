@@ -24,6 +24,7 @@ import { ProtocolPage } from './screens/Protocol';
 import { MeetingPage, MeetingsList, NewMeeting } from './screens/Meetings';
 import { TitleChip, useTitles } from './components/Titles';
 import { Board } from './screens/Board';
+import { KnowledgePage, Library, NewKnowledge } from './screens/Library';
 
 export function App() {
   const [me, setMe] = useState<Me | null>(null);
@@ -99,6 +100,7 @@ function Shell() {
     { href: '#/council', label: 'Совет', short: 'Совет', match: (p: string[]) => p[0] === 'council' || p[0] === 'meetings' },
     { href: '#/', label: 'Обращения', short: 'Обращения', match: (p) => ITEMS.includes(p[0] ?? '') },
     { href: '#/board', label: 'Доска', short: 'Доска', match: (p: string[]) => p[0] === 'board' },
+    { href: '#/library', label: 'Великая библиотека', short: 'Библиотека', match: (p: string[]) => p[0] === 'library' },
     { href: '#/rating', label: 'Рейтинг', short: 'Рейтинг', match: (p: string[]) => p[0] === 'rating' },
     { href: '#/me', label: 'Мой профиль', short: 'Профиль', match: (p: string[]) => p[0] === 'me' },
   ];
@@ -136,6 +138,9 @@ function Shell() {
   else if (head === 'meetings' && route[1] === 'new') page = <NewMeeting key={location.hash} />;
   else if (head === 'meetings' && route[1]) page = <MeetingPage id={route[1]} key={route[1]} />;
   else if (head === 'meetings') page = <MeetingsList />;
+  else if (head === 'library' && route[1] === 'new') page = <NewKnowledge key={location.hash} />;
+  else if (head === 'library' && route[1]) page = <KnowledgePage id={route[1]} key={route[1]} />;
+  else if (head === 'library') page = <Library key={location.hash.split('?')[0]} />;
   else if (head === 'me') page = <Profile />;
   else if (head === 'overview' && (s.isLead || s.isAdmin)) page = <Overview />;
   else if (head === 'inbox') page = <Inbox />;
@@ -290,6 +295,7 @@ const TAB_ICON: Record<string, IconName> = {
   '#/kingdom': 'castle',
   '#/council': 'table',
   '#/rating': 'trophy',
+  '#/library': 'library',
   '#/me': 'person',
 };
 

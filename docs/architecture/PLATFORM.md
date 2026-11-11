@@ -193,6 +193,15 @@ lost, everyone sees the stage, the owner sees what needs attention. Migrations 0
 | — | `npm run platform:escalate` | now also sends «Приближается срок» once per item and deadline |
 | GET | `…/ideas/:n/progress` | XP awarded for the item, effect approval, whether the caller may approve it |
 | POST | `…/ideas/:n/effect` | decision owner, not an originator, after a confirmed implementation: `{xp ≤ xpEffectMax, rationale ≥ 20}`, once |
+| GET | `/api/v1/orgs/:org/knowledge?q=&level=&kind=&status=` | «Великая библиотека» (ADR-0017): knowledge the caller may see (every source visible, or opened to the organization by an approver), with hall, verification label, status, sources, re-applications, `stale` hint. Word search, not AI |
+| POST | `…/knowledge` | curator (archivist, maintainer, decision owner, admin): `{kind, title, card, sources[≥1] (idea number / meeting / finding / knowledge), reason?}` → Летопись. Refused if the card repeats ≥ 12 consecutive words of a meeting transcript or a finding quote |
+| GET | `…/knowledge/:id` | card, people, provenance (closed meetings shown only as «закрытое заседание»; purged transcripts as «удалена по сроку хранения»), chronicle assembled from source records, versions with reasons, transitions, re-applications, `can` flags |
+| POST | `…/knowledge/:id/versions` | curator: `{title, card, reason}` → new version; not while a review is pending; archived knowledge only after `reverify_requested` |
+| POST | `…/knowledge/:id/sources` · `/applications` | curator: add a visible source · record a re-application `{ideaNumber, note}` (confirmed once that item is implemented) |
+| POST | `…/knowledge/:id/actions` | `{action, reason?}`: library_proposed (curator) → library_accepted/rejected (archivist, not the proposer) → archive_proposed (archivist; proof, applicability, last check, grounds, category; a method needs an implemented re-application, an improvement a confirmed effect, a lesson the negative experience) → archive_approved/rejected (decision owner or admin, not the author of the conclusion); reverify_requested, reconfirmed, outdated, opened_to_organization. Each writes an append-only transition and the royal message |
+| GET | `…/knowledge/:id/helper` | «Помощник Архивариуса» without AI: similar knowledge and items by word similarity, possible contradictions, a template note — all labelled; `ai.connected = false` |
+| GET | `…/ideas/:n/knowledge-draft` | a draft card from the item's own fields (problem, proposal, council arguments, decision, report, effect); nothing is saved |
+| POST | `…/members/:id/archivist` | org admin: `{grant}` — the archivist role; audited; opens no material |
 
 Escalation of overdue / stale items: `node platform/cli/escalate.ts` (schema owner, run by a
 scheduler; none is bundled). Audit: [`../audit/2026-11-10-feedback-review.md`](../audit/2026-11-10-feedback-review.md).

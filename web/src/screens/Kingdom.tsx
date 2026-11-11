@@ -7,7 +7,7 @@ import { useLoad, useSession } from '../lib/session';
 import type { Castle, CastleDetail, Envoy, Kingdom as KingdomData } from '../lib/types';
 import { ErrorBox, Loading, PageHead, StatusChip } from '../components/ui';
 import { HowItWorks } from '../components/HowItWorks';
-import { IsoCastle, IsoCouncil, P, Scaffold, Tree } from '../components/iso';
+import { IsoCastle, IsoCouncil, IsoLibrary, P, Scaffold, Tree } from '../components/iso';
 
 /**
  * «Королевство» — the same items as a living strategy map (owner decisions
@@ -24,9 +24,9 @@ const POLL_MS = 15000;
 
 type Pt = { x: number; y: number };
 /** `u` is the size of one isometric grid unit; `font` keeps plate labels readable at the map's real size. */
-type Layout = { w: number; h: number; capital: Pt; rx: number; ry: number; camp: Pt; s: number; u: number; font: number; start: number };
-const WIDE: Layout = { w: 1000, h: 800, capital: { x: 500, y: 420 }, rx: 380, ry: 280, camp: { x: 64, y: 40 }, s: 1.25, u: 10, font: 17, start: -72 };
-const TALL: Layout = { w: 480, h: 1160, capital: { x: 240, y: 560 }, rx: 150, ry: 390, camp: { x: 64, y: 1080 }, s: 1.05, u: 7, font: 18, start: NaN };
+type Layout = { w: number; h: number; capital: Pt; rx: number; ry: number; camp: Pt; library: Pt; s: number; u: number; font: number; start: number };
+const WIDE: Layout = { w: 1000, h: 800, capital: { x: 500, y: 420 }, rx: 380, ry: 280, camp: { x: 64, y: 40 }, library: { x: 880, y: 690 }, s: 1.25, u: 10, font: 17, start: -72 };
+const TALL: Layout = { w: 480, h: 1220, capital: { x: 240, y: 560 }, rx: 150, ry: 390, camp: { x: 64, y: 1080 }, library: { x: 360, y: 1110 }, s: 1.05, u: 7, font: 18, start: NaN };
 /** Phones: two columns around the council instead of a tight ring, so labels never collide (up to 8 castles). */
 const TALL_SLOTS: Pt[] = [
   { x: 120, y: 190 }, { x: 360, y: 190 }, { x: 120, y: 390 }, { x: 360, y: 390 },
@@ -241,6 +241,12 @@ function Realm({
               <LabelPlate y={4.9 * L.u * (wide ? 1 : 0.9) + 12} title="Совет" sub="здесь обсуждают и решают" font={L.font} strong />
             </g>
             {k.wildlands ? <Camp at={L.camp} count={k.wildlands} font={L.font} /> : null}
+            <a href="#/library" className="realm-library-link" aria-label="Великая библиотека: Летопись, Библиотека решений и Высший Архив">
+              <g transform={`translate(${L.library.x},${L.library.y})`}>
+                <IsoLibrary u={L.u * (wide ? 0.9 : 0.75)} />
+                <LabelPlate y={3.4 * L.u * (wide ? 0.9 : 0.75) + 8} title="Великая библиотека" sub="решения, итоги и уроки" font={L.font * 0.9} />
+              </g>
+            </a>
             {drawables.map((d) => d.node)}
           </svg>
         </div>

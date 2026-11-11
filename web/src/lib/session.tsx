@@ -10,6 +10,8 @@ export interface Session {
   roles: Role[];
   isLead: boolean;
   isAdmin: boolean;
+  /** Curation of organizational memory. Opens no material by itself. */
+  isArchivist: boolean;
   directory: Directory | null;
   reloadDirectory: () => Promise<void>;
   unread: number;
@@ -68,6 +70,7 @@ export function SessionProvider({ me, onSignOut, children }: { me: Me; onSignOut
       roles,
       isLead: roles.includes('maintainer') || roles.includes('decision_owner'),
       isAdmin: roles.includes('org_admin'),
+      isArchivist: roles.includes('archivist'),
       directory,
       reloadDirectory,
       unread,

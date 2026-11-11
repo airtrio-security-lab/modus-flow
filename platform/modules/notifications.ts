@@ -71,6 +71,10 @@ const TEMPLATES: Record<NotificationEvent, (actor: string, title: string) => str
   meeting_cancelled: (a, t) => `${a} отменяет заседание «${t}»`,
   deadline_soon: (_a, t) => `Срок решения по «${t}» наступает в ближайшие сутки`,
   castle_xp: (_a, t) => `Внедрение «${t}» принесло опыт замку подразделения`,
+  knowledge_submitted: (a, t) => `${a} (Архивариус) представляет заключение о включении «${t}» в Высший Архив — нужно ваше решение`,
+  knowledge_in_library: (a, t) => `${a} (Архивариус) вносит «${t}» в Библиотеку решений`,
+  knowledge_archived: (a, t) => `${a} утверждает включение «${t}» в Высший Архив`,
+  knowledge_reverify: (a, t) => `${a} запрашивает повторную проверку знания «${t}»`,
 };
 
 /**
@@ -108,6 +112,10 @@ export const HEADLINES: Record<NotificationEvent, string> = {
   meeting_cancelled: 'Заседание отменено',
   deadline_soon: 'Приближается срок',
   castle_xp: 'Замок получил XP',
+  knowledge_submitted: 'Новое знание ждёт Совета',
+  knowledge_in_library: 'Том внесён в Библиотеку',
+  knowledge_archived: 'Том занял место в Высшем Архиве',
+  knowledge_reverify: 'Знание требует проверки',
 };
 
 /** Plain business headlines for people who switched the game wording off. */
@@ -140,10 +148,14 @@ export const BUSINESS_HEADLINES: Record<NotificationEvent, string> = {
   meeting_cancelled: 'Заседание отменено',
   deadline_soon: 'Срок через сутки',
   castle_xp: 'Подразделению начислен опыт',
+  knowledge_submitted: 'Заключение Архивариуса на утверждение',
+  knowledge_in_library: 'Решение внесено в Библиотеку',
+  knowledge_archived: 'Утверждено в Высший Архив',
+  knowledge_reverify: 'Требуется повторная проверка',
 };
 
 /** Groups for the inbox filter and for switching optional messages off. */
-export const CATEGORY: Record<NotificationEvent, 'council' | 'items' | 'decisions' | 'deadlines' | 'castle'> = {
+export const CATEGORY: Record<NotificationEvent, 'council' | 'items' | 'decisions' | 'deadlines' | 'castle' | 'legacy'> = {
   meeting_called: 'council', meeting_rescheduled: 'council', meeting_cancelled: 'council', meeting_recording_started: 'council',
   meeting_findings_ready: 'council', council_recommendation: 'council', council_handoff: 'decisions',
   idea_published: 'items', raised_on_behalf: 'items', comment_added: 'items', revision_submitted: 'items', suggestion_submitted: 'items',
@@ -152,6 +164,7 @@ export const CATEGORY: Record<NotificationEvent, 'council' | 'items' | 'decision
   verification_completed: 'decisions', implemented: 'decisions',
   escalated: 'deadlines', deadline_soon: 'deadlines',
   castle_xp: 'castle', castle_level_up: 'castle', contribution_confirmed: 'castle', honor_board_recognition: 'castle',
+  knowledge_submitted: 'legacy', knowledge_in_library: 'legacy', knowledge_archived: 'legacy', knowledge_reverify: 'legacy',
 };
 /** Never switched off (also enforced by app_notification_enabled in the database). */
 export const MANDATORY: readonly NotificationEvent[] = [
@@ -186,6 +199,8 @@ interface Ctx {
   addr: string;
   topic: string;
   required: boolean;
+  /** 'метода' for methods, 'знания' otherwise (knowledge messages). */
+  noun?: string;
 }
 const ROYAL: Partial<Record<NotificationEvent, (x: Ctx) => string>> = {
   meeting_called: (x) =>
@@ -209,6 +224,11 @@ const ROYAL: Partial<Record<NotificationEvent, (x: Ctx) => string>> = {
   verification_started: (x) => `${x.addr}, от вас ждут заключения: испытание «${x.topic}».`,
   council_recommendation: (x) => `${x.addr}, Совет дал совет по «${x.topic}».`,
   raised_on_behalf: (x) => `${x.addr}, ваш вопрос «${x.topic}» записан в летопись.`,
+  // Owner brief «Наследие Королевства»: the four royal messages, each backed by a real transition.
+  knowledge_submitted: (x) => `${x.addr}, Архивариус представил новое знание для рассмотрения Советом: «${x.topic}».`,
+  knowledge_in_library: (x) => `${x.addr}, ваше решение «${x.topic}» внесено в Библиотеку.`,
+  knowledge_archived: (x) => `${x.addr}, Совет утвердил включение ${x.noun ?? 'знания'} «${x.topic}» в Высший Архив.`,
+  knowledge_reverify: (x) => `${x.addr}, внимание: ранее принятый ${x.noun === 'метода' ? 'метод' : 'вывод'} «${x.topic}» требует повторной проверки.`,
 };
 
 export interface MeetingInvite {
@@ -238,6 +258,8 @@ export interface InboxItem {
   urgent: boolean;
   ideaNumber: number | null;
   meetingId: string | null;
+  /** Knowledge the message is about — opened only while the reader may still see it. */
+  knowledgeId: string | null;
   /** Meeting details, only while the reader still has access to the meeting. */
   meeting: MeetingInvite | null;
   /** The reader was invited but has no access any more (removed). */
@@ -274,6 +296,9 @@ export async function inbox(c: Client, limit = 80): Promise<InboxItem[]> {
     title: string | null;
     number: number | null;
     meeting_id: string | null;
+    knowledge_id: string | null;
+    k_title: string | null;
+    k_noun: string | null;
     m_title: string | null;
     m_scope: string | null;
     m_scheduled: Date | null;
@@ -289,7 +314,8 @@ export async function inbox(c: Client, limit = 80): Promise<InboxItem[]> {
     created_at: Date;
     read_at: Date | null;
   }>(
-    `SELECT n.id, n.event_type, u.display_name AS actor_name, n.actor_membership_id AS actor_id, r.title, i.number, n.meeting_id,
+    `SELECT n.id, n.event_type, u.display_name AS actor_name, n.actor_membership_id AS actor_id, r.title, i.number, n.meeting_id, k.id AS knowledge_id, k.title AS k_title,
+            CASE WHEN k.kind = 'method' THEN 'метода' ELSE 'знания' END AS k_noun,
             mt.title AS m_title, mt.scope AS m_scope, mt.scheduled_at AS m_scheduled, mt.cancelled_at AS m_cancelled,
             mt.cancel_reason AS m_cancel_reason, ou.display_name AS m_organizer, mi.number AS m_idea_number, mr.title AS m_idea_title,
             CASE
@@ -320,13 +346,14 @@ export async function inbox(c: Client, limit = 80): Promise<InboxItem[]> {
        LEFT JOIN ideas mi ON mi.id = mt.idea_id
        LEFT JOIN idea_revisions mr ON mr.idea_id = mi.id AND mr.number = mi.current_revision_number
        LEFT JOIN meeting_participants mp ON mp.meeting_id = mt.id AND mp.membership_id = app_membership_id()
+       LEFT JOIN knowledge_items k ON k.id = n.knowledge_id -- RLS: only knowledge the reader may still see
       WHERE n.recipient_membership_id = app_membership_id()
       ORDER BY n.created_at DESC LIMIT $1`,
     [limit],
   );
   const titles = await effectiveTitles(c);
   return rows.map((r) => {
-    const topic = r.title ?? r.m_title ?? '—';
+    const topic = r.title ?? r.m_title ?? r.k_title ?? (r.event_type.startsWith('knowledge_') ? 'знание недоступно' : '—');
     const royalFn = prefs.style === 'royal' ? ROYAL[r.event_type] : undefined;
     const required = !!r.m_required;
     const actorTitle = r.actor_id ? titles.get(r.actor_id) : null;
@@ -364,11 +391,12 @@ export async function inbox(c: Client, limit = 80): Promise<InboxItem[]> {
       event: r.event_type,
       category: CATEGORY[r.event_type],
       message: TEMPLATES[r.event_type](r.actor_name ?? 'Система', topic),
-      royal: royalFn ? royalFn({ addr, topic, required }) : null,
+      royal: royalFn ? royalFn({ addr, topic, required, noun: r.k_noun ?? undefined }) : null,
       headline,
       urgent: URGENT.includes(r.event_type),
       ideaNumber: r.number,
       meetingId: r.meeting_id,
+      knowledgeId: r.knowledge_id,
       meeting,
       meetingClosed: r.meeting_id !== null && r.m_title === null,
       createdAt: r.created_at.toISOString(),

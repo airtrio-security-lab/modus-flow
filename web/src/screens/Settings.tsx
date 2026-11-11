@@ -132,6 +132,30 @@ export function Settings() {
         </section>
       </div>
       <RetentionSettings />
+
+      <section className="panel stack" aria-labelledby="archivists-h">
+        <h2 className="section-title" id="archivists-h">Архивариусы</h2>
+        <p className="small muted">
+          Архивариус проверяет происхождение и доказательства знаний и готовит заключения для Высшего Архива. Роль не открывает закрытые заседания и
+          конфиденциальные материалы: знание видит только тот, кому доступны его источники. Назначение и снятие записываются в журнал.
+        </p>
+        <ul className="plain settings-list">
+          {members.map((m) => {
+            const on = m.roles.includes('archivist');
+            return (
+              <li key={m.membershipId}>
+                <span>
+                  {m.name}
+                  {m.jobTitle ? <span className="xs faint">, {m.jobTitle}</span> : null}
+                </span>
+                <button className={on ? 'btn small' : 'btn quiet small'} aria-pressed={on} onClick={() => void send(`/members/${m.membershipId}/archivist`, 'POST', { grant: !on }, on ? `${m.name}: роль Архивариуса снята` : `${m.name}: назначен(а) Архивариусом`)}>
+                  {on ? 'Архивариус — снять' : 'Назначить Архивариусом'}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      </section>
     </div>
   );
 

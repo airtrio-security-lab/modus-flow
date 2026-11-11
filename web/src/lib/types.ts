@@ -1,5 +1,5 @@
 /** Shapes returned by API v1 (platform/modules/*). */
-export type Role = 'employee' | 'maintainer' | 'decision_owner' | 'org_admin';
+export type Role = 'employee' | 'maintainer' | 'decision_owner' | 'org_admin' | 'archivist';
 export type Status =
   | 'unrouted'
   | 'in_review'
@@ -205,7 +205,7 @@ export interface Rule {
   resolutionDays: number | null;
 }
 
-export type NoteCategory = 'council' | 'items' | 'decisions' | 'deadlines' | 'castle';
+export type NoteCategory = 'council' | 'items' | 'decisions' | 'deadlines' | 'castle' | 'legacy';
 export interface MeetingInvite {
   title: string;
   organizer: string;
@@ -230,6 +230,7 @@ export interface Notification {
   urgent: boolean;
   ideaNumber: number | null;
   meetingId: string | null;
+  knowledgeId: string | null;
   meeting: MeetingInvite | null;
   meetingClosed: boolean;
   createdAt: string;

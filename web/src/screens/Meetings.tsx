@@ -264,6 +264,11 @@ export function MeetingPage({ id }: { id: string }) {
             Совет по обращению №{data.ideaNumber}
           </a>
         ) : null}
+        {s.isLead || s.isAdmin || s.isArchivist ? (
+          <a className="btn" href={`#/library/new?meeting=${data.id}${data.ideaNumber ? `&idea=${data.ideaNumber}` : ''}`}>
+            Внести итог в Летопись
+          </a>
+        ) : null}
       </PageHead>
 
       {data.cancelledAt ? (

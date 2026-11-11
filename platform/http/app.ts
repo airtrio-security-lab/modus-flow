@@ -26,6 +26,7 @@ import * as progress from '../modules/progress.ts';
 import * as council from '../modules/council.ts';
 import * as advisor from '../modules/advisor.ts';
 import * as meetings from '../modules/meetings.ts';
+import * as legacy from '../modules/legacy.ts';
 import * as titles from '../modules/titles.ts';
 import * as retention from '../modules/retention.ts';
 import type { TranscribeConfig } from '../modules/transcribe.ts';
@@ -445,6 +446,19 @@ export function createApp(config: AppConfig) {
   json('POST', `/meetings/(?<id>${UUID})/participants`, meetings.ParticipantInput, (a, i, p) => meetings.setParticipant(db, a, p.id!, i));
   route('GET', `${IDEA}/origin`, async (ctx) => ({ status: 200, body: await meetings.itemOrigin(db, await org(ctx), NumberParam.parse(ctx.params.number)) }));
   step('/effect', progress.EffectInput, (a, n, i, _p, k) => progress.approveEffect(db, a, n, i, k));
+
+  // ---- «Наследие Королевства» (0012, ADR-0017): chronicle, library, higher archive ----
+  route('GET', `${ORG}/knowledge`, async (ctx) => ({ status: 200, body: await legacy.list(db, await org(ctx), legacy.ListQuery.parse(queryObject(ctx.query))) }));
+  json('POST', '/knowledge', legacy.RegisterInput, (a, i) => legacy.register(db, a, i), 201);
+  const KN = `/knowledge/(?<id>${UUID})`;
+  route('GET', `${ORG}${KN}`, async (ctx) => ({ status: 200, body: await legacy.get(db, await org(ctx), ctx.params.id!) }));
+  route('GET', `${ORG}${KN}/helper`, async (ctx) => ({ status: 200, body: await legacy.helper(db, await org(ctx), ctx.params.id!) }));
+  json('POST', `${KN}/versions`, legacy.ReviseInput, (a, i, p) => legacy.revise(db, a, p.id!, i), 201);
+  json('POST', `${KN}/sources`, legacy.SourceInput, (a, i, p) => legacy.addSource(db, a, p.id!, i), 201);
+  json('POST', `${KN}/applications`, legacy.ApplicationInput, (a, i, p) => legacy.addApplication(db, a, p.id!, i), 201);
+  json('POST', `${KN}/actions`, legacy.ActInput, (a, i, p) => legacy.act(db, a, p.id!, i));
+  route('GET', `${IDEA}/knowledge-draft`, async (ctx) => ({ status: 200, body: await legacy.draftFromItem(db, await org(ctx), NumberParam.parse(ctx.params.number)) }));
+  json('POST', `/members/(?<id>${UUID})/archivist`, legacy.ArchivistInput, (a, i, p) => legacy.setArchivist(db, a, p.id!, i.grant));
   route('GET', `${ORG}/analytics`, async (ctx) => ({
     status: 200,
     body: await analytics(db, await org(ctx), AnalyticsQuery.parse(queryObject(ctx.query))),

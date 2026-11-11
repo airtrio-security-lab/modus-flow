@@ -22,8 +22,9 @@ const FILTERS: { id: 'all' | 'unread' | NoteCategory; label: string }[] = [
   { id: 'decisions', label: 'Решения и поручения' },
   { id: 'deadlines', label: 'Сроки' },
   { id: 'castle', label: 'Замок' },
+  { id: 'legacy', label: 'Наследие' },
 ];
-const SEAL: Record<NoteCategory, string> = { council: '#8a1c1c', items: '#0e7469', decisions: '#6a4a86', deadlines: '#b45309', castle: '#8a6a12' };
+const SEAL: Record<NoteCategory, string> = { council: '#8a1c1c', items: '#0e7469', decisions: '#6a4a86', deadlines: '#b45309', castle: '#8a6a12', legacy: '#2f4a7a' };
 
 function Seal({ category }: { category: NoteCategory }) {
   return (
@@ -125,7 +126,7 @@ export function Inbox() {
             const fresh = !n.readAt && n.urgent && !lite && !seen.has(n.id);
             seen.add(n.id);
             const m = n.meeting;
-            const target = n.meetingId ? (m?.ideaNumber ? `/council/${m.ideaNumber}` : `/meetings/${n.meetingId}`) : n.ideaNumber ? `/items/${n.ideaNumber}` : null;
+            const target = n.knowledgeId ? `/library/${n.knowledgeId}` : n.meetingId ? (m?.ideaNumber ? `/council/${m.ideaNumber}` : `/meetings/${n.meetingId}`) : n.ideaNumber ? `/items/${n.ideaNumber}` : null;
             return (
               <li key={n.id} className={`scroll${n.readAt ? '' : ' unread'}${fresh ? ' unfold' : ''}`} data-category={n.category}>
                 <Seal category={n.category} />
@@ -208,7 +209,7 @@ export function Inbox() {
                       </>
                     ) : target && !n.meetingClosed ? (
                       <button className="btn small" onClick={() => void open(n, target, more)}>
-                        {n.ideaNumber ? `Открыть обращение №${n.ideaNumber}` : 'Открыть'}
+                        {n.knowledgeId ? 'Открыть в Великой библиотеке' : n.ideaNumber ? `Открыть обращение №${n.ideaNumber}` : 'Открыть'}
                       </button>
                     ) : !n.readAt ? (
                       <button className="btn quiet small" onClick={() => void markRead([n.id, ...more.map((x) => x.id)])}>

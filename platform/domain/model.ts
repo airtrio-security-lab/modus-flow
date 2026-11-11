@@ -2,7 +2,7 @@
  * Shared vocabulary of the MODUS FLOW domain. Mirrors the CHECK constraints in
  * platform/db/migrations/0001_foundation.sql — keep both in sync.
  */
-export const ORG_ROLES = ['employee', 'maintainer', 'decision_owner', 'org_admin'] as const;
+export const ORG_ROLES = ['employee', 'maintainer', 'decision_owner', 'org_admin', 'archivist'] as const;
 export type OrgRole = (typeof ORG_ROLES)[number];
 
 export const IDEA_STAGES = [
@@ -73,6 +73,10 @@ export const NOTIFICATION_EVENTS = [
   'meeting_cancelled',
   'deadline_soon',
   'castle_xp',
+  'knowledge_submitted',
+  'knowledge_in_library',
+  'knowledge_archived',
+  'knowledge_reverify',
 ] as const;
 export type NotificationEvent = (typeof NOTIFICATION_EVENTS)[number];
 

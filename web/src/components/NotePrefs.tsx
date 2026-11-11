@@ -20,6 +20,7 @@ const OPTIONAL: { events: string[]; label: string }[] = [
   { events: ['castle_xp', 'castle_level_up', 'contribution_confirmed', 'honor_board_recognition'], label: 'Опыт и уровни замка' },
   { events: ['comment_added', 'status_report', 'revision_submitted', 'suggestion_submitted', 'objection_raised'], label: 'Комментарии и ход работ по моим обращениям' },
   { events: ['council_recommendation', 'meeting_recording_started', 'meeting_findings_ready'], label: 'Рекомендации Совета, запись и находки заседаний' },
+  { events: ['knowledge_submitted', 'knowledge_in_library', 'knowledge_archived', 'knowledge_reverify'], label: 'Наследие: Летопись, Библиотека и Высший Архив' },
 ];
 
 export function NotePrefs() {

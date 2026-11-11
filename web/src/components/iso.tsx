@@ -235,3 +235,40 @@ export function IsoCouncil({ u }: { u: number }) {
     </g>
   );
 }
+
+/**
+ * «Великая библиотека» (ADR-0017): a colonnaded hall with a slate-blue roof and three
+ * arched doors — one per hall: Летопись, Библиотека решений, Высший Архив.
+ */
+const SLATE: Shade = { top: '#5b6f99', left: '#465a85', right: '#34466b' };
+export function IsoLibrary({ u = 10 }: { u?: number }) {
+  const cols = [-2.15, -1.05, 0.05, 1.15];
+  return (
+    <g className="realm-library">
+      <Plate r={3.3} u={u} />
+      <Box x0={-2.5} y0={-1.7} w={5} d={3.1} h={2.7} s={STONE} u={u} />
+      {/* three arched doors on the front face (y = 1.4) */}
+      {[-1.6, -0.1, 1.4].map((x, i) => {
+        const a = P(x, 1.4, 0, u);
+        const b = P(x + 0.7, 1.4, 0, u);
+        const t = P(x + 0.35, 1.4, 1.75, u);
+        return (
+          <path
+            key={x}
+            className={`realm-library-door d${i}`}
+            d={`M${a.x},${a.y} L${a.x},${a.y - 1.25 * u} Q${t.x},${t.y - 0.1 * u} ${b.x},${b.y - 1.25 * u} L${b.x},${b.y} Z`}
+            fill="#2c2418"
+            stroke="#4a4034"
+            strokeWidth="0.8"
+          />
+        );
+      })}
+      {cols.map((x) => (
+        <Box key={x} x0={x} y0={1.65} w={0.32} d={0.32} h={2.3} s={STONE_DARK} u={u} />
+      ))}
+      <Box x0={-2.5} y0={1.4} w={5} d={0.7} z0={2.3} h={0.42} s={STONE_DARK} u={u} />
+      <Roof x0={-2.7} y0={-1.9} w={5.4} d={4.2} z={2.72} h={1.5} s={SLATE} u={u} />
+      <Banner x={2.4} y={-1.6} z={4} color="#2f4a7a" u={u} len={1.8} />
+    </g>
+  );
+}
