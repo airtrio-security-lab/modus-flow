@@ -8,6 +8,7 @@ import { ErrorBox, Loading, StatusChip } from '../components/ui';
 import { CIVS, CivCastle, DistrictHouses, civOf, type Civ } from '../components/civ';
 import { CouncilScene } from '../components/scenes';
 import { WarriorHall } from './WarriorHall';
+import { CamelotTown } from './CamelotTown';
 import { HERALDRY } from './Kingdom';
 
 /**
@@ -17,6 +18,7 @@ import { HERALDRY } from './Kingdom';
  * are shown as «Нет данных», never as 0. The style of the district is a picture: no rights.
  */
 const TABS = [
+  { id: 'town', name: 'Город' },
   { id: 'staff', name: 'Состав' },
   { id: 'tasks', name: 'Задачи' },
   { id: 'initiatives', name: 'Инициативы' },
@@ -43,7 +45,10 @@ function rememberedTab(): Tab {
 export function DistrictPage({ id, tab }: { id: string; tab?: string }) {
   const s = useSession();
   const { data, error, loading, reload } = useLoad(() => api<DistrictData>(`/orgs/${s.org}/castles/${id}/district`), [s.org, id]);
-  const current: Tab = TABS.some((t) => t.id === tab) ? (tab as Tab) : rememberedTab();
+  const camelot = data?.civilization.id === 'camelot';
+  const stored = rememberedTab();
+  const current: Tab = TABS.some((t) => t.id === tab) && (tab !== 'town' || camelot)
+    ? (tab as Tab) : camelot ? 'town' : (stored === 'town' ? 'staff' : stored);
   const [picker, setPicker] = useState(false);
   const closePicker = useCallback(() => setPicker(false), []);
   useEffect(() => {
@@ -63,9 +68,12 @@ export function DistrictPage({ id, tab }: { id: string; tab?: string }) {
       <a className="back-link" href="#/kingdom">
         ← Город
       </a>
+      {camelot && current === 'town' ? (
+        <CamelotTown districtId={data.id} districtName={data.name} level={data.level} xp={data.xp} />
+      ) : null}
       <DistrictHeader d={data} color={color} onPick={() => setPicker(true)} />
       <nav className="district-tabs" role="tablist" aria-label="Разделы замка">
-        {TABS.map((t) => (
+        {TABS.filter((t) => t.id !== 'town' || camelot).map((t) => (
           <a key={t.id} role="tab" aria-selected={current === t.id} href={`#/castles/${id}/${t.id}`} className="district-tab">
             {t.name}
             <TabCount d={data} tab={t.id} />
