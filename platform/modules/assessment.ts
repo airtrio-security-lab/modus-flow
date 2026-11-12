@@ -1,15 +1,15 @@
 import { z } from 'zod';
 import type { OrgActor } from '../domain/model.ts';
 import { withTx, type Database } from '../db/pool.ts';
-import type { ModelConfig } from './advisor-model.ts';
+import { isRemote, modelFetch, modelLabel, type ModelConfig } from './advisor-model.ts';
 import { orgTx } from './context.ts';
 import { loadIdea } from './ideas.ts';
 
 /**
  * «Оценка ИИ» of a proposed solution or of a decision already taken (owner request 2026-11-12).
  *
- * Only a real language model answers here: the local Ollama model of MODUS ADVISOR (ADR-0013), so the
- * text never leaves the computer and nothing paid is involved. When no model is connected the answer
+ * Only a real language model answers here: the model of MODUS ADVISOR — local (ADR-0013) or, when the
+ * owner has switched it on, a cloud one (ADR-0024), and the answer says which. When no model is connected the answer
  * says so — the system does not pass a template off as an assessment. The result is a hint for people:
  * it is not stored, changes no status and decides nothing.
  */
@@ -56,19 +56,19 @@ export async function assessItem(db: Database, actor: OrgActor, number: number, 
   ]
     .filter(Boolean)
     .join('\n');
-  const failed = (note: string): AssessmentReply => ({ available: true, ok: false, model: model.model, note });
+  const failed = (note: string): AssessmentReply => ({ available: true, ok: false, model: modelLabel(model), note });
   let res: Response;
   try {
-    res = await fetchImpl(`${model.url}/api/chat`, {
+    res = await modelFetch(model, fetchImpl)(`${model.url}/api/chat`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ model: model.model, stream: false, format: 'json', options: { temperature: 0 }, messages: [{ role: 'system', content: SYSTEM }, { role: 'user', content: text }] }),
       signal: AbortSignal.timeout(90_000),
     });
   } catch {
-    return failed('Локальная модель не отвечает. Оценка не получена.');
+    return failed('Модель не отвечает. Оценка не получена.');
   }
-  if (!res.ok) return failed(`Локальная модель вернула ошибку ${res.status}. Оценка не получена.`);
+  if (!res.ok) return failed(`Модель вернула ошибку ${res.status}${res.status === 401 ? ' (ключ не принят)' : res.status === 404 ? ' (такой модели нет)' : ''}. Оценка не получена.`);
   let parsed: AssessmentT;
   try {
     const body = (await res.json()) as { message?: { content?: string } };
@@ -76,5 +76,6 @@ export async function assessItem(db: Database, actor: OrgActor, number: number, 
   } catch {
     return failed('Модель ответила не в том формате. Оценка не показана, чтобы не вводить в заблуждение.');
   }
-  return { available: true, ok: true, model: model.model, subject: item.decision ? 'decision' : 'proposal', assessment: parsed, note: 'Оценка локальной модели — подсказка, а не решение. Текст обращения не покидал этот компьютер.' };
+  const note = isRemote(model) ? 'Оценка облачной модели — подсказка, а не решение. Текст обращения был отправлен за пределы компании.' : 'Оценка локальной модели — подсказка, а не решение. Текст обращения не покидал этот компьютер.';
+  return { available: true, ok: true, model: modelLabel(model), subject: item.decision ? 'decision' : 'proposal', assessment: parsed, note };
 }

@@ -484,6 +484,8 @@ export function createApp(config: AppConfig) {
   const KN = `/knowledge/(?<id>${UUID})`;
   route('GET', `${ORG}${KN}`, async (ctx) => ({ status: 200, body: await legacy.get(db, await org(ctx), ctx.params.id!) }));
   route('GET', `${ORG}${KN}/helper`, async (ctx) => ({ status: 200, body: await legacy.helper(db, await org(ctx), ctx.params.id!) }));
+  // AI-Архивариус (ADR-0024): only with a connected model; otherwise «не подключён».
+  route('POST', `${ORG}${KN}/helper/ai`, async (ctx) => ({ status: 200, body: await legacy.helperAi(db, await org(ctx), ctx.params.id!, config.advisorModel ?? null, config.advisorFetch) }));
   json('POST', `${KN}/versions`, legacy.ReviseInput, (a, i, p) => legacy.revise(db, a, p.id!, i), 201);
   json('POST', `${KN}/sources`, legacy.SourceInput, (a, i, p) => legacy.addSource(db, a, p.id!, i), 201);
   json('POST', `${KN}/applications`, legacy.ApplicationInput, (a, i, p) => legacy.addApplication(db, a, p.id!, i), 201);

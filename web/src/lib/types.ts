@@ -480,7 +480,8 @@ export interface Contribution {
 // ---- MODUS ADVISOR (0008, ADR-0013) ----------------------------------------
 export interface AdvisorStatus {
   rules: { available: boolean; label: string };
-  model: { configured: boolean; provider: string | null; model: string | null; reachable: boolean };
+  /** `remote`: a cloud model — the text sent for analysis leaves the company (ADR-0024). */
+  model: { configured: boolean; provider: string | null; model: string | null; reachable: boolean; remote?: boolean };
   note: string;
 }
 export interface EmployeeProfile {

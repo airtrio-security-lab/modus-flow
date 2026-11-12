@@ -117,7 +117,8 @@ test('AI assessment: without a model it says «не подключён»; with a
   const good = await assessItem(db, w.author.actor, n, model, answer(JSON.stringify({ verdict: 'doubts', summary: 'Проблема описана, но решение не предложено: нужны данные о частоте сбоев.', strengths: ['Понятно, где возникает сбой'], risks: ['Причина не установлена'], questions: ['Как часто печатаются пустые этикетки?'] })));
   assert.ok(good.available && good.ok);
   if (good.available && good.ok) {
-    assert.deepEqual([good.model, good.subject, good.assessment.verdict], ['test-model', 'proposal', 'doubts']);
+    assert.deepEqual([good.model, good.subject, good.assessment.verdict], ['локальная модель test-model', 'proposal', 'doubts']);
+    assert.match(good.note, /не покидал этот компьютер/);
     assert.equal(good.assessment.questions.length, 1);
   }
   assert.match(asked, /Терминал на приёмке печатает пустые этикетки/, 'the model is given the item itself');

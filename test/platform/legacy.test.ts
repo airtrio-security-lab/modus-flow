@@ -281,3 +281,41 @@ test('helper without AI: labelled word matching, possible contradictions, a temp
   assert.match(h.noteLabel, /не AI/);
   assert.match(h.note, /^«Печать этикеток у ворот склада» — летопись/);
 });
+
+test('AI-Архивариус: «не подключён» without a model; with a model only references to shown candidates survive', async () => {
+  const n = await item('Маркировка паллет на приёмке');
+  const a = await legacy.register(db, w.maintainer.actor, { kind: 'decision', title: 'Маркировка паллет у ворот склада', card: CARD, sources: [{ type: 'idea', number: n }] });
+  const b = await legacy.register(db, w.maintainer.actor, { kind: 'decision', title: 'Маркировка паллет у ворот склада — второй вариант', card: CARD, sources: [{ type: 'idea', number: n }] });
+  // The candidates the model is shown are numbered K1… in the order of the helper without AI.
+  const refOfB = `K${(await legacy.helper(db, w.maintainer.actor, a.id)).similar.findIndex((x) => x.id === b.id) + 1}`;
+  assert.match(refOfB, /^K[1-5]$/);
+  const off = await legacy.helperAi(db, w.maintainer.actor, a.id, null);
+  assert.equal(off.connected, false);
+  assert.match(off.note, /не подключён/);
+  await assert.rejects(legacy.helperAi(db, w.author.actor, a.id, null), codes('forbidden'), 'only curators run the paid assistant');
+  const model = { provider: 'anthropic' as const, url: 'https://api.anthropic.com', model: 'claude-haiku-5-5', apiKey: 'sk-test' };
+  let sent = '';
+  const answer = (text: string) =>
+    (async (_u: string | URL | Request, init?: RequestInit) => {
+      sent = String(init?.body ?? '');
+      return new Response(JSON.stringify({ content: [{ type: 'text', text }] }), { status: 200, headers: { 'content-type': 'application/json' } });
+    }) as typeof fetch;
+  const good = await legacy.helperAi(
+    db,
+    w.maintainer.actor,
+    a.id,
+    model,
+    answer(JSON.stringify({ summary: 'Этикетки печатают у ворот, чтобы не ждать контору.', verdict: 'needs_work', duplicates: [{ ref: refOfB, why: 'То же решение для той же проблемы' }, { ref: 'K9', why: 'выдуманная ссылка' }], related: [{ ref: 'I7', why: 'нет такого' }], gaps: ['Не указано, кто отвечает за принтер'] })),
+  );
+  assert.ok(good.connected && good.ok);
+  if (good.connected && good.ok) {
+    assert.deepEqual(good.duplicates.map((d) => d.id), [b.id], 'the made-up K9 is dropped');
+    assert.deepEqual([good.related.length, good.dropped, good.remote, good.verdict], [0, 2, true, 'needs_work']);
+    assert.match(good.note, /за пределы компании/);
+    assert.equal(good.model, 'облачная модель claude-haiku-5-5 (Anthropic)');
+  }
+  assert.match(sent, /Маркировка паллет у ворот склада/);
+  assert.equal(sent.includes('sk-test'), false, 'the key travels in a header, never in the text');
+  const junk = await legacy.helperAi(db, w.maintainer.actor, a.id, model, answer('простите, не могу'));
+  assert.ok(junk.connected && !junk.ok);
+});

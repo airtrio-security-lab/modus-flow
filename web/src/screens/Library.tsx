@@ -94,6 +94,22 @@ interface View {
   can: Partial<Record<ActionId | 'revise' | 'addSource' | 'addApplication', boolean>>;
   roles: { archivist: boolean; approver: boolean; curator: boolean };
 }
+type ArchivistAi =
+  | { connected: false; note: string }
+  | { connected: true; ok: false; model: string; remote: boolean; note: string }
+  | {
+      connected: true;
+      ok: true;
+      model: string;
+      remote: boolean;
+      summary: string;
+      verdict: 'ready' | 'needs_work';
+      duplicates: { id: string; title: string; hall: string; why: string }[];
+      contradictions: { id: string; title: string; hall: string; why: string }[];
+      related: { number: number; title: string; why: string }[];
+      gaps: string[];
+      note: string;
+    };
 interface Helper {
   label: string;
   ai: { connected: boolean; note: string };
@@ -718,7 +734,7 @@ export function KnowledgePage({ id }: { id: string }) {
             {helper ? (
               <div className="stack">
                 <p className="xs notice warn">{helper.label}</p>
-                <p className="xs faint">{helper.ai.note}</p>
+                {s.roles.some((r) => ['archivist', 'maintainer', 'decision_owner', 'org_admin'].includes(r)) ? <ArchivistAiBox id={k.id} /> : <p className="xs faint">AI-Архивариуса запускает Архивариус или руководитель.</p>}
                 <div>
                   <h3 className="small">Краткая справка</h3>
                   <p className="small">{helper.note}</p>
@@ -787,6 +803,83 @@ export function KnowledgePage({ id }: { id: string }) {
         </aside>
       </div>
       {vault ? <Vault title={vault} onClose={() => setVault(null)} /> : null}
+    </div>
+  );
+}
+
+/** AI-Архивариус (ADR-0024): the answer of the connected model, or a plain «не подключён». */
+function ArchivistAiBox({ id }: { id: string }) {
+  const s = useSession();
+  const [busy, setBusy] = useState(false);
+  const [r, setR] = useState<ArchivistAi | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const ask = () => {
+    setBusy(true);
+    setErr(null);
+    void api<ArchivistAi>(`/orgs/${s.org}/knowledge/${id}/helper/ai`, { method: 'POST', idempotent: false })
+      .then(setR)
+      .catch((e) => setErr(errorText(e)))
+      .finally(() => setBusy(false));
+  };
+  const links = (title: string, list: { id: string; title: string; hall: string; why: string }[]) =>
+    list.length ? (
+      <div>
+        <h3 className="small">{title}</h3>
+        <ul className="plain k-list">
+          {list.map((x) => (
+            <li key={x.id}>
+              <a href={`#/library/${x.id}`}>{x.title}</a> <span className="xs faint">{x.hall}</span>
+              <div className="xs">{x.why}</div>
+            </li>
+          ))}
+        </ul>
+      </div>
+    ) : null;
+  return (
+    <div className="stack archivist-ai">
+      <button className="btn" onClick={ask} disabled={busy}>
+        {busy ? 'Модель читает карточку…' : r && r.connected && r.ok ? 'Спросить AI-Архивариуса ещё раз' : 'Спросить AI-Архивариуса'}
+      </button>
+      <div aria-live="polite" className="stack">
+        {err ? <p className="notice error">{err}</p> : null}
+        {r && !r.connected ? <p className="xs notice">{r.note}</p> : null}
+        {r && r.connected && !r.ok ? <p className="xs notice warn">{r.note}</p> : null}
+        {r && r.connected && r.ok ? (
+          <section className="stack" aria-label="Заключение языковой модели">
+            <p className="small">
+              <b>{r.verdict === 'ready' ? 'Карточка понятна и применима.' : 'Карточку стоит доработать.'}</b> {r.summary}
+            </p>
+            {r.gaps.length ? (
+              <div>
+                <h3 className="small">Чего не хватает</h3>
+                <ul className="small">
+                  {r.gaps.map((g) => (
+                    <li key={g}>{g}</li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+            {links('Повторяют это знание', r.duplicates)}
+            {links('Возможные противоречия', r.contradictions)}
+            {r.related.length ? (
+              <div>
+                <h3 className="small">Где можно применить</h3>
+                <ul className="plain k-list">
+                  {r.related.map((x) => (
+                    <li key={x.number}>
+                      <a href={`#/items/${x.number}`}>№{x.number} «{x.title}»</a>
+                      <div className="xs">{x.why}</div>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+            <p className="xs faint">
+              Отвечала {r.model}. {r.note}
+            </p>
+          </section>
+        ) : null}
+      </div>
     </div>
   );
 }

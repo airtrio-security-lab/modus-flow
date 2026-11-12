@@ -70,7 +70,7 @@ export function AiAssessment({ number }: { number: number }) {
         {state === 'error' ? <p className="quick-note" data-kind="warn">Не удалось запросить оценку. Попробуйте ещё раз.</p> : null}
         {reply && !reply.available ? (
           <p className="quick-note" data-kind="off">
-            <b>ИИ не подключён.</b> Оценку решения делает только языковая модель; шаблоном система её не подменяет. Локальную модель может подключить администратор — текст обращений при этом не покидает компьютер.
+            <b>ИИ не подключён.</b> Оценку решения делает только языковая модель; шаблоном система её не подменяет. Модель подключает администратор: локальную (текст не покидает компьютер) или облачную — по решению владельца.
           </p>
         ) : null}
         {reply && reply.available && !reply.ok ? (
@@ -103,7 +103,7 @@ export function AiAssessment({ number }: { number: number }) {
               ) : null,
             )}
             <p className="quick-foot">
-              Оценивалось {reply.subject === 'decision' ? 'принятое решение' : 'предложение: решение ещё не принято'}. Модель {reply.model}. {reply.note}
+              Оценивалось {reply.subject === 'decision' ? 'принятое решение' : 'предложение: решение ещё не принято'}. Отвечала {reply.model}. {reply.note}
             </p>
           </section>
         ) : null}

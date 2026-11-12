@@ -249,3 +249,9 @@ same origin with a strict CSP.
 - `POST /ideas/:n/assessment` — ответ локальной модели или «ИИ не подключён»; не сохраняется.
 - `GET /ideas/:n` отдаёт `deferral`; `GET /kingdom` у гонцов — `author` и `deferredUntil`.
 - Веб: `components/ItemQuick.tsx` (путь в четыре шага, отложить, оценка ИИ) — на странице обращения и в карточке гонца в 3D-городе.
+
+## Облачная модель и AI-Архивариус (ADR-0024)
+
+- `MODUS_ADVISOR_PROVIDER=none|ollama|anthropic|openai`; облачная — только с `MODUS_ADVISOR_ALLOW_REMOTE=true`, вне демо ещё и `MODUS_ADVISOR_ALLOW_REAL_DATA=true`. Ключ — `ANTHROPIC_API_KEY` / `OPENAI_API_KEY`.
+- `platform/modules/advisor-model.ts`: `modelFetch` — один переходник для всех провайдеров; `isRemote`, `modelLabel`.
+- `POST /knowledge/:id/helper/ai` — AI-Архивариус; `GET /advisor/status` отдаёт `model.remote`.

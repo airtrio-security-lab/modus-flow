@@ -9,7 +9,7 @@ import { orgTx } from './context.ts';
 import { hashRequest, idempotent } from './idempotency.ts';
 import { loadIdea } from './ideas.ts';
 import { createItem } from './intake.ts';
-import { extractByModel, modelReachable, type ModelConfig } from './advisor-model.ts';
+import { extractByModel, isRemote, modelLabel, modelReachable, type ModelConfig } from './advisor-model.ts';
 
 /**
  * MODUS ADVISOR — the minimal assistant at the Council table (ADR-0013).
@@ -31,7 +31,7 @@ const sha256 = (s: string) => createHash('sha256').update(s, 'utf8').digest('hex
 
 export const METHOD_LABEL = {
   rules: 'Разбор по шаблону (без ИИ)',
-  model: 'Локальная модель',
+  model: 'Языковая модель',
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -41,11 +41,13 @@ export async function advisorStatus(model: ModelConfig | null, fetchImpl?: typeo
   return {
     rules: { available: true, label: METHOD_LABEL.rules },
     model: model
-      ? { configured: true, provider: model.provider, model: model.model, reachable: await modelReachable(model, fetchImpl) }
-      : { configured: false, provider: null, model: null, reachable: false },
-    note: model
-      ? 'Локальная модель работает на этом компьютере; текст протокола никуда не отправляется.'
-      : 'Модель не подключена: задачи ищутся по шаблону, исполнители подбираются по анкетам. Это правила, не ИИ.',
+      ? { configured: true, provider: model.provider, model: model.model, remote: isRemote(model), reachable: await modelReachable(model, fetchImpl) }
+      : { configured: false, provider: null, model: null, remote: false, reachable: false },
+    note: !model
+      ? 'Модель не подключена: задачи ищутся по шаблону, исполнители подбираются по анкетам. Это правила, не ИИ.'
+      : isRemote(model)
+        ? `Подключена ${modelLabel(model)}. Тексты обращений, знаний и совещаний, которые вы отправляете на разбор, уходят за пределы компании.`
+        : 'Локальная модель работает на этом компьютере; текст протокола никуда не отправляется.',
   };
 }
 

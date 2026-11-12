@@ -153,6 +153,12 @@ try {
     await act(page, 'Внести в Библиотеку', 'Проверила отчёт о внедрении и решение');
     await expectText(page, 'проверено Архивариусом');
     await shot(page, '03-library');
+    // The helper without AI is labelled; the AI archivist answers only through a connected model (ADR-0024).
+    await page.getByRole('button', { name: 'Подобрать связи' }).click();
+    await expectText(page, 'Помощник Архивариуса без ИИ');
+    await page.getByRole('button', { name: 'Спросить AI-Архивариуса' }).click();
+    await expectText(page, 'AI-Архивариус не подключён');
+    if (await page.getByLabel('Заключение языковой модели').count()) throw new Error('an AI conclusion is shown without a model');
   });
   await as(whHead, async (page) => {
     await page.goto(`${BASE}/#/inbox`);
@@ -160,7 +166,7 @@ try {
     await page.locator('li.scroll', { hasText: 'Печать этикеток у ворот приёмки» внесено в Библиотеку' }).getByRole('button', { name: 'Открыть в Великой библиотеке' }).click();
     await page.waitForURL(new RegExp(`#/library/${kid}$`));
   });
-  step('5. Библиотека: предложено руководителем, проверено Архивариусом; послание «Ваше решение внесено в Библиотеку» ведёт к карточке');
+  step('5. Библиотека: предложено руководителем, проверено Архивариусом, AI-Архивариус без модели пишет «не подключён»; послание «Ваше решение внесено в Библиотеку» ведёт к карточке');
 
   // ---- 6. The method is applied again on another item ----
   const n2 = await as(storekeeper, async (page) =>

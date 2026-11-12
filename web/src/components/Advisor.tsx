@@ -15,7 +15,7 @@ export function useAdvisorStatus() {
 
 export function advisorMethodLine(st: AdvisorStatus | null): string {
   if (!st) return 'Помощник Совета';
-  return st.model.configured && st.model.reachable ? `Локальная модель ${st.model.model}` : 'Правила, без ИИ';
+  return st.model.configured && st.model.reachable ? `${st.model.remote ? 'Облачная' : 'Локальная'} модель ${st.model.model}` : 'Правила, без ИИ';
 }
 
 export function AdvisorPanel({ number, leads, onDone }: { number: number; leads: boolean; onDone: (t: string) => Promise<void> }) {

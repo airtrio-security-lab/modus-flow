@@ -4,7 +4,7 @@ import { migrate } from './db/migrate.ts';
 import { createApp } from './http/app.ts';
 import { demoConfigFromEnv } from './http/demo.ts';
 import { authenticatorFromEnv } from './http/authn.ts';
-import { modelConfigFromEnv } from './modules/advisor-model.ts';
+import { isRemote, modelConfigFromEnv } from './modules/advisor-model.ts';
 import { transcribeConfigFromEnv } from './modules/transcribe.ts';
 
 /**
@@ -42,7 +42,7 @@ if (demo) {
 const staticDir = process.env.MODUS_WEB_DIR ?? (process.env.MODUS_SERVE_WEB === 'true' ? 'web/dist' : undefined);
 // MODUS ADVISOR: rules by default; a local model only when configured explicitly (ADR-0013).
 const advisorModel = modelConfigFromEnv(process.env);
-console.log(JSON.stringify({ level: 'info', advisor: advisorModel ? `local model ${advisorModel.model} at ${advisorModel.url}` : 'rules only (no AI model connected)' }));
+console.log(JSON.stringify({ level: 'info', advisor: advisorModel ? `${isRemote(advisorModel) ? 'CLOUD' : 'local'} model ${advisorModel.model} at ${advisorModel.url}${isRemote(advisorModel) ? ' — texts sent for analysis leave the company (ADR-0024)' : ''}` : 'rules only (no AI model connected)' }));
 const transcribeEngine = transcribeConfigFromEnv(process.env);
 console.log(JSON.stringify({ level: 'info', transcription: transcribeEngine ? `local engine ${transcribeEngine.model} at ${transcribeEngine.url}` : 'no engine (manual or prepared transcripts only)' }));
 const handler = createApp({ db, authenticator, staticDir, demo, advisorModel, transcribeEngine, log: (e) => console.log(JSON.stringify(e)) });

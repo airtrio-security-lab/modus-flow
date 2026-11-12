@@ -90,6 +90,8 @@ The city and the district screen: [`docs/demo/city-demo.md`](docs/demo/city-demo
 The 90-second click paths for a live demo: [`docs/demo/meeting-90s.md`](docs/demo/meeting-90s.md) (meeting → work → XP) and [`docs/demo/kingdom-90s.md`](docs/demo/kingdom-90s.md) (idea → council → XP).
 Or all of it in one command (Docker + Node ≥ 22.18): `./scripts/demo-local.sh`. With the organizer's set for the 3D demo: `./scripts/demo-local.sh --fresh --dataset`.
 
+A language model is optional and off by default. Local (Ollama): `MODUS_ADVISOR_PROVIDER=ollama MODUS_ADVISOR_MODEL=…`. Cloud (paid, the text leaves the company — the owner's decision, ADR-0024): `ANTHROPIC_API_KEY=… MODUS_ADVISOR_PROVIDER=anthropic MODUS_ADVISOR_MODEL=claude-haiku-5-5 MODUS_ADVISOR_ALLOW_REMOTE=true`; outside the demo sign-in it also needs `MODUS_ADVISOR_ALLOW_REAL_DATA=true`. Never commit a key.
+
 ### Platform tests
 Integration tests use a real PostgreSQL; each test file creates and drops its own database.
 They fail (never skip) when `TEST_DATABASE_URL` is missing.

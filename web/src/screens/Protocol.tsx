@@ -129,9 +129,10 @@ function ProtocolNew() {
             с «решили», «нужно», «не работает», «предлагаю» и пункты под «Решили:»
           </label>
           <label className="check">
-            <input type="radio" name="pr-method" checked={method === 'model'} disabled={!modelReady} onChange={() => setMethod('model')} /> Локальная модель
+            <input type="radio" name="pr-method" checked={method === 'model'} disabled={!modelReady} onChange={() => setMethod('model')} /> {status?.model.remote ? 'Облачная модель' : 'Локальная модель'}
             {status?.model.configured ? ` ${status.model.model}` : ''}
             {!status?.model.configured ? ' — не подключена' : !status.model.reachable ? ' — не отвечает' : ''}
+            {status?.model.configured && status.model.remote ? ' — текст протокола будет отправлен за пределы компании' : ''}
           </label>
           <MethodNote status={status} />
         </fieldset>
