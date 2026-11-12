@@ -234,3 +234,11 @@ same origin with a strict CSP.
 * Employee Contribution Profile and Honor Board as read models over confirmed contributions
   (categories, links to evidence, no counts-based ranking).
 * SSO/OIDC, rate limiting, outbox delivery to e-mail/messengers, backups/restore rehearsal.
+
+## 3D-город и импорт набора (ADR-0022, миграция 0017)
+
+- **Сцена.** `web/src/world3d/` — Three.js без обёрток: процедурные материалы и геометрия, четыре набора архитектуры × пять уровней, рельеф с рекой и мостами, камера с пределами и перелётами, выбор объектов лучом. Данные — только `GET /kingdom`; движок не вызывает API и не знает о правах.
+- **Экраны.** `screens/City3D.tsx` — сцена с тёмным HUD (разделы, поиск по отделам, коллегам, обращениям и строкам набора, счётчики, карточка района); `components/Citadel3D.tsx` — замок отдела в 3D и подписанный предпросмотр уровней на экране района. Виды страницы «Город»: 3D / Схема / Рабочее пространство; без WebGL — схема.
+- **Новые маршруты.** `GET /people?q=` (поиск коллег: имя, должность, отдел; только участникам), `GET /datasets/:dataset`, `GET /ideas/:n/dataset`.
+- **Импорт.** `platform/modules/dataset.ts` + `npm run platform:import-dataset`: 20 строк официального набора проходят обычную подачу, маршрутизацию и решения; `dataset_items` хранит внешний ID и исходные поля; XP из набора не начисляется, демо-подтверждение — отдельный подписанный шаг.
+- **Ограничения** перечислены в ADR-0022: визуальный уровень ниже живописного референса; кадры не измерены на видеокарте и телефоне.

@@ -7,6 +7,7 @@ import type { District as DistrictData, DistrictItem, StaffCard, Status } from '
 import { ErrorBox, Loading, StatusChip } from '../components/ui';
 import { CIVS, CivCastle, DistrictHouses, civOf, type Civ } from '../components/civ';
 import { CouncilScene } from '../components/scenes';
+import { Citadel3D } from '../components/Citadel3D';
 import { HERALDRY } from './Kingdom';
 
 /**
@@ -61,6 +62,7 @@ export function DistrictPage({ id, tab }: { id: string; tab?: string }) {
       <a className="back-link" href="#/kingdom">
         ← Город
       </a>
+      <Citadel3D civ={civOf(data.civilization.id)} civName={data.civilization.name} level={data.level} levelNames={data.levels.names} color={color} name={data.name} />
       <DistrictHeader d={data} color={color} onPick={() => setPicker(true)} />
       <nav className="district-tabs" role="tablist" aria-label="Разделы замка">
         {TABS.map((t) => (

@@ -8,6 +8,7 @@
  */
 import { chromium } from 'playwright';
 import { readFileSync } from 'node:fs';
+import { schematic } from './schematic.mjs';
 
 const BASE = process.env.BASE ?? 'http://localhost:3100';
 const people = JSON.parse(readFileSync(process.env.PERSONAS ?? '.demo/personas.json', 'utf8')).personas;
@@ -22,7 +23,7 @@ const THRESHOLDS = [0, 100, 250, 500, 900];
 const NAMES = ['Поселение', 'Крепость', 'Цитадель', 'Королевский замок', 'Легендарная крепость'];
 const levelOf = (xp) => THRESHOLDS.filter((t) => xp >= t).length;
 
-const browser = await chromium.launch();
+const browser = schematic(await chromium.launch());
 const errors = [];
 // Fresh demo data needs no suffix; STAMP=1 adds one to rerun on the same database.
 const stamp = process.env.STAMP ? ` ${Date.now().toString(36)}` : '';

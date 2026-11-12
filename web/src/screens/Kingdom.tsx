@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { api } from '../lib/api';
 import { plural } from '../lib/format';
 import { LiteToggle, useLite } from '../lib/lite';
@@ -10,6 +10,9 @@ import { HowItWorks } from '../components/HowItWorks';
 import { IsoCastle, IsoCouncil, IsoLibrary, P, Scaffold, Tree } from '../components/iso';
 import { CIV_HEIGHT, CivCastle, CouncilHall, DistrictHouses, IsoArchive, IsoPlaza, civName, civOf, hallName } from '../components/civ';
 import { useCamera } from '../lib/camera';
+
+// three.js is loaded only when the 3D city is opened.
+const City3D = lazy(() => import('./City3D').then((m) => ({ default: m.City3D })));
 
 /**
  * «Королевство» — the same items as a living strategy map (owner decisions
@@ -102,14 +105,9 @@ export function Kingdom() {
   const [celebrate, setCelebrate] = useState<{ id: string; text: string } | null>(null);
   const seen = useRef<Map<string, number> | null>(null);
   const [enter] = useState(enterTarget);
-  const [mode, setModeRaw] = useState<'city' | 'work'>(() => {
-    try {
-      return localStorage.getItem(MODE_KEY) === 'work' ? 'work' : 'city';
-    } catch {
-      return 'city';
-    }
-  });
-  const setMode = (m: 'city' | 'work') => {
+  const [mode, setModeRaw] = useState<Mode>(initialMode);
+  const [notice, setNotice] = useState<string | null>(null);
+  const setMode = (m: Mode) => {
     setModeRaw(m);
     try {
       localStorage.setItem(MODE_KEY, m);
@@ -117,6 +115,11 @@ export function Kingdom() {
       /* ignore */
     }
   };
+  /** 3D could not start on this device: show the schematic city, keep the person's stored choice untouched. */
+  const unavailable = useCallback((why: string) => {
+    setNotice(why);
+    setModeRaw('city');
+  }, []);
 
   // Live: refresh while the page is visible.
   useEffect(() => {
@@ -150,20 +153,42 @@ export function Kingdom() {
     return () => window.clearTimeout(t);
   }, [data]);
 
+  if (mode === '3d' && data && !enter)
+    return (
+      <Suspense fallback={<Loading label="Строим город…" rows={3} />}>
+        <City3D k={data} onMode={setMode} onUnavailable={unavailable} />
+        <div className="realm-toast-slot w3d-toast" aria-live="polite">
+          {celebrate ? (
+            <div className="realm-toast" role="status">
+              <b>Улучшение замка.</b> {celebrate.text}
+            </div>
+          ) : null}
+        </div>
+      </Suspense>
+    );
+  const flat = mode === 'work' ? 'work' : 'city';
   return (
     <div className="stack-lg">
       <PageHead title={s.realmName} sub="Город подразделений: каждое выбрало свою цивилизацию. Замок растёт только после подтверждённого внедрения идеи.">
         <div className="segmented" role="group" aria-label="Вид">
-          <button type="button" aria-pressed={mode === 'city'} onClick={() => setMode('city')}>
-            Город
+          <button type="button" aria-pressed={false} onClick={() => setMode('3d')}>
+            3D-город
           </button>
-          <button type="button" aria-pressed={mode === 'work'} onClick={() => setMode('work')}>
+          <button type="button" aria-pressed={flat === 'city'} onClick={() => setMode('city')}>
+            Схема
+          </button>
+          <button type="button" aria-pressed={flat === 'work'} onClick={() => setMode('work')}>
             Рабочее пространство
           </button>
         </div>
-        {mode === 'city' ? <LiteToggle /> : null}
+        {flat === 'city' ? <LiteToggle /> : null}
       </PageHead>
-      {mode === 'city' ? <HowItWorks /> : null}
+      {notice ? (
+        <p className="notice" role="status">
+          {notice}
+        </p>
+      ) : null}
+      {flat === 'city' ? <HowItWorks /> : null}
       <div className="realm-toast-slot" aria-live="polite">
         {celebrate ? (
           <div className="realm-toast" role="status">
@@ -173,12 +198,28 @@ export function Kingdom() {
       </div>
       {error ? <ErrorBox error={error} retry={() => void reload()} /> : null}
       {loading && !data ? <Loading label="Рисуем карту…" rows={3} /> : null}
-      {data && mode === 'city' ? <Realm k={data} selected={selected} onSelect={setSelected} celebrate={celebrate} enterCouncil={enter} /> : null}
-      {data && mode === 'work' ? <WorkView k={data} /> : null}
+      {data && flat === 'city' ? <Realm k={data} selected={selected} onSelect={setSelected} celebrate={celebrate} enterCouncil={enter} /> : null}
+      {data && flat === 'work' ? <WorkView k={data} /> : null}
     </div>
   );
 }
 
+type Mode = '3d' | 'city' | 'work';
+/**
+ * The 3D city is the default where it can run; the schematic map is the default when the system asks
+ * for reduced motion or the device looks weak, and the fallback when WebGL is missing. The person's
+ * own choice is kept on the device.
+ */
+function initialMode(): Mode {
+  try {
+    const v = localStorage.getItem(MODE_KEY);
+    if (v === '3d' || v === 'city' || v === 'work') return v;
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return 'city';
+    return localStorage.getItem('modus.lite') === '1' ? 'city' : '3d';
+  } catch {
+    return 'city';
+  }
+}
 const MODE_KEY = 'modus.kingdom.mode';
 /** Where «Войти в Совет» leads after the flight: only the council and meeting pages. */
 function enterTarget(): string | null {

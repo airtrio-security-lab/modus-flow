@@ -295,3 +295,24 @@ export async function person(db: Database, actor: OrgActor, membershipId: string
     };
   });
 }
+
+/**
+ * City search (ADR-0022): colleagues by name, for the 3D city's search box. Only what the
+ * district screen already shows to every full member — name, job and department; no contacts,
+ * no profile fields. Guests of the organization do not see the staff list.
+ */
+export const PeopleQuery = z.object({ q: z.string().trim().min(2).max(80) }).strict();
+export async function searchPeople(db: Database, actor: OrgActor, q: string) {
+  fullMember(actor);
+  return withTx(db, orgTx(actor), async (c) => {
+    const { rows } = await c.query<{ id: string; name: string; job: string | null; department_id: string | null; department: string | null }>(
+      `SELECT e.membership_id AS id, e.display_name AS name, e.job_title AS job, d.id AS department_id, d.name AS department
+         FROM employees e LEFT JOIN departments d ON d.organization_id = e.organization_id AND d.name = e.department AND d.active
+        WHERE e.organization_id = app_org_id() AND e.status = 'active' AND e.access = 'member'
+          AND e.display_name ILIKE '%' || $1 || '%'
+        ORDER BY e.display_name LIMIT 12`,
+      [q.replace(/[\\%_]/g, (m) => `\\${m}`)],
+    );
+    return rows.map((r) => ({ id: r.id, name: r.name, job: r.job, departmentId: r.department_id, department: r.department }));
+  });
+}

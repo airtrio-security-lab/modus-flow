@@ -38,6 +38,7 @@ import type { ModelConfig } from '../modules/advisor-model.ts';
 import { downloadAttachment, MAX_ATTACHMENT_BYTES, uploadAttachment } from '../modules/attachments.ts';
 import { SubmitInput, submitItem } from '../modules/intake.ts';
 import { SearchQuery, searchItems, SimilarQuery, similarItems } from '../modules/search.ts';
+import * as datasetMod from '../modules/dataset.ts';
 import type { IdempotentResult } from '../modules/idempotency.ts';
 import { DevTokenAuthenticator, type Authenticator } from './authn.ts';
 import { createStaticHandler } from './static.ts';
@@ -316,6 +317,10 @@ export function createApp(config: AppConfig) {
   route('GET', `${ORG}/castles/(?<id>${UUID})/district`, async (ctx) => ({ status: 200, body: await district.district(db, await org(ctx), ctx.params.id!) }));
   json('PUT', `/castles/(?<id>${UUID})/civilization`, district.CivilizationInput, (a, i, p) => district.setCivilization(db, a, p.id!, i.civilization));
   route('GET', `${ORG}/people/(?<id>${UUID})`, async (ctx) => ({ status: 200, body: await district.person(db, await org(ctx), ctx.params.id!) }));
+  // ---- imported data sets (0017, ADR-0022): the organizer's official synthetic set in its own namespace ----
+  route('GET', `${ORG}/datasets/(?<dataset>[a-z0-9-]{2,60})`, async (ctx) => ({ status: 200, body: await datasetMod.listDataset(db, await org(ctx), ctx.params.dataset!) }));
+  route('GET', `${ORG}/ideas/(?<number>\\d+)/dataset`, async (ctx) => ({ status: 200, body: await datasetMod.datasetOfItem(db, await org(ctx), Number(ctx.params.number)) }));
+  route('GET', `${ORG}/people`, async (ctx) => ({ status: 200, body: await district.searchPeople(db, await org(ctx), district.PeopleQuery.parse(queryObject(ctx.query)).q) }));
   route('GET', `${ORG}/me/contribution`, async (ctx) => ({ status: 200, body: await progress.myContribution(db, await org(ctx)) }));
   json('PATCH', '/settings/progress', progress.ProgressSettingsInput, (a, i) => progress.updateProgressSettings(db, a, i));
   route('GET', `${ORG}/council`, async (ctx) => ({ status: 200, body: await council.listCouncil(db, await org(ctx)) }));

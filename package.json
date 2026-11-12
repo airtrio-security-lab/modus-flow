@@ -22,6 +22,7 @@
     "platform:seed-demo": "node platform/cli/seed-demo.ts",
     "platform:token": "node platform/cli/issue-token.ts",
     "platform:seed-modus-demo": "node platform/cli/seed-modus-demo.ts",
+    "platform:import-dataset": "node platform/cli/import-dataset.ts",
     "platform:escalate": "node platform/cli/escalate.ts",
     "platform:retention": "node platform/cli/retention.ts",
     "platform:ledger": "node platform/cli/erasure-ledger.ts",
@@ -37,7 +38,8 @@
     "demo:legacy": "node web/e2e/legacy-flow.mjs",
     "demo:final": "node web/e2e/final-flow.mjs",
     "demo:city": "node web/e2e/city-flow.mjs",
-    "demo:councils": "node web/e2e/councils-flow.mjs"
+    "demo:councils": "node web/e2e/councils-flow.mjs",
+    "demo:world3d": "node web/e2e/world3d-flow.mjs"
   },
   "engines": {
     "node": ">=22"

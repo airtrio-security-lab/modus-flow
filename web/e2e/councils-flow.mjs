@@ -9,6 +9,7 @@
  */
 import { chromium } from 'playwright';
 import { readFileSync } from 'node:fs';
+import { schematic } from './schematic.mjs';
 
 const BASE = process.env.BASE ?? 'http://localhost:3100';
 const people = JSON.parse(readFileSync(process.env.PERSONAS ?? '.demo/personas.json', 'utf8')).personas;
@@ -20,7 +21,7 @@ const whHead = by('Начальник склада');
 const salesHead = by('Руководитель отдела продаж');
 const ops = by('Операционный директор');
 
-const browser = await chromium.launch();
+const browser = schematic(await chromium.launch());
 const errors = [];
 const t0 = Date.now();
 const DESK = { viewport: { width: 1440, height: 950 } };

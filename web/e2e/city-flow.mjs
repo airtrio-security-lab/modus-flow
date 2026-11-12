@@ -7,6 +7,7 @@
  */
 import { chromium } from 'playwright';
 import { readFileSync } from 'node:fs';
+import { schematic } from './schematic.mjs';
 
 const BASE = process.env.BASE ?? 'http://localhost:3100';
 const people = JSON.parse(readFileSync(process.env.PERSONAS ?? '.demo/personas.json', 'utf8')).personas;
@@ -15,7 +16,7 @@ const storekeeper = by('Кладовщик');
 const whHead = by('Начальник склада');
 const sysAdmin = by('Администратор системы');
 
-const browser = await chromium.launch();
+const browser = schematic(await chromium.launch());
 const errors = [];
 const t0 = Date.now();
 const DESK = { viewport: { width: 1440, height: 950 } };
@@ -214,7 +215,7 @@ try {
     await page.locator('table.work-table a', { hasText: 'Склад и логистика' }).click();
     await page.locator('.district-head').waitFor();
     await page.goto(`${BASE}/#/kingdom`);
-    await page.getByRole('button', { name: 'Город' }).click();
+    await page.getByRole('button', { name: 'Схема', exact: true }).click();
     await page.locator('.realm-map svg').waitFor();
     step('«Рабочее пространство»: таблица без карты, выбор запоминается, ведёт в тот же район');
   });

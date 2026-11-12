@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState, type ReactNode } from 'react';
 import { ItemKingdom } from '../components/ItemKingdom';
 import { ItemOrigin } from '../components/ItemOrigin';
+import { DatasetNote } from '../components/DatasetNote';
 import { api, errorText } from '../lib/api';
 import { facts, type Facts } from '../lib/can';
 import { ago, bytes, dateTime, due } from '../lib/format';
@@ -86,6 +87,7 @@ export function ItemPage({ number }: { number: number }) {
         <p className="now">{nowLine(item)}</p>
         <ItemKingdom item={item} />
         <ItemOrigin number={item.number} />
+        <DatasetNote number={item.number} />
         {s.isLead || s.isAdmin || s.isArchivist ? (
           <div className="row">
             <a className="btn small" href={`#/library/new?idea=${item.number}`}>

@@ -9,6 +9,7 @@ import { chromium } from 'playwright';
 import { readFileSync, mkdirSync, renameSync, readdirSync, rmSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { join } from 'node:path';
+import { schematic } from './schematic.mjs';
 
 const BASE = process.env.BASE ?? 'http://localhost:3100';
 const OUT = process.env.OUT ?? '.demo';
@@ -17,7 +18,7 @@ const by = (title) => people.find((p) => p.title === title) ?? (() => { throw ne
 const pause = (ms) => new Promise((r) => setTimeout(r, ms));
 
 mkdirSync(join(OUT, 'video-tmp'), { recursive: true });
-const browser = await chromium.launch();
+const browser = schematic(await chromium.launch());
 const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 }, recordVideo: { dir: join(OUT, 'video-tmp'), size: { width: 1280, height: 800 } } });
 const page = await ctx.newPage();
 

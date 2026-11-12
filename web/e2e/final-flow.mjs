@@ -14,6 +14,7 @@ import { chromium } from 'playwright';
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, readFileSync, readdirSync, renameSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
+import { schematic } from './schematic.mjs';
 
 const BASE = process.env.BASE ?? 'http://localhost:3100';
 const OUT = process.env.OUT ?? '.demo';
@@ -32,7 +33,7 @@ const NAMES = ['Поселение', 'Крепость', 'Цитадель', 'К
 
 if (RECORD) mkdirSync(join(OUT, 'video-tmp'), { recursive: true });
 if (SHOTS) mkdirSync(SHOTS, { recursive: true });
-const browser = await chromium.launch();
+const browser = schematic(await chromium.launch());
 const ctx = await browser.newContext({
   viewport: { width: 1280, height: 800 },
   ...(RECORD ? { recordVideo: { dir: join(OUT, 'video-tmp'), size: { width: 1280, height: 800 } } } : {}),

@@ -10,6 +10,7 @@
  */
 import { chromium } from 'playwright';
 import { mkdirSync, readFileSync } from 'node:fs';
+import { schematic } from './schematic.mjs';
 
 const BASE = process.env.BASE ?? 'http://localhost:3100';
 const SHOTS = process.env.SHOTS ?? null;
@@ -22,7 +23,7 @@ const storekeeper = by('Кладовщик');
 const engineer = by('Сервисный инженер');
 const archivist = by('Архивариус');
 
-const browser = await chromium.launch();
+const browser = schematic(await chromium.launch());
 const errors = [];
 const t0 = Date.now();
 const step = (name) => console.log(`✓ ${((Date.now() - t0) / 1000).toFixed(1).padStart(5)} с  ${name}`);

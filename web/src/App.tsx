@@ -14,6 +14,7 @@ import { Workspace } from './screens/Workspace';
 import { AllItems } from './screens/AllItems';
 import { Overview } from './screens/Overview';
 import { Kingdom } from './screens/Kingdom';
+import { DatasetPage } from './screens/Dataset';
 import { DistrictPage } from './screens/District';
 import { PersonPage } from './screens/Person';
 import { RatingPage } from './screens/Rating';
@@ -137,6 +138,7 @@ function Shell() {
   else if (head === 'castles' && route[1]) page = <DistrictPage id={route[1]} tab={route[2]} key={route[1]} />;
   else if (head === 'people' && route[1]) page = <PersonPage id={route[1]} key={location.hash} />;
   else if (head === 'rating') page = <RatingPage />;
+  else if (head === 'dataset') page = <DatasetPage dataset={/^[a-z0-9-]{2,60}$/.test(route[1] ?? '') ? route[1]! : 'official-synthetic'} />;
   else if (head === 'council' && route[1]) page = <RoundTable number={Number(route[1])} key={route[1]} />;
   else if (head === 'council') page = <CouncilList />;
   else if (head === 'meetings' && route[1] === 'new') page = <NewMeeting key={location.hash} />;

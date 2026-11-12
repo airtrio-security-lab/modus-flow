@@ -9,6 +9,7 @@
  */
 import { chromium } from 'playwright';
 import { readFileSync } from 'node:fs';
+import { schematic } from './schematic.mjs';
 
 const BASE = process.env.BASE ?? 'http://localhost:3100';
 const people = JSON.parse(readFileSync(process.env.PERSONAS ?? '.demo/personas.json', 'utf8')).personas;
@@ -19,7 +20,7 @@ const ops = by('Операционный директор');
 const itLead = by('Руководитель ИТ-разработки');
 const storekeeper = by('Кладовщик');
 
-const browser = await chromium.launch();
+const browser = schematic(await chromium.launch());
 const errors = [];
 const t0 = Date.now();
 const step = (name) => console.log(`✓ ${((Date.now() - t0) / 1000).toFixed(1).padStart(5)} с  ${name}`);

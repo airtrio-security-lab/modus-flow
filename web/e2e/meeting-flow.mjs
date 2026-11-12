@@ -13,6 +13,7 @@
 import { chromium } from 'playwright';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { schematic } from './schematic.mjs';
 
 const BASE = process.env.BASE ?? 'http://localhost:3100';
 const people = JSON.parse(readFileSync(process.env.PERSONAS ?? '.demo/personas.json', 'utf8')).personas;
@@ -23,7 +24,7 @@ const itLead = by('Руководитель ИТ-разработки');
 const owner = by('Собственник компании');
 const AUDIO = resolve('docs/demo/planerka-demo.ogg');
 
-const browser = await chromium.launch({ args: ['--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream'] });
+const browser = schematic(await chromium.launch({ args: ['--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream'] }));
 const errors = [];
 const t0 = Date.now();
 const step = (name) => console.log(`✓ ${((Date.now() - t0) / 1000).toFixed(1).padStart(5)} с  ${name}`);
