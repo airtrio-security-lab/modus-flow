@@ -177,6 +177,19 @@ try {
     await page.locator('.district-head', { hasText: 'Камелот' }).waitFor();
     await page.locator('.district-list', { hasText: 'Казахское ханство → Камелот' }).waitFor();
     must((await page.locator('.district-head .xpbar .small').textContent()) === xpBefore, 'XP must not change with the style');
+    // Camelot has an actual interactive city, not only a decorative district illustration.
+    await page.goto(`${BASE}/#${districtUrl}`);
+    await page.locator('.camelot-town-viewport').waitFor();
+    must((await page.locator('.camelot-town-hotspot').count()) === 8, 'Camelot must have eight clickable buildings');
+    await page.locator('.camelot-warriors').click();
+    await page.waitForURL(/#\\/castles\\/[0-9a-f-]{36}\\/warriors$/);
+    await page.getByRole('heading', { name: /Зал воинов/ }).first().waitFor();
+    await page.goto(`${BASE}/#${districtUrl}`);
+    await page.locator('.camelot-council').click();
+    await page.waitForURL(/#\\/castles\\/[0-9a-f-]{36}\\/council$/);
+    await page.getByRole('heading', { name: /У малого совета/ }).waitFor();
+    step('Камелот: панорама, восемь кликабельных зданий, Зал воинов и Совет');
+    await page.goto(`${BASE}/#${districtUrl}/growth`);
     await page.getByRole('button', { name: 'Сменить стиль района' }).click();
     await page.getByRole('radio', { name: /Казахское ханство/ }).click();
     await page.getByRole('button', { name: 'Выбрать «Казахское ханство»' }).click();
