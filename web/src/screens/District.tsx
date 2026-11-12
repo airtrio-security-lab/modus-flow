@@ -8,7 +8,7 @@ import { ErrorBox, Loading, StatusChip } from '../components/ui';
 import { CIVS, CivCastle, DistrictHouses, civOf, type Civ } from '../components/civ';
 import { CouncilScene } from '../components/scenes';
 import { WarriorHall } from './WarriorHall';
-import { CamelotPanorama } from '../components/CityPanorama';
+import { CivilizationPanorama } from '../components/CityPanorama';
 import { HERALDRY } from './Kingdom';
 
 /**
@@ -47,7 +47,7 @@ export function DistrictPage({ id, tab }: { id: string; tab?: string }) {
   const { data, error, loading, reload } = useLoad(() => api<DistrictData>(`/orgs/${s.org}/castles/${id}/district`), [s.org, id]);
   const current: Tab = TABS.some((t) => t.id === tab)
     ? (tab as Tab)
-    : data?.civilization.id === 'camelot' ? 'city' : rememberedTab();
+    : data && ['camelot', 'russia'].includes(data.civilization.id) ? 'city' : rememberedTab();
   const [picker, setPicker] = useState(false);
   const closePicker = useCallback(() => setPicker(false), []);
   useEffect(() => {
@@ -67,8 +67,8 @@ export function DistrictPage({ id, tab }: { id: string; tab?: string }) {
       <a className="back-link" href="#/kingdom">
         ← Город
       </a>
-      {current === 'city' && data.civilization.id === 'camelot'
-        ? <CamelotPanorama district={data} onPickStyle={() => setPicker(true)} />
+      {current === 'city' && ['camelot', 'russia'].includes(data.civilization.id)
+        ? <CivilizationPanorama district={data} onPickStyle={() => setPicker(true)} />
         : <DistrictHeader d={data} color={color} onPick={() => setPicker(true)} />}
       <nav className="district-tabs" role="tablist" aria-label="Разделы замка">
         {TABS.map((t) => (
@@ -79,7 +79,7 @@ export function DistrictPage({ id, tab }: { id: string; tab?: string }) {
         ))}
       </nav>
       <section role="tabpanel" aria-label={TABS.find((t) => t.id === current)!.name}>
-        {current === 'city' && data.civilization.id !== 'camelot' ? <p className="muted small">Панорамный экран этого города готовится. Все рабочие разделы доступны во вкладках выше.</p> : null}
+        {current === 'city' && !['camelot', 'russia'].includes(data.civilization.id) ? <p className="muted small">Панорамный экран этого города готовится. Все рабочие разделы доступны во вкладках выше.</p> : null}
         {current === 'staff' ? <StaffTab d={data} reload={reload} /> : null}
         {current === 'tasks' ? <TasksTab d={data} /> : null}
         {current === 'initiatives' ? <InitiativesTab d={data} /> : null}
