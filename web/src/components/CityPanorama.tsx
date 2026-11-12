@@ -69,6 +69,11 @@ export function CivilizationPanorama({ district, onPickStyle }: { district: Dist
             <span className="town-atmo-haze" />
             <span className="town-atmo-smoke town-atmo-smoke-a" />
             <span className="town-atmo-smoke town-atmo-smoke-b" />
+            <span className="town-atmo-birds town-atmo-birds-a" />
+            <span className="town-atmo-birds town-atmo-birds-b" />
+            <span className="town-atmo-light town-atmo-light-a" />
+            <span className="town-atmo-light town-atmo-light-b" />
+            <span className="town-atmo-light town-atmo-light-c" />
           </div>
           <div className="town-hotspots">
             {buildings.map((b) => (
