@@ -9,7 +9,10 @@
 .camelot-town-viewport { position:relative; overflow-x:auto; overflow-y:hidden; background:#182e3c; border:1px solid #ad9262; border-top:0; border-radius:0 0 12px 12px; scroll-snap-type:x proximity; scrollbar-color:#b8a16d #233a45; }
 .camelot-town-viewport:focus-visible { outline:3px solid #b39a60; outline-offset:3px; }
 .camelot-town-stage { width:100%; min-width:850px; max-width:1600px; position:relative; aspect-ratio:1448/1086; isolation:isolate; margin:0 auto; overflow:hidden; background:#344955; scroll-snap-align:center; }
-.camelot-town-art,.camelot-town-fallback { display:block; position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
+.camelot-town-art,.camelot-town-fallback { display:block; position:absolute; inset:0; width:100%; height:100%; object-fit:cover; transition:transform .35s cubic-bezier(.2,.76,.18,1); }
+.camelot-town-stage.is-entering .camelot-town-art,.camelot-town-stage.is-entering .camelot-town-fallback { transform:scale(1.13); transform-origin:var(--enter-x) var(--enter-y); }
+.camelot-town-stage.is-entering .camelot-town-hotspot { pointer-events:none; }
+
 .camelot-town-shadow { position:absolute; pointer-events:none; inset:0; background:linear-gradient(180deg,#071b2e65 0%,transparent 25%,transparent 70%,#0b1b2e8f 100%); z-index:1; }
 .camelot-town-overlay-title { pointer-events:none; position:absolute; z-index:2; top:2.2%; left:50%; transform:translateX(-50%); padding:.35rem 1.8rem; background:#121b25dd; border:2px solid #b7a06a; border-radius:50px; color:#f3e2ae; box-shadow:0 4px 18px #0007; font-size:clamp(.85rem,1.7vw,1.4rem); font-family:Georgia,serif; letter-spacing:.12em; }
 .camelot-town-level { pointer-events:none; position:absolute; z-index:2; right:1%; bottom:2%; background:#172736e8; color:#e9d19c; border:1px solid #af9563; padding:.4rem .65rem; border-radius:5px; font-size:.76rem; }
