@@ -18,6 +18,12 @@ export function PersonPage({ id }: { id: string }) {
   const s = useSession();
   const { data, error, loading, reload } = useLoad(() => api<PersonCard>(`/orgs/${s.org}/people/${id}`), [s.org, id]);
   const section = new URLSearchParams(location.hash.split('?')[1] ?? '').get('section');
+  // A rank-up was just recorded: «Мой посол» shows the new attire at once (ADR-0034).
+  useEffect(() => {
+    const again = () => void reload();
+    window.addEventListener('modus:envoy-rank', again);
+    return () => window.removeEventListener('modus:envoy-rank', again);
+  }, [reload]);
   useEffect(() => {
     if (data && section) document.getElementById(`person-${section}`)?.scrollIntoView({ block: 'start' });
   }, [data, section]);

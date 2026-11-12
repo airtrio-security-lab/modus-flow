@@ -292,3 +292,61 @@ test('the map shows each envoy with its sender, rank and style; nothing else of 
   assert.ok(!('ownerId' in e), 'membership ids of senders are not exposed by the map');
   assert.ok(!('xp' in e), 'the map shows a rank, not a score');
 });
+
+// ---------------------------------------------------------------------------
+// «The Living Envoy» (ADR-0034): one employee — one envoy, whatever the number of items.
+// ---------------------------------------------------------------------------
+test('five items of one employee: one XP profile, and all five envoys wear the same confirmed rank', async () => {
+  const p = await person(db, w.acmeId, 'Нурия Пятерых', ['employee'], 'Склад');
+  const open: number[] = [];
+  for (let i = 1; i <= 5; i++) open.push(await warehouseItem(p, `Послание номер ${i} от Нурии`));
+  const rankOnMap = async () => (await kingdom(db, w.colleague.actor)).envoys.filter((e) => open.includes(e.number)).map((e) => [e.envoyRank, e.envoyCivilization]);
+  assert.deepEqual(await rankOnMap(), Array(5).fill([1, 'camelot']));
+  // A sixth item is implemented: the person (not an item) gains XP and every envoy of theirs changes at once.
+  await implemented(p, 'Шестое: внедрено');
+  const profiles = await ownerQuery<{ n: number }>(db, 'SELECT count(DISTINCT membership_id)::int AS n FROM envoy_xp_awards a JOIN ideas i ON i.id = a.idea_id WHERE coalesce(i.raised_by_membership_id, i.author_membership_id) = $1', [p.membershipId]);
+  assert.equal(profiles[0]!.n, 1, 'one ledger owner — the person');
+  assert.deepEqual([(await envoy.myEnvoy(db, p.actor)).xp, (await envoy.myEnvoy(db, p.actor)).rank], [20, 2]);
+  assert.deepEqual(await rankOnMap(), Array(5).fill([2, 'camelot']), 'all five envoys show the new rank');
+  // No separate profile per item: the open items have no awards of their own.
+  for (const n of open) assert.deepEqual(await awardsOf(n), []);
+});
+
+test('a transfer to a department of another civilization changes the clothes, never the XP, the rank or the history', async () => {
+  const p = await person(db, w.acmeId, 'Ольга Переводная', ['employee'], 'Склад');
+  await implemented(p, 'Внедрено до перевода');
+  await setCivilization(db, w.admin.actor, f.departments.service, 'mongolia');
+  const snapshot = async () => ({
+    awards: await ownerQuery(db, 'SELECT id, idea_id, event_kind, xp, created_at FROM envoy_xp_awards WHERE membership_id = $1 ORDER BY id', [p.membershipId]),
+    ups: await ownerQuery(db, 'SELECT id, rank, xp, created_at FROM envoy_rank_ups WHERE membership_id = $1 ORDER BY id', [p.membershipId]),
+  });
+  const before = { card: await envoy.myEnvoy(db, p.actor), rows: await snapshot() };
+  // The transfer is a fact of the directory (provisioning), not of the game.
+  await ownerQuery(db, `UPDATE memberships SET department = 'Сервис' WHERE id = $1`, [p.membershipId]);
+  const after = { card: await envoy.myEnvoy(db, p.actor), rows: await snapshot() };
+  assert.deepEqual([before.card.civilization, after.card.civilization], ['camelot', 'mongolia']);
+  assert.deepEqual([after.card.xp, after.card.rank, after.card.history], [before.card.xp, before.card.rank, before.card.history]);
+  assert.deepEqual(after.rows, before.rows, 'past records are not rewritten');
+  const roles = await ownerQuery<{ roles: string[] }>(db, 'SELECT roles FROM memberships WHERE id = $1', [p.membershipId]);
+  assert.deepEqual(roles[0]!.roles, ['employee'], 'rights come from the real role, not from the envoy');
+  await setCivilization(db, w.admin.actor, f.departments.service, 'camelot');
+});
+
+test('a rank-up is announced once: after it was read, a reload or the next login does not replay it', async () => {
+  const p = await person(db, w.acmeId, 'Марат Однажды', ['employee'], 'Склад');
+  await implemented(p, 'Один раз о повышении');
+  const first = await envoy.myEnvoy(db, p.actor);
+  assert.equal(first.pending?.rank, 2);
+  await markRead(db, p.actor, [first.pending!.notificationId]);
+  for (let i = 0; i < 3; i++) assert.equal((await envoy.myEnvoy(db, p.actor)).pending, null, `reload ${i + 1}: not replayed`);
+  const ups = await ownerQuery<{ n: number }>(db, 'SELECT count(*)::int AS n FROM envoy_rank_ups WHERE membership_id = $1', [p.membershipId]);
+  assert.equal(ups[0]!.n, 1, 'the event itself stays recorded');
+  assert.ok((await envoy.myEnvoy(db, p.actor)).ranks[1]!.reachedAt);
+});
+
+test('another organization sees neither the envoys nor the history of this one', async () => {
+  const theirs = await kingdom(db, w.outsider.actor);
+  assert.ok(!theirs.envoys.some((e) => e.sender === 'Кирилл Демо'));
+  const raw = await asUser(w.outsider, 'SELECT count(*)::int AS n FROM envoy_rank_ups');
+  assert.equal(raw.rows[0].n, 0);
+});

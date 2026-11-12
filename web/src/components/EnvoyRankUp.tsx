@@ -3,13 +3,14 @@ import { api } from '../lib/api';
 import { useSession } from '../lib/session';
 import { outfit, outfitWords, type Piece } from '../lib/envoy-outfits';
 import type { MyEnvoy } from '../lib/types';
-import { EnvoyPortrait } from './EnvoyFigure';
+import { EnvoyAvatar } from './EnvoyAvatar';
 
 /**
  * «Ваш посол достиг ранга …!» (ADR-0032). Shown to the envoy's owner for a rank-up the server has
- * RECORDED and the person has not opened yet — so it is still there after the next login. It is a card,
- * not a modal: navigation stays usable, «Пропустить» closes it at once. Closing marks the existing
- * notification read (POST /notifications/read) — watching the animation awards nothing.
+ * RECORDED and the person has not seen yet — so a rank-up reached while away waits for the next login,
+ * and is played ONCE: after 1.5 s on a visible screen the existing notification is marked read
+ * (POST /notifications/read), so a reload does not replay it. It is a card, not a modal: navigation stays
+ * usable, «Пропустить» closes it at once. Watching awards nothing.
  * The ceremony (flash, change of attire, new insignia) is CSS and stops in the light mode and under
  * prefers-reduced-motion: then the new attire is simply shown.
  */
@@ -48,13 +49,44 @@ export function EnvoyRankUp() {
     // The inbox poll changes `unread`; a new rank-up arrives with it.
   }, [s.org, s.unread]);
 
-  const pending = data?.pending && data.pending.notificationId !== closed ? data.pending : null;
+  // The card keeps what it announced, even after the server answers «read» on the next poll.
+  const [showing, setShowing] = useState<{ pending: NonNullable<MyEnvoy['pending']>; civ: string; membershipId: string } | null>(null);
+  useEffect(() => {
+    if (!showing && data?.pending && data.pending.notificationId !== closed) {
+      setShowing({ pending: data.pending, civ: data.civilization, membershipId: data.membershipId });
+    }
+  }, [data, showing, closed]);
+  const pending = showing?.pending ?? null;
+
+  // Shown once: after the person has really had it on screen, the existing notification is marked read,
+  // so the next login or a reload does not play it again (the profile and the inbox keep the fact).
+  // Every picture of this person's envoy is redrawn at once (the map listens to this event).
+  const markRead = useCallback(async (id: string) => {
+    await api(`/orgs/${s.org}/notifications/read`, { json: { ids: [id] } }).catch(() => undefined);
+    await s.refreshInbox();
+  }, [s]);
+  useEffect(() => {
+    if (!pending) return;
+    window.dispatchEvent(new CustomEvent('modus:envoy-rank', { detail: { rank: pending.rank } }));
+    let timer = 0;
+    const arm = () => {
+      window.clearTimeout(timer);
+      if (document.visibilityState === 'visible') timer = window.setTimeout(() => void markRead(pending.notificationId), 1500);
+    };
+    arm();
+    document.addEventListener('visibilitychange', arm);
+    return () => {
+      window.clearTimeout(timer);
+      document.removeEventListener('visibilitychange', arm);
+    };
+  }, [pending, markRead]);
+
   const close = useCallback(async () => {
     if (!pending) return;
     setClosed(pending.notificationId);
-    await api(`/orgs/${s.org}/notifications/read`, { json: { ids: [pending.notificationId] } }).catch(() => undefined);
-    await s.refreshInbox();
-  }, [pending, s]);
+    setShowing(null);
+    await markRead(pending.notificationId);
+  }, [pending, markRead]);
 
   useEffect(() => {
     if (!pending) return;
@@ -65,9 +97,10 @@ export function EnvoyRankUp() {
     return () => window.removeEventListener('keydown', onKey);
   }, [pending, close]);
 
-  if (!pending || !data) return null;
-  const now = outfit(data.civilization, pending.rank);
-  const before = outfit(data.civilization, pending.rank - 1);
+  if (!pending || !showing) return null;
+  const civ = showing.civ;
+  const now = outfit(civ, pending.rank);
+  const before = outfit(civ, pending.rank - 1);
   const added = now.pieces.filter((p) => !before.pieces.includes(p)).map((p) => PIECE_WORDS[p]).filter(Boolean);
   const rankLabel = `Посол ранга ${pending.name}: ${outfitWords(now)}`;
   return (
@@ -75,10 +108,10 @@ export function EnvoyRankUp() {
       <div className="envoy-rankup-stage" aria-hidden="true">
         <span className="envoy-rankup-flash" />
         <span className="envoy-rankup-old">
-          <EnvoyPortrait civ={data.civilization} rank={pending.rank - 1} size={112} />
+          <EnvoyAvatar civ={civ} rank={pending.rank - 1} variant="profile" size={112} />
         </span>
         <span className="envoy-rankup-new">
-          <EnvoyPortrait civ={data.civilization} rank={pending.rank} size={112} />
+          <EnvoyAvatar civ={civ} rank={pending.rank} variant="profile" size={112} />
         </span>
       </div>
       <div className="envoy-rankup-copy">
@@ -90,7 +123,7 @@ export function EnvoyRankUp() {
           {pending.number ? `Основание — подтверждённый результат обращения №${pending.number}. ` : ''}Ранг отражает вклад и полномочий не даёт.
         </p>
         <div className="row-tight">
-          <a className="btn small primary" href={`#/people/${data.membershipId}?section=envoy`} onClick={() => void close()}>
+          <a className="btn small primary" href={`#/people/${showing.membershipId}?section=envoy`} onClick={() => void close()}>
             Открыть карточку посла
           </a>
           <button type="button" className="btn small quiet" onClick={() => void close()}>

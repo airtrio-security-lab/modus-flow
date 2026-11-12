@@ -1723,6 +1723,7 @@ dialog, .sheet, .transcript, .protocol > .panel:first-child, .w3d-results, .w3d-
 /* ---- «Путь Посла» (ADR-0032): envoy attire, the card, the rank-up ceremony ---- */
 .env-portrait { overflow: visible; flex: none; }
 .env-fig .env-leg, .env-fig .env-cloak, .env-fig .env-bag, .env-fig .env-ring, .env-fig .env-banner { transform-box: view-box; }
+.env-fig .env-scroll { transform-box: fill-box; transform-origin: 50% 50%; }
 .envoy-card { display: grid; gap: 16px; }
 .envoy-card-head { display: flex; gap: 18px; align-items: flex-end; flex-wrap: wrap; }
 .envoy-card-head > .stack-sm { flex: 1 1 240px; min-width: 0; display: grid; gap: 8px; }
@@ -1764,6 +1765,7 @@ dialog, .sheet, .transcript, .protocol > .panel:first-child, .w3d-results, .w3d-
   :root:not([data-lite='on']) .env-fig.is-walking .env-leg-b { animation: env-step 1.1s ease-in-out infinite reverse; transform-origin: -1px -14px; }
   :root:not([data-lite='on']) .env-fig.is-walking .env-cloak { animation: env-cloak 2.2s ease-in-out infinite; transform-origin: 0 -24px; }
   :root:not([data-lite='on']) .env-fig.is-walking .env-bag { animation: env-bag 1.1s ease-in-out infinite; }
+  :root:not([data-lite='on']) .env-fig.is-walking .env-scroll { animation: env-scroll 1.1s ease-in-out infinite; }
   :root:not([data-lite='on']) .env-fig.is-walking .env-banner { animation: env-cloak 2.6s ease-in-out infinite; transform-origin: -6.2px -12px; }
   /* Cloth settles when the envoy stops: a short damped sway, once. */
   :root:not([data-lite='on']) .env-fig:not(.is-walking) .env-cloak { animation: env-settle 1.4s ease-out 1 both; transform-origin: 0 -24px; }
@@ -1774,7 +1776,9 @@ dialog, .sheet, .transcript, .protocol > .panel:first-child, .w3d-results, .w3d-
   :root:not([data-lite='on']) .envoy-rankup-new { animation: env-in 900ms ease-out 700ms both; }
   :root:not([data-lite='on']) .envoy-rankup-new-piece { animation: env-in 500ms ease-out 1.4s both; }
 }
-@keyframes env-step { 0%, 100% { transform: rotate(-10deg); } 50% { transform: rotate(10deg); } }
+/* Starts and ends at rest, so a walk that stops leaves the legs where they stand. */
+@keyframes env-step { 0%, 50%, 100% { transform: rotate(0deg); } 25% { transform: rotate(-11deg); } 75% { transform: rotate(11deg); } }
+@keyframes env-scroll { 0%, 100% { transform: rotate(0deg); } 50% { transform: rotate(-7deg); } }
 @keyframes env-cloak { 0%, 100% { transform: skewX(0deg); } 50% { transform: skewX(5deg); } }
 @keyframes env-settle { 0% { transform: skewX(6deg); } 35% { transform: skewX(-3deg); } 65% { transform: skewX(1.5deg); } 100% { transform: skewX(0deg); } }
 @keyframes env-bag { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-0.6px); } }
@@ -1785,3 +1789,11 @@ dialog, .sheet, .transcript, .protocol > .panel:first-child, .w3d-results, .w3d-
 @keyframes env-in { from { opacity: 0; transform: scale(1.06); } to { opacity: 1; transform: none; } }
 .w3d-envoy-rank { font-size: 0.72rem; font-weight: 700; padding: 0 5px; border-radius: 999px; background: rgba(212, 165, 49, 0.22); color: inherit; font-variant-numeric: tabular-nums; }
 .audience-envoy { display: grid; place-items: center; }
+/* «The Living Envoy» (ADR-0034) */
+.envoy-hero { flex: none; display: grid; place-items: end center; padding: 8px 10px 0; border-radius: var(--r-md); background: radial-gradient(circle at 50% 70%, var(--amber-tint), transparent 70%); }
+.envoy-ladder li.is-locked .env-portrait { opacity: 0.32; filter: grayscale(1); }
+.envoy-merits { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; }
+.envoy-merits li { display: grid; gap: 2px; padding: 10px 12px; border: 1px solid var(--line); border-left: 3px solid var(--amber); border-radius: var(--r-sm); background: var(--surface); }
+.envoy-merits a { color: var(--ink); font-weight: 500; overflow-wrap: anywhere; }
+.envoy-merits .num { color: var(--ink-3); font-variant-numeric: tabular-nums; }
+@media (max-width: 640px) { .envoy-card-head { flex-direction: column; align-items: stretch; } .envoy-hero { align-self: center; } }

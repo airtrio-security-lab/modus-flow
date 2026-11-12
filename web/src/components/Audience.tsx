@@ -4,7 +4,7 @@ import { ago } from '../lib/format';
 import { useLite } from '../lib/lite';
 import { useSession, useLoad } from '../lib/session';
 import type { IdeaDetail, MyEnvoy, NotePreferences } from '../lib/types';
-import { EnvoyPortrait } from './EnvoyFigure';
+import { EnvoyAvatar } from './EnvoyAvatar';
 
 /** An audience is ceremonial. Decisions and meetings remain separate, authorized workflows. */
 export interface Audience {
@@ -57,7 +57,7 @@ export function EnvoyShortcut({ item }: { item: IdeaDetail }) {
     <section className="audience-shortcut" aria-label="Посольство">
       {mine ? (
         <span className="audience-symbol audience-envoy">
-          <EnvoyPortrait civ={mine.civilization} rank={mine.rank} size={64} label={`Ваш посол: ${mine.name}`} />
+          <EnvoyAvatar civ={mine.civilization} rank={mine.rank} variant="map" size={64} label={`Ваш посол: ${mine.name}`} />
         </span>
       ) : (
         <span className="audience-symbol" aria-hidden="true">♜</span>

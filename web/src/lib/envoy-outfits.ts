@@ -179,3 +179,32 @@ export function outfitWords(o: Outfit): string {
 /** Rank names (mirror of platform/domain/envoy.ts; a test keeps them equal). */
 export const ENVOY_RANK_NAMES = ['Гонец', 'Вестник', 'Доверенный посланник', 'Герольд', 'Посол Совета', 'Великий посол', 'Посол Великого Содружества'] as const;
 export const envoyRankName = (rank: number) => ENVOY_RANK_NAMES[clampRank(rank) - 1]!;
+
+/**
+ * What an envoy on the map is doing — derived ONLY from what the server reported, so the picture never
+ * claims an arrival, an audience or a decision that did not happen (owner brief «The Living Envoy»):
+ *   travel   — on the road: filed, nobody has answered yet;
+ *   waiting  — waiting for an answer: the first-response deadline passed, the decision is pending or
+ *              postponed, or the author was asked for details;
+ *   received — received: the responsible person has answered (first response recorded).
+ */
+export type EnvoyMotion = 'travel' | 'waiting' | 'received';
+export interface EnvoyFacts {
+  status: string;
+  responded: boolean;
+  overdueFirstResponse: boolean;
+  deferredUntil: string | null;
+}
+export function envoyMotion(e: EnvoyFacts): EnvoyMotion {
+  if (e.deferredUntil || e.overdueFirstResponse || e.status === 'decision' || e.status === 'needs_info') return 'waiting';
+  if (e.responded) return 'received';
+  return 'travel';
+}
+export const MOTION_WORDS: Record<EnvoyMotion, string> = { travel: 'в пути', waiting: 'ожидает ответа', received: 'принят' };
+
+/**
+ * How many envoys may move at once on the map: a walk is shown only for an envoy whose place really
+ * changed (since the last visit or the last refresh), and for the viewer's own envoys on the road —
+ * never dozens of independent loops.
+ */
+export const MAP_MOTION_BUDGET = 8;

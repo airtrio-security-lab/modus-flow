@@ -61,6 +61,17 @@ async function open(person, { viewport = { width: 1280, height: 860 }, lite = tr
   const shot = async (name) => (SHOTS ? page.screenshot({ path: `${SHOTS}/${name}.png`, fullPage: false }) : undefined);
   return { ctx, page, call, ok, hash, shot };
 }
+/** Every envoy of `name` on the schematic map: rank and state as drawn. */
+const envoysOf = (page, name) =>
+  page.$$eval('.realm-envoy', (els, who) => els.filter((g) => (g.querySelector('title')?.textContent ?? '').includes(`Посол: ${who}`)).map((g) => ({ rank: g.dataset.envoyRank, state: g.dataset.state, civ: g.querySelector('.env-fig')?.dataset.civ })), name);
+/** The state each envoy should show, by the same rule as the map, from the server's own answer. */
+const expectedStates = (page) =>
+  page.evaluate(async () => {
+    const r = await fetch('/api/v1/orgs/modus-demo/kingdom', { headers: { authorization: 'Bearer ' + sessionStorage.getItem('modus.token') } });
+    const k = await r.json();
+    return Object.fromEntries(k.envoys.map((e) => [e.number, e.deferredUntil || e.overdueFirstResponse || e.status === 'decision' || e.status === 'needs_info' ? 'waiting' : e.responded ? 'received' : 'travel']));
+  });
+const drawnStates = (page) => page.$$eval('.realm-envoy', (els) => Object.fromEntries(els.map((g) => [g.querySelector('a').getAttribute('href').split('/').pop(), g.dataset.state])));
 const noSideScroll = (page) => page.evaluate(() => document.scrollingElement.scrollWidth <= window.innerWidth + 1);
 
 try {
@@ -100,6 +111,12 @@ try {
   must(tip.includes(`Обращение №${n}`) && tip.includes(storekeeper.name) && tip.includes('ранг II, Вестник') && tip.includes('Статус:') && tip.includes('Подразделение:'), `hover names the sender, rank, department, number and status: ${tip}`);
   must((await mark.locator(`.env-fig[data-civ="kazakh"]`).count()) === 1, 'her department’s style (Казахское ханство) dresses the envoy');
   must((await a.ok('GET', '/me/envoy')).xp === before.xp, 'filing an item brings 0 XP');
+  const hers = await envoysOf(a.page, storekeeper.name);
+  must(hers.length >= 2 && hers.every((x) => x.rank === String(before.rank) && x.civ === 'kazakh'), `one person — one envoy: every item of hers wears rank ${before.rank} (${JSON.stringify(hers)})`);
+  const want = await expectedStates(a.page);
+  const drawn = await drawnStates(a.page);
+  must(Object.keys(want).every((n) => drawn[n] === want[n]), `states follow the server only: ${JSON.stringify({ want, drawn })}`);
+  must(new Set(Object.values(drawn)).size >= 2, 'the map shows distinct states');
   await mark.scrollIntoViewIfNeeded();
   await a.shot('02-envoy-on-map');
   step(`обращение №${n} подано: посол на карте в одеянии ранга II (Казахское ханство), XP не изменился`);
@@ -127,44 +144,76 @@ try {
   await owner.ctx.close();
   step('обращение №2: замер «до/после», внедрение подтверждено, эффект одобрен ответственным за решение');
 
-  // ---- 4. Next login: the card announces rank III, does not block the navigation, leads to «Мой посол» ----
+  // ---- 4. Next login: the card announces rank III once, does not block the navigation; every envoy of hers changes ----
   a = await open(storekeeper, { lite: false });
   const up = a.page.locator('.envoy-rankup');
   await up.waitFor({ timeout: 8000 });
   must((await up.innerText()).includes('Ваш посол достиг ранга Доверенного посланника!'), 'the rank actually reached is named');
+  must((await up.getByRole('link', { name: 'Открыть карточку посла' }).getAttribute('href')).includes('section=envoy'), 'the card leads to «Мой посол»');
   await a.page.waitForTimeout(1800);
   await a.shot('03-rankup-iii');
   await a.page.locator('.rail a[href="#/kingdom"], .tabbar a[href="#/kingdom"]').first().click();
   await a.page.waitForFunction(() => location.hash.startsWith('#/kingdom'));
   must((await a.page.locator('.envoy-rankup').count()) === 1, 'navigation works while the card is shown');
-  await up.getByRole('link', { name: 'Открыть карточку посла' }).click();
+  await a.page.locator('.realm-envoy').first().waitFor();
+  const all = await envoysOf(a.page, storekeeper.name);
+  must(all.length >= 2 && all.every((x) => x.rank === '3'), `after the rank-up every envoy of hers wears rank III (${JSON.stringify(all)})`);
+  await a.page.waitForTimeout(800);
+  await a.page.reload();
+  await a.page.waitForSelector('.shell');
+  await a.page.waitForTimeout(1500);
+  must((await a.page.locator('.envoy-rankup').count()) === 0, 'played once: a reload does not replay the rank-up');
+  const me3 = await a.ok('GET', '/me/envoy');
+  must(me3.pending === null && me3.rank === 3, 'the event is kept, the announcement is not repeated');
+  await a.hash(`#/people/${me3.membershipId}?section=envoy`);
   await a.page.waitForSelector('#person-envoy');
-  await a.page.locator('.envoy-rankup').waitFor({ state: 'detached', timeout: 4000 });
   const section = await a.page.locator('#person-envoy').innerText();
   must(section.includes('Мой посол') && section.includes('Доверенный посланник'), 'the profile shows the new rank');
   must(section.includes('+30 XP — подтверждён измеримый положительный эффект обращения №2') && section.includes('+20 XP — подтверждено внедрение обращения №2'), 'every line names its basis');
-  must((await a.page.locator('.envoy-ladder li.is-reached').count()) === 3, 'three ranks reached, with dates');
+  must((await a.page.locator('.envoy-merits li a[href="#/items/2"]').count()) === 1, 'the featured merit links to its item');
+  must((await a.page.locator('.envoy-ladder').count()) === 0, 'the seven stages are folded until asked for');
+  const toggle = a.page.getByRole('button', { name: 'Показать развитие посла' });
+  await toggle.click();
+  must((await a.page.locator('.envoy-ladder li').count()) === 7, 'all seven stages are shown');
+  must((await a.page.locator('.envoy-ladder li.is-locked').count()) === 4 && (await a.page.locator('.envoy-ladder li.is-locked', { hasText: 'ещё не достигнут' }).count()) === 4, 'future stages are marked as not reached');
+  must((await a.ok('GET', '/me/envoy')).xp === me3.xp, 'looking at the stages awards nothing');
   await a.page.locator('#person-envoy').scrollIntoViewIfNeeded();
   await a.shot('04-my-envoy');
-  step('после входа: «Ваш посол достиг ранга Доверенного посланника!», навигация не заблокирована, «Мой посол» с основаниями');
+  step('после входа: «…ранга Доверенного посланника!» один раз, все послы сотрудницы в ранге III, «Мой посол» со ступенями и заслугами');
 
-  // ---- 5. The map shows the new attire; the walk is animated in the full mode ----
+  // ---- 5. The map: new attire; an envoy walks along its road only when the server says it moved ----
   await a.hash('#/kingdom');
   const walker = a.page.locator(`.realm-envoy:has(a[href="#/items/${n}"])`);
   await walker.waitFor();
-  must((await walker.getAttribute('data-envoy-rank')) === '3', 'the map shows rank III');
-  must((await walker.locator('.env-fig.env-r3').count()) === 1, 'in the attire of rank III');
-  const anim = await walker.locator('.env-leg-f').first().evaluate((el) => getComputedStyle(el).animationName);
-  must(anim === 'env-step', `the envoy walks in the full mode (${anim})`);
-  await walker.scrollIntoViewIfNeeded();
+  must((await walker.getAttribute('data-envoy-rank')) === '3' && (await walker.locator('.env-fig.env-r3').count()) === 1, 'the map shows rank III attire');
+  must((await walker.getAttribute('data-state')) === 'travel', 'nobody answered yet: on the road');
+  const walking = await a.page.locator('.env-fig.is-walking').count();
+  must(walking <= 8, `a motion budget, not dozens of loops (${walking} walking)`);
+  // The warehouse head answers: the server records the first response; the next visit shows the walk.
+  const head = await open(by('Начальник склада'));
+  await head.ok('POST', `/ideas/${n}/reviews`, { kind: 'comment', body: 'Посмотрю стеллаж завтра утром' });
+  await head.ctx.close();
+  await a.page.reload();
+  await a.page.waitForSelector('.realm-envoy');
+  const moved = a.page.locator(`.realm-envoy:has(a[href="#/items/${n}"])`);
+  must((await moved.getAttribute('data-state')) === 'received', 'after the recorded answer: «принят»');
+  must((await moved.getAttribute('data-moving')) === 'yes', 'it walks from where it stood at the last visit');
+  must((await moved.locator('.env-fig.is-walking').count()) === 1, 'walking while it moves');
+  await a.page.waitForTimeout(2600);
+  must((await moved.getAttribute('data-moving')) === null && (await moved.locator('.env-fig.is-walking').count()) === 0, 'and stops at its new place');
+  await moved.scrollIntoViewIfNeeded();
   await a.shot('05-envoy-rank-iii-on-map');
+  // Keyboard: the envoy is a link; Enter opens its existing item card.
+  await moved.locator('a').focus();
+  await a.page.keyboard.press('Enter');
+  await a.page.waitForFunction((num) => location.hash === `#/items/${num}`, n);
   // ---- 6. A rank grants nothing: the same refusals as before ----
   const me = await a.call('GET', '/me/envoy');
   const decide = await a.call('POST', '/ideas/8/decision', { outcome: 'merge', rationale: 'Посол третьего ранга пытается решить' });
   must(decide.status === 403 || decide.status === 404, `no decision power from a rank (${decide.status})`);
   const effect = await a.call('POST', '/ideas/9/effect', { xp: 10, rationale: 'Посол третьего ранга подтверждает эффект' });
   must(effect.status === 403 || effect.status === 404 || effect.status === 409, `no approval power from a rank (${effect.status})`);
-  step(`карта: посол в одеянии ранга III; ранг ${me.body.rank} прав не дал (решение ${decide.status}, эффект ${effect.status})`);
+  step(`карта: ранг III, «в пути» → после ответа «принят» и шаг по дороге с остановкой, бюджет движения, Enter открывает обращение; ранг ${me.body.rank} прав не дал (решение ${decide.status}, эффект ${effect.status})`);
   await a.ctx.close();
 
   // ---- 7. Phone 390×844: map and «Мой посол» without horizontal scrolling ----
@@ -175,8 +224,9 @@ try {
   await phone.shot('06-phone-map');
   const myId = (await phone.ok('GET', '/me/envoy')).membershipId;
   await phone.hash(`#/people/${myId}?section=envoy`);
+  await phone.page.getByRole('button', { name: 'Показать развитие посла' }).click();
   await phone.page.waitForSelector('.envoy-ladder');
-  must(await noSideScroll(phone.page), '«Мой посол» fits the phone');
+  must(await noSideScroll(phone.page), '«Мой посол» with the seven stages fits the phone');
   await phone.shot('07-phone-my-envoy');
   await phone.ctx.close();
   step('телефон 390×844: карта и «Мой посол» без горизонтальной прокрутки');

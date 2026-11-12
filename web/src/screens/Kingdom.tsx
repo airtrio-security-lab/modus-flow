@@ -1,4 +1,4 @@
-import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
+import { Suspense, lazy, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { api } from '../lib/api';
 import { plural } from '../lib/format';
 import { LiteToggle, useLite } from '../lib/lite';
@@ -10,11 +10,11 @@ import { HowItWorks } from '../components/HowItWorks';
 import { IsoCastle, IsoCouncil, IsoLibrary, P, Scaffold, Tree } from '../components/iso';
 import { CIV_HEIGHT, CivCastle, CouncilHall, DistrictHouses, IsoArchive, IsoPlaza, civName, civOf, hallName } from '../components/civ';
 import { useCamera } from '../lib/camera';
-import { EnvoyFigure } from '../components/EnvoyFigure';
 import { roman } from '../components/EnvoyRankUp';
 import { STATUS } from '../lib/status';
-import { envoyRankName } from '../lib/envoy-outfits';
-import { readCitySeen, writeCitySeen } from '../lib/citySeen';
+import { MAP_MOTION_BUDGET, MOTION_WORDS, envoyMotion, envoyRankName, type EnvoyMotion } from '../lib/envoy-outfits';
+import { EnvoyAvatarMark } from '../components/EnvoyAvatar';
+import { readCitySeen, seenFor, writeCitySeen, type CitySeen } from '../lib/citySeen';
 
 // three.js is loaded only when the 3D city is opened.
 const City3D = lazy(() => import('./City3D').then((m) => ({ default: m.City3D })));
@@ -146,6 +146,13 @@ export function Kingdom() {
     };
   }, [reload]);
 
+  // A rank-up was just recorded for the viewer: redraw every envoy of theirs in the new attire (ADR-0034).
+  useEffect(() => {
+    const again = () => void reload();
+    window.addEventListener('modus:envoy-rank', again);
+    return () => window.removeEventListener('modus:envoy-rank', again);
+  }, [reload]);
+
   // Without the map there is nothing to fly over: go straight in.
   useEffect(() => {
     if (enter && mode === 'work') location.hash = enter;
@@ -216,7 +223,7 @@ export function Kingdom() {
       </div>
       {error ? <ErrorBox error={error} retry={() => void reload()} /> : null}
       {loading && !data ? <Loading label="Рисуем карту…" rows={3} /> : null}
-      {data && flat === 'city' ? <Realm k={data} selected={selected} onSelect={setSelected} celebrate={celebrate} enterCouncil={enter} /> : null}
+      {data && flat === 'city' ? <Realm k={data} selected={selected} onSelect={setSelected} celebrate={celebrate} enterCouncil={enter} since={since} /> : null}
       {data && flat === 'work' ? <WorkView k={data} /> : null}
     </div>
   );
@@ -319,6 +326,7 @@ function Realm({
   onSelect,
   celebrate,
   enterCouncil = null,
+  since = null,
 }: {
   k: KingdomData;
   selected: string | null;
@@ -326,6 +334,8 @@ function Realm({
   celebrate: { id: string; text: string } | null;
   /** «Войти в Совет»: fly to the palace, then open this page. */
   enterCouncil?: string | null;
+  /** Where each envoy stood at the last visit (ADR-0030): an envoy that really moved walks from there. */
+  since?: CitySeen | null;
 }) {
   const { ref, wide } = useWide();
   const [lite] = useLite();
@@ -335,6 +345,18 @@ function Realm({
   const { flyTo } = cam;
   const placed = useMemo(() => placeCastles(k.castles, L), [k.castles, L]);
   const mine = k.envoys.filter((e) => e.mine);
+  /**
+   * Where each envoy stood before this answer of the server: first the last visit (same item, same
+   * castle), then the previous refresh. Only an envoy whose place really changed walks.
+   */
+  const lastPlace = useRef<Map<number, { d: string | null; t: number }> | null>(null);
+  if (lastPlace.current === null) {
+    const was = seenFor(since, k)?.envoys ?? {};
+    lastPlace.current = new Map(Object.entries(was).map(([key, v]) => [Number(key.slice(1)), v]));
+  }
+  useEffect(() => {
+    lastPlace.current = new Map(k.envoys.map((e) => [e.number, { d: e.departmentId, t: envoyState(e).t }]));
+  }, [k]);
   const current = selected ? placed.find((p) => p.castle.id === selected) : undefined;
   const achievements = k.castles.reduce((n, c) => n + (c.achievements ?? 0), 0);
   const cu = L.u * (wide ? 1 : 0.9);
@@ -392,11 +414,15 @@ function Realm({
     const byId = new Map(placed.map((p) => [p.castle.id, p]));
     // Envoys that share a spot step aside along the road's normal.
     const crowd = new Map<string, number>();
+    let budget = MAP_MOTION_BUDGET;
     const figures = k.envoys.map((e) => {
       const st = envoyState(e);
+      const motion = envoyMotion(e);
       const home = e.departmentId ? byId.get(e.departmentId) : undefined;
       let p: Pt;
       let color = '#7a6a52';
+      let road: (Road & { side: number }) | null = null;
+      let fromT: number | null = null;
       if (home) {
         const key = `${home.castle.id}:${st.t}`;
         const k2 = crowd.get(key) ?? 0;
@@ -405,13 +431,20 @@ function Realm({
         const side = k2 === 0 ? 0 : (k2 % 2 ? 1 : -1) * Math.ceil(k2 / 2) * 17 * L.s;
         p = { x: base.x + home.road.normal.x * side, y: base.y + home.road.normal.y * side };
         color = home.color;
+        road = { ...home.road, side };
+        const was = lastPlace.current?.get(e.number);
+        if (was && was.d === e.departmentId && Math.abs(was.t - st.t) > 0.01) fromT = was.t;
       } else {
         const k2 = crowd.get('camp') ?? 0;
         crowd.set('camp', k2 + 1);
         p = { x: L.camp.x + (52 + (k2 % 4) * 18) * L.s, y: L.camp.y + 12 + Math.floor(k2 / 4) * 24 * L.s };
       }
-      return { e, st, p, color, castle: home?.castle.name ?? null };
+      return { e, st, p, color, castle: home?.castle.name ?? null, motion, road, fromT };
     });
+    // The motion budget: envoys that really moved first, then the viewer's own envoys on the road.
+    const moves = new Set<number>();
+    for (const f of figures) if (f.fromT !== null && budget > 0) (moves.add(f.e.number), budget--);
+    for (const f of figures) if (f.e.mine && f.motion === 'travel' && !moves.has(f.e.number) && budget > 0) (moves.add(f.e.number), budget--);
     // Painter's order: farther (higher on screen) first.
     const drawables = [
       ...placed.map((p) => ({
@@ -439,7 +472,7 @@ function Realm({
           node: <HallMark key={`h-${p.castle.id}`} c={p.castle} at={at} L={L} color={p.color} onEnter={enter(`#/castles/${p.castle.id}/council`, at, 3)} />,
         };
       }),
-      ...figures.map((f) => ({ y: f.p.y, node: <EnvoyMark key={`e-${f.e.number}`} e={f.e} at={f.p} s={L.s} color={f.color} label={f.st.label} home={!!f.st.home} castle={f.castle} lite={lite} /> })),
+      ...figures.map((f) => ({ y: f.p.y, node: <EnvoyMark key={`e-${f.e.number}`} e={f.e} at={f.p} s={L.s} label={f.st.label} home={!!f.st.home} castle={f.castle} motion={f.motion} road={f.road} t={f.st.t} fromT={f.fromT} animate={!lite && !reducedMotion() && moves.has(f.e.number)} /> })),
     ].sort((a, b) => a.y - b.y);
     return (
       <>
@@ -750,12 +783,14 @@ function CastleDetails({ c, color, envoys }: { c: Castle; color: string; envoys:
 
 function Legend({ levels }: { levels: string[] }) {
   const rows: { t: string; fig: JSX.Element }[] = [
-    { t: 'Обращение в пути к Совету', fig: <EnvoyBody color={HERALDRY[1]!} /> },
-    { t: 'Срок первого ответа прошёл', fig: <EnvoyBody color={HERALDRY[1]!} pennant={RED} /> },
-    { t: 'Ваше обращение', fig: <EnvoyBody color={HERALDRY[1]!} mine /> },
-    { t: 'Посол III–IV ранга: герб, печать, жезл и знамя', fig: <EnvoyBody color={HERALDRY[1]!} rank={4} /> },
-    { t: 'Посол V–VI ранга: золотая цепь, мантия, золотой жезл', fig: <EnvoyBody color={HERALDRY[1]!} rank={6} /> },
-    { t: 'Посол VII ранга: кольцо Великого Содружества', fig: <EnvoyBody color={HERALDRY[1]!} rank={7} /> },
+    { t: 'В пути: ответа ещё не было', fig: <EnvoyBody motion="travel" /> },
+    { t: 'Ожидает ответа: срок прошёл, решение ждут или отложено', fig: <EnvoyBody motion="waiting" /> },
+    { t: 'Принят: ответственный ответил', fig: <EnvoyBody motion="received" /> },
+    { t: 'Срок первого ответа прошёл', fig: <EnvoyBody pennant={RED} motion="waiting" /> },
+    { t: 'Ваше обращение', fig: <EnvoyBody mine /> },
+    { t: 'Ранг отправителя III–IV: герб, печать, жезл и знамя', fig: <EnvoyBody rank={4} /> },
+    { t: 'Ранг V–VI: золотая цепь, мантия, золотой жезл', fig: <EnvoyBody rank={6} /> },
+    { t: 'Ранг VII: кольцо Великого Содружества', fig: <EnvoyBody rank={7} /> },
   ];
   return (
     <div className="stack">
@@ -968,15 +1003,16 @@ function HallMark({ c, at, L, color, onEnter }: { c: Castle; at: Pt; L: Layout; 
 }
 
 /**
- * An envoy on the map (ADR-0032): dressed by the sender's rank and the style of the sender's own department;
- * the castle colour is its coat of arms. A red pennant beside it: a deadline has passed. A gold halo: yours.
+ * An envoy on the map (ADR-0032, ADR-0034): the sender's ONE envoy — rank and attire of the person,
+ * state of the item from the server (в пути / ожидает ответа / принят). A red pennant beside it:
+ * a deadline has passed. A gold halo: yours.
  */
-function EnvoyBody({ color, pennant, mine, rank = 1, civ = 'camelot', walking = false }: { color: string; pennant?: string; mine?: boolean; rank?: number; civ?: string; walking?: boolean }) {
+function EnvoyBody({ pennant, mine, rank = 1, civ = 'camelot', walking = false, motion }: { pennant?: string; mine?: boolean; rank?: number; civ?: string; walking?: boolean; motion?: EnvoyMotion }) {
   return (
     <g>
       {mine ? <circle cy="-14" r="15" fill="#fff4cf" fillOpacity="0.85" stroke="#b8860b" strokeWidth="2" /> : null}
       <g transform="scale(0.8)">
-        <EnvoyFigure civ={civ} rank={rank} crest={color} detail="map" walking={walking} />
+        <EnvoyAvatarMark civ={civ} rank={rank} variant="map" state={motion} walking={walking} />
       </g>
       {pennant ? (
         <g>
@@ -988,21 +1024,86 @@ function EnvoyBody({ color, pennant, mine, rank = 1, civ = 'camelot', walking = 
   );
 }
 
-function EnvoyMark({ e, at, s, color, label, home, castle, lite }: { e: Envoy; at: Pt; s: number; color: string; label: string; home: boolean; castle: string | null; lite: boolean }) {
+const easeInOut = (x: number) => (x < 0.5 ? 2 * x * x : 1 - (-2 * x + 2) ** 2 / 2);
+const WALK_MS = 2200;
+
+function EnvoyMark({
+  e,
+  at,
+  s,
+  label,
+  home,
+  castle,
+  motion,
+  road,
+  t,
+  fromT,
+  animate,
+}: {
+  e: Envoy;
+  at: Pt;
+  s: number;
+  label: string;
+  home: boolean;
+  castle: string | null;
+  motion: EnvoyMotion;
+  road: (Road & { side: number }) | null;
+  t: number;
+  fromT: number | null;
+  /** Within the motion budget and motion is allowed (not light mode, not reduced motion). */
+  animate: boolean;
+}) {
   const rank = e.envoyRank ?? 1;
+  const ref = useRef<SVGGElement>(null);
+  const [moving, setMoving] = useState(false);
+  const place = (x: number) => {
+    const b = bezier(road!.from, road!.ctrl, road!.to, x);
+    return { x: b.x + road!.normal.x * road!.side, y: b.y + road!.normal.y * road!.side };
+  };
+  // A real change of place: walk along the castle's own road from where it stood, and stop there.
+  // Layout effect: the first frame already shows the old place, never a flash of the new one.
+  useLayoutEffect(() => {
+    const g = ref.current;
+    if (!g || !road || fromT === null || !animate) return;
+    let raf = 0;
+    const t0 = performance.now();
+    g.style.transition = 'none';
+    const p0 = place(fromT);
+    g.style.transform = `translate(${p0.x}px, ${p0.y}px) scale(${s})`;
+    setMoving(true);
+    const frame = (now: number) => {
+      const k = Math.min(1, (now - t0) / WALK_MS);
+      const p = place(fromT + (t - fromT) * easeInOut(k));
+      g.style.transform = `translate(${p.x}px, ${p.y}px) scale(${s})`;
+      if (k < 1) raf = requestAnimationFrame(frame);
+      else {
+        g.style.transition = '';
+        setMoving(false);
+      }
+    };
+    raf = requestAnimationFrame(frame);
+    return () => {
+      cancelAnimationFrame(raf);
+      g.style.transition = '';
+      g.style.transform = `translate(${at.x}px, ${at.y}px) scale(${s})`;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [t, fromT, animate]);
   // Hover: who sent it (as on the item card), the envoy's rank, department, number and status — nothing more.
   const text = [
     `Обращение №${e.number} «${e.title}»: ${label}${e.mine ? ' (ваше)' : ''}`,
-    `Посол: ${e.sender ?? e.author ?? 'автор не указан'} — ранг ${roman(rank)}, ${envoyRankName(rank)}`,
+    `Посол: ${e.sender ?? e.author ?? 'автор не указан'} — ранг ${roman(rank)}, ${envoyRankName(rank)}; ${MOTION_WORDS[motion]}`,
     `Подразделение: ${castle ?? 'ждёт распределения'}`,
     `Статус: ${STATUS[e.status]?.label ?? e.status}`,
   ].join('. ');
+  // The viewer's own envoy on the road keeps walking (within the budget); any other walks only while it moves.
+  const walking = animate && (moving || (e.mine && motion === 'travel'));
   return (
-    <g className="realm-envoy" style={{ transform: `translate(${at.x}px, ${at.y}px) scale(${s})` }} data-envoy-rank={rank}>
+    <g ref={ref} className="realm-envoy" style={{ transform: `translate(${at.x}px, ${at.y}px) scale(${s})` }} data-envoy-rank={rank} data-state={motion} data-moving={moving ? 'yes' : undefined}>
       <a href={`#/items/${e.number}`} aria-label={text}>
         <title>{text}</title>
         <g className="realm-walk" transform={home ? 'scale(-1,1)' : undefined}>
-          <EnvoyBody color={color} pennant={e.overdueFirstResponse || e.overdueResolution ? RED : undefined} mine={e.mine} rank={rank} civ={e.envoyCivilization} walking={!lite && !home} />
+          <EnvoyBody pennant={e.overdueFirstResponse || e.overdueResolution ? RED : undefined} mine={e.mine} rank={rank} civ={e.envoyCivilization} walking={walking} motion={motion} />
         </g>
         {e.mine ? (
           <g>

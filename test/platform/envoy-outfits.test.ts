@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { CIV_STYLES, ENVOY_RANK_NAMES, OUTFIT_CIVS, outfit, outfitSignature } from '../../web/src/lib/envoy-outfits.ts';
+import { CIV_STYLES, ENVOY_RANK_NAMES, MAP_MOTION_BUDGET, OUTFIT_CIVS, envoyMotion, outfit, outfitSignature } from '../../web/src/lib/envoy-outfits.ts';
 import { CIVILIZATION_IDS } from '../../platform/domain/civilizations.ts';
 import { ENVOY_RANKS } from '../../platform/domain/envoy.ts';
 
@@ -42,4 +42,18 @@ test('an unknown style falls back to Камелот; the rank is clamped to I..V
   assert.equal(outfit('rome', 3).civ, 'camelot');
   assert.equal(outfit('japan', 99).rank, 7);
   assert.equal(outfit('japan', 0).rank, 1);
+});
+
+test('map states come only from server facts: «принят» only after a recorded answer', () => {
+  const e = (x: Partial<Parameters<typeof envoyMotion>[0]>) => envoyMotion({ status: 'in_review', responded: false, overdueFirstResponse: false, deferredUntil: null, ...x });
+  assert.equal(e({ status: 'unrouted' }), 'travel');
+  assert.equal(e({}), 'travel', 'no answer yet — on the road, not «received»');
+  assert.equal(e({ responded: true }), 'received');
+  assert.equal(e({ responded: true, status: 'in_verification' }), 'received');
+  assert.equal(e({ responded: true, status: 'in_progress' }), 'received');
+  assert.equal(e({ overdueFirstResponse: true }), 'waiting');
+  assert.equal(e({ responded: true, status: 'decision' }), 'waiting', 'the decision is awaited, not taken');
+  assert.equal(e({ responded: true, deferredUntil: '2026-12-01' }), 'waiting');
+  assert.equal(e({ status: 'needs_info', responded: true }), 'waiting');
+  assert.ok(MAP_MOTION_BUDGET <= 10, 'never dozens of walking envoys at once');
 });

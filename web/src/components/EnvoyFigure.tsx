@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { CIV_STYLES, outfit, type Outfit, type OutfitCiv } from '../lib/envoy-outfits';
+import { outfit, type Outfit, type OutfitCiv } from '../lib/envoy-outfits';
 
 /**
  * «Путь Посла» (ADR-0032): an original SVG envoy — civilization × rank (lib/envoy-outfits.ts).
@@ -256,7 +256,9 @@ function Crest({ color, x, y }: { color: string; x: number; y: number }) {
   return (
     <g>
       <path d={`M${x},${y} h3 v2 c0,1.4 -1.5,2.2 -1.5,2.2 c0,0 -1.5,-0.8 -1.5,-2.2 z`} fill={color} stroke="#f4efe2" strokeWidth="0.45" />
-      <path d={`M${x + 1.5},${y + 0.5} v2.8 M${x + 0.5},${y + 1.6} h2`} stroke="#f4efe2" strokeWidth="0.4" />
+      {/* A neutral chevron and a dot — no religious or national symbol on any civilization's crest. */}
+      <path d={`M${x + 0.5},${y + 2.6} l1,-1.2 l1,1.2`} stroke="#f4efe2" strokeWidth="0.45" fill="none" />
+      <circle cx={x + 1.5} cy={y + 0.75} r="0.38" fill="#f4efe2" />
     </g>
   );
 }
@@ -401,8 +403,16 @@ function FrontArm({ o, metal, full }: { o: Outfit; metal: string; full: boolean 
       <path d={sleeve} fill={o.civ === 'japan' ? o.cloth : o.cloth} stroke={INK} strokeWidth="0.5" strokeLinejoin="round" />
       {o.civ === 'kazakh' && o.rank >= 3 ? <path d="M4.6,-15.2 l2,-0.6" stroke="#e3c27a" strokeWidth="0.9" /> : null}
       {staff && o.civ === 'japan' ? <Fan gold={staffGold} /> : null}
-      {has('scroll') && !staff ? <Scroll x={5.4} y={-16.8} ornate={false} metal={metal} /> : null}
-      {has('ornate-scroll') ? <Scroll x={-6.4} y={-12.4} ornate metal="#d4a531" small={!full} /> : null}
+      {has('scroll') && !staff ? (
+        <g className="env-scroll">
+          <Scroll x={5.4} y={-16.8} ornate={false} metal={metal} />
+        </g>
+      ) : null}
+      {has('ornate-scroll') ? (
+        <g className="env-scroll">
+          <Scroll x={-6.4} y={-12.4} ornate metal="#d4a531" small={!full} />
+        </g>
+      ) : null}
       {has('scroll') && staff ? <Scroll x={-6.2} y={-12.6} ornate={false} metal={metal} small /> : null}
     </g>
   );
@@ -492,22 +502,5 @@ function CommonwealthRing() {
         return <circle key={c} cx={0.3 + 2.2 * Math.cos(a)} cy={cy + 2.2 * Math.sin(a)} r="0.7" fill={c} />;
       })}
     </g>
-  );
-}
-
-/** Words for the attire: the civilization's garment and headwear of this rank. */
-export function attireOf(civ: string | null | undefined, rank: number) {
-  const o = outfit(civ, rank);
-  const s = CIV_STYLES[o.civ];
-  return { garment: s.garment[o.garment], headwear: s.headwear[o.headwear], civName: s.name };
-}
-
-/** A standalone picture (profile, rank-up card, legend): its own <svg> with a fitted viewBox. */
-export function EnvoyPortrait({ civ, rank, crest, size = 120, label, walking = false }: { civ: string | null | undefined; rank: number; crest?: string; size?: number; label?: string; walking?: boolean }) {
-  return (
-    <svg className="env-portrait" viewBox="-16 -48 32 50" width={size * (32 / 50)} height={size} role={label ? 'img' : undefined} aria-label={label} aria-hidden={label ? undefined : true}>
-      {label ? <title>{label}</title> : null}
-      <EnvoyFigure civ={civ} rank={rank} crest={crest} walking={walking} />
-    </svg>
   );
 }
