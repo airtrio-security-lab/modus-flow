@@ -9,6 +9,7 @@ import { PageHead, StatusChip } from '../components/ui';
 import { uploadFile, ACCEPT } from './files';
 import { takeShared, takeSharedPeek } from '../lib/share';
 import { clearDraft, loadDraft, saveDraft } from '../lib/draft';
+import { ContextDisclosure, EMPTY_CONTEXT, contextBody, type ContextDraft } from '../components/ProjectContext';
 
 interface Created {
   item: { number: number; routed: boolean; maintainer: string | null; firstResponseDueAt: string | null; status: Status };
@@ -40,6 +41,8 @@ export function NewItem() {
   const [note, setNote] = useState('');
   const [files, setFiles] = useState<File[]>([]);
   const [busy, setBusy] = useState(false);
+  // «Где возникла проблема?» (ADR-0031): optional and closed by default.
+  const [context, setContext] = useState<ContextDraft>(EMPTY_CONTEXT);
   const [error, setError] = useState<string | null>(null);
   const [similar, setSimilar] = useState<Similar[]>([]);
   const fileInput = useRef<HTMLInputElement>(null);
@@ -132,6 +135,8 @@ export function NewItem() {
         ...(dept ? { departmentId: dept } : {}),
         sourceChannel: onBehalf ? channel : 'app',
         ...(onBehalf ? { raisedBy, ...(note.trim() ? { sourceNote: note.trim() } : {}) } : {}),
+        // The department chosen above answers for the item; it is never sent as «affected».
+        ...(contextBody({ ...context, affected: context.affected.filter((id) => id !== dept) }) ? { context: contextBody({ ...context, affected: context.affected.filter((id) => id !== dept) }) } : {}),
       };
       const r = await api<Created>(`/orgs/${s.org}/ideas`, { json: body });
       const n = r.item.number;
@@ -307,6 +312,8 @@ export function NewItem() {
           </select>
         </div>
       </div>
+
+      <ContextDisclosure value={context} onChange={setContext} responsible={dept || undefined} idPrefix="new-ctx" />
 
       <div className="field">
         <label htmlFor="criteria">Как поймём, что вопрос решён? (необязательно)</label>

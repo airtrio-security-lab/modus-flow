@@ -82,6 +82,7 @@ RECORD=1 npm run demo:final   # the same at presentation pace, recorded as the f
 npm run demo:councils    # optional, on a fresh seed: Japanese IT titles → small council in the Зал даймё → Great Round Table → decision → XP (ADR-0020)
 npm run platform:import-dataset -- --demo-confirm A-004,A-008   # the organizer's official synthetic set A-001—A-020, idempotent (ADR-0026)
 npm run demo:world3d     # optional, on a fresh seed WITH the set: the 3D city, camera, picking, citadel, search, fallback, phone (ADR-0026)
+npm run demo:refinement  # optional, on a fresh seed: the customer story «от инициативы к измеримому результату» (ADR-0031), desktop and phone
 npm run demo:city        # optional, on a fresh seed: «Живое Королевство» — city camera, district screen, staff cards and privacy, style picker, workspace, phone (ADR-0019)
 npm run demo:record      # optional, on a fresh seed: records the kingdom scenario as a fallback video (.demo/kingdom-demo.mp4)
 ```

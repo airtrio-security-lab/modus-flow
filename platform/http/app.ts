@@ -38,6 +38,7 @@ import { engineReachable } from '../modules/transcribe.ts';
 import type { ModelConfig } from '../modules/advisor-model.ts';
 import { downloadAttachment, MAX_ATTACHMENT_BYTES, uploadAttachment } from '../modules/attachments.ts';
 import { SubmitInput, submitItem } from '../modules/intake.ts';
+import * as pc from '../modules/project-context.ts';
 import { SearchQuery, searchItems, SimilarQuery, similarItems } from '../modules/search.ts';
 import * as datasetMod from '../modules/dataset.ts';
 import * as deferral from '../modules/deferral.ts';
@@ -263,6 +264,7 @@ export function createApp(config: AppConfig) {
     wf.decideSuggestion(db, a, n, NumberParam.parse(p.rev), i, k),
   );
   step('/verifications', wf.StartVerificationInput, (a, n, i, _p, k) => wf.startVerification(db, a, n, i, k));
+  step('/impact-verifications', wf.StartImpactInput, (a, n, i, _p, k) => wf.startImpactVerification(db, a, n, i, k));
   step(`/verifications/(?<v>${UUID})/evidence`, wf.EvidenceInput, (a, n, i, p, k) => wf.recordEvidence(db, a, n, p.v!, i, k));
   step(`/verifications/(?<v>${UUID})/conclusion`, wf.ConcludeInput, (a, n, i, p, k) => wf.concludeVerification(db, a, n, p.v!, i, k));
   step('/decision', wf.DecideInput, (a, n, i, _p, k) => wf.decide(db, a, n, i, k));
@@ -502,6 +504,10 @@ export function createApp(config: AppConfig) {
   json('POST', `${KN}/sources`, legacy.SourceInput, (a, i, p) => legacy.addSource(db, a, p.id!, i), 201);
   json('POST', `${KN}/applications`, legacy.ApplicationInput, (a, i, p) => legacy.addApplication(db, a, p.id!, i), 201);
   json('POST', `${KN}/actions`, legacy.ActInput, (a, i, p) => legacy.act(db, a, p.id!, i));
+  // ---- Product refinement (ADR-0031): where the problem arose, affected departments, who to invite ----
+  route('POST', `${IDEA}/context`, async (ctx) => pc.setContext(db, await org(ctx), NumberParam.parse(ctx.params.number), pc.ContextInput.parse(await ctx.body()), idemKey(ctx.req)));
+  route('POST', `${IDEA}/affected-departments`, async (ctx) => pc.addAffected(db, await org(ctx), NumberParam.parse(ctx.params.number), pc.AffectedInput.parse(await ctx.body()), idemKey(ctx.req)));
+  route('GET', `${IDEA}/specialists`, async (ctx) => ({ status: 200, body: await pc.suggestSpecialists(db, await org(ctx), NumberParam.parse(ctx.params.number)) }));
   route('GET', `${IDEA}/knowledge-draft`, async (ctx) => ({ status: 200, body: await legacy.draftFromItem(db, await org(ctx), NumberParam.parse(ctx.params.number)) }));
   json('POST', `/members/(?<id>${UUID})/archivist`, legacy.ArchivistInput, (a, i, p) => legacy.setArchivist(db, a, p.id!, i.grant));
   // Personal data in knowledge (0013, ADR-0018): admin-only scan, erasure, pseudonymization.
