@@ -90,7 +90,7 @@ In the platform, an append-only XP ledger is linked to confirmed implementation 
 | Access | Desktop/mobile web |
 | Early demo | Node.js, browser UI, native Node test runner |
 
-**Not done and not verified yet.** The 3D scene is procedural geometry and is below the concept art above; there are no authored 3D models and no moving envoys or residents. Frame rate was measured on software rendering only and the phone layout in emulation only: real GPUs and devices are still to be tested. Project checks run locally; GitHub CI is not running at the moment.
+**Not done and not verified yet.** The 3D scene is procedural geometry and is below the concept art above; there are no authored 3D models and no moving envoys or residents. Frame rate was measured on one desktop (Chrome on Apple M5: median 5 ms between frames, p90 10 ms at ~600k triangles) and the phone layout in emulation only: weak GPUs and real phones are still to be tested. Project checks run locally; GitHub CI is not running at the moment.
 
 **Security:** this is an evolving system, **not approved to handle real employee information in production**. Real authentication, operational controls and privacy/legal reviews are still required.
 

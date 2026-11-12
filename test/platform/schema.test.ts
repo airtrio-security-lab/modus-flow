@@ -28,6 +28,19 @@ const as = (p: { actor: { userId: string; orgId: string; membershipId: string } 
   membershipId: p.actor.membershipId,
 });
 
+test('migrations: one number per file from now on; the two merged pairs are the only shared numbers', async () => {
+  // Two branches each added 0017 and 0018 before they were merged (ADR-0029). Applied files are never renamed,
+  // so those pairs stay; this guard stops a third one from slipping in unnoticed.
+  const { readdir } = await import('node:fs/promises');
+  const files = (await readdir(new URL('../../platform/db/migrations/', import.meta.url))).filter((f) => /^\d{4}_[a-z0-9_]+\.sql$/.test(f)).sort();
+  const byNumber = new Map<string, string[]>();
+  for (const f of files) byNumber.set(f.slice(0, 4), [...(byNumber.get(f.slice(0, 4)) ?? []), f]);
+  const shared = [...byNumber.entries()].filter(([, list]) => list.length > 1).map(([n, list]) => `${n}: ${list.join(' + ')}`);
+  assert.deepEqual(shared, ['0017: 0017_dataset_import.sql + 0017_royal_audiences.sql', '0018: 0018_deferral.sql + 0018_russian_tsardom.sql']);
+  const applied = await ownerQuery<{ name: string }>(db, 'SELECT name FROM schema_migrations ORDER BY name COLLATE "C"');
+  assert.deepEqual(applied.map((r) => r.name), files, 'every migration file is applied to a fresh database');
+});
+
 test('RLS: another tenant cannot see ideas, even by id', async () => {
   const outsiderCtx = as(w.outsider);
   const rows = await withTx(db, outsiderCtx, async (c) => (await c.query('SELECT id FROM ideas WHERE id = $1', [ideaId])).rows);

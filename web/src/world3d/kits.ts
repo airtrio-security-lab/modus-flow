@@ -111,6 +111,8 @@ const camelot: Kit = (b, L, ban) => {
   b.mark('growth', L >= 3 ? -W * 0.25 : 0, 0, -D * 0.35).mark('warriors', 0, 0, D).mark('archive', W, 0, -D).mark('staff', -W * 0.55, 0, D * 0.45).mark('initiatives', 0, 0, D * 0.42);
   if (L >= 3) b.mark('council', W * 0.45, 0, -D * 0.3).mark('tasks', W * 0.5, 0, D * 0.45);
   if (L >= 4) b.mark('library', -W * 0.6, 0, -D * 0.05);
+  // Until their buildings are built, the sections keep to a tower and the building site.
+  b.mark('library', -W, 0, -D).mark('council', -W, 0, D).mark('tasks', L === 2 ? W * 0.5 : W, 0, L === 2 ? -D * 0.4 : D);
   // Buildings of the ward.
   if (L >= 3) b.at(W * 0.45, 0, -D * 0.3, Math.PI / 2, () => hall(b, 'stone', 'slate', 15, 7.5, 6, 5, { chimney: true }));
   if (L >= 3) b.at(W * 0.5, 0, D * 0.45, 0, () => hall(b, 'wood', 'slate', 8, 5.5, 3.6, 3.2));
@@ -264,6 +266,7 @@ const japan: Kit = (b, L, ban) => {
   const sak = (x: number, z: number, s = 1) => tree(b, x, z, 'sakura', s);
   if (L === 1) {
     // A gate, a reception hall on a low stone base, a garden.
+    b.mark('growth', 0, 0, -3).mark('warriors', 0, 0, 13).mark('initiatives', -9, 0, 7).mark('tasks', 7, 0, 8);
     b.at(0, 0, 13, 0, () => jgate(b, ban, false));
     b.at(0, 0, -3, 0, () => {
       ishigaki(b, 13, 9, 1.2, 0.8);
@@ -302,6 +305,17 @@ const japan: Kit = (b, L, ban) => {
       b.at(0, 0.9, 0, 0, () => storey(b, 12, 6.5, 3.4, true));
     });
     b.at(W * 0.45, 0, D * 0.5, 0, () => garden(b, L >= 4 ? 3.6 : 2.8));
+    // A workshop by the front wall: where the tasks of the district are done.
+    b.at(-W * 0.3, 0, D * 0.52, 0, () => {
+      ishigaki(b, 7.5, 5.4, 0.6, 0.3);
+      b.at(0, 0.6, 0, 0, () => storey(b, 6.5, 4.4, 2.8, true));
+    });
+    // Where the sections of the town live (the pins of the 3D town).
+    b.mark('growth', -W * 0.15, 0, -D * 0.3).mark('council', W * 0.5, 0, -D * 0.25).mark('warriors', 0, 0, D).mark('initiatives', W * 0.45, 0, D * 0.5);
+    b.mark('tasks', -W * 0.3, 0, D * 0.52).mark('staff', W, 0, D);
+    if (L >= 4) b.mark('library', -W * 0.62, 0, D * 0.35);
+    if (L >= 3) b.mark('archive', -W * 0.55, 0, -D * 0.1 + (L >= 4 ? -8 : 6));
+    if (L >= 3) b.mark('library', -W, 0, D);
     b.at(W * 0.45 + 5, 0, D * 0.5 + 2, 0, () => lantern(b));
     b.at(-W * 0.6, 0, D * 0.55, 0, () => lantern(b));
     if (L >= 4) b.at(-W * 0.62, 0, D * 0.35, 0, () => pagoda(b, L >= 5 ? 5 : 3));
@@ -310,7 +324,7 @@ const japan: Kit = (b, L, ban) => {
       b.at(0, 0.8, 0, 0, () => storey(b, 7, 5, 3, true));
     });
     sak(W * 0.2, D * 0.7);
-    sak(-W * 0.3, D * 0.75, 0.9);
+    sak(-W * 0.55, D * 0.78, 0.9);
     if (L >= 3) sak(W * 0.75, D * 0.15, 1.1);
     if (L >= 4) sak(-W * 0.8, -D * 0.5);
     tree(b, W * 0.8, -D * 0.7, 'pine');
@@ -362,7 +376,11 @@ const kazakh: Kit = (b, L, ban) => {
   const n = [0, 3, 5, 7, 9, 11][L]!;
   const khanR = [0, 0, 6, 7.5, 8.2, 9.5][L]!;
   if (L === 1) {
-    ring(3, 8, (x, z, a) => b.at(x, 0, z, a + Math.PI, () => yurt(b, 3.4, 'kazakh')), 0.6);
+    ring(3, 8, (x, z, a, i) => {
+      b.mark(['growth', 'staff', 'library'][i]!, x, 0, z);
+      b.at(x, 0, z, a + Math.PI, () => yurt(b, 3.4, 'kazakh'));
+    }, 0.6);
+    b.mark('initiatives', 0, 0, 1).mark('warriors', 6, 0, 9).mark('tasks', -7, 0, 8);
     b.at(0, 0, 1, 0, () => campfire(b));
     b.at(6, 0, 9, 0, () => banner(b, ban, 6.5, 1.2, 3));
     b.add('woodLight', box(4, 0.15, 0.15), -7, 1.1, 8);
@@ -378,7 +396,14 @@ const kazakh: Kit = (b, L, ban) => {
   b.add('bandKz', box(3, 0.06, 6), 0, ph + 0.02, khanR - 6 + 2.5);
   // Yurts of the orda in an arc open to the gate.
   const R = khanR + (L >= 4 ? 19 : 15);
-  ring(n - 1, R, (x, z, a, i) => b.at(x, 0, z - 6, a + Math.PI, () => yurt(b, 3.2 + ((i * 3) % 4) * 0.25, 'kazakh')), Math.PI * 0.32, Math.PI * 1.36);
+  // Where the sections of the town live: the khan's yurt is the council, the mazar keeps the growth of the district.
+  b.mark('council', 0, 0, -6).mark('warriors', 0, 0, R - 2).mark('initiatives', -9, 0, 12).mark('tasks', 11, 0, 14);
+  if (L >= 4) b.mark('growth', -R * 0.72, 0, -R * 0.62 - 6);
+  ring(n - 1, R, (x, z, a, i) => {
+    const id = i === 0 ? 'staff' : i === 1 ? 'archive' : i === n - 2 ? 'library' : i === Math.floor((n - 1) / 2) ? 'growth' : null;
+    if (id) b.mark(id, x, 0, z - 6);
+    b.at(x, 0, z - 6, a + Math.PI, () => yurt(b, 3.2 + ((i * 3) % 4) * 0.25, 'kazakh'));
+  }, Math.PI * 0.32, Math.PI * 1.36);
   if (L >= 5) ring(6, R + 11, (x, z, a) => b.at(x, 0, z - 6, a + Math.PI, () => yurt(b, 3, 'kazakh')), Math.PI * 0.55, Math.PI * 0.9);
   b.at(0, 0, R - 2, 0, () => kzGate(b, ban, L >= 4 ? 7.5 : 6));
   // Tall standards around the platform.
@@ -447,6 +472,7 @@ function palace(b: Builder, w: number, tiers: number) {
 }
 const mongolia: Kit = (b, L, ban) => {
   if (L === 1) {
+    b.mark('growth', -4, 0, -2).mark('staff', 5, 0, -4).mark('tasks', 6, 0, 5).mark('initiatives', 0, 0, 4).mark('warriors', -6, 0, 7);
     b.at(-4, 0, -2, 0.3, () => yurt(b, 3.6, 'mongolia'));
     b.at(5, 0, -4, -0.4, () => yurt(b, 3.1, 'mongolia'));
     b.at(6, 0, 5, 0.5, () => cart(b));
@@ -482,7 +508,15 @@ const mongolia: Kit = (b, L, ban) => {
   if (L >= 5) b.add('gold', lathe([[gerR * 0.26, ph + gerR * 0.94], [gerR * 0.2, ph + gerR * 1.1], [0.05, ph + gerR * 1.22]], 12), 0, 0, gz);
   // Gers of the camp.
   const n = [0, 0, 3, 5, 7, 10][L]!;
-  ring(n, R * 0.66, (x, z, a, i) => b.at(x, 0, z, a + Math.PI, () => yurt(b, 3 + (i % 3) * 0.3, 'mongolia')), Math.PI * 0.42, Math.PI * 1.16);
+  // Where the sections of the town live: the great ger is the council, the palace (once built) keeps the growth.
+  b.mark('council', 0, 0, gz).mark('warriors', 0, 0, Math.cos(ga) * R).mark('initiatives', -10, 0, R * 0.42).mark('tasks', 9, 0, R * 0.5);
+  b.mark('staff', Math.sin(ga) * R + 5.5, 0, Math.cos(ga) * R - 1).mark('archive', -Math.sin(ga) * R - 5.5, 0, Math.cos(ga) * R - 1);
+  if (L >= 4) b.mark('growth', 0, 0, -R * 0.5);
+  ring(n, R * 0.66, (x, z, a, i) => {
+    if (i === 0) b.mark('library', x, 0, z);
+    if (i === n - 1) b.mark('growth', x, 0, z);
+    b.at(x, 0, z, a + Math.PI, () => yurt(b, 3 + (i % 3) * 0.3, 'mongolia'));
+  }, Math.PI * 0.42, Math.PI * 1.16);
   // Standards: the dark war standard and the white standards of peace.
   b.at(-5.5, 0, gz + gerR + 7, 0, () => tug(b, false, 9));
   if (L >= 3) b.at(5.5, 0, gz + gerR + 7, 0, () => tug(b, true, 9));
@@ -673,6 +707,10 @@ function russia(b: Builder, L: number, ban: string) {
   b.mark('tasks', -W * 0.6, 0, D * 0.55).mark('initiatives', L >= 3 ? -W * 0.55 : 0, 0, L >= 3 ? D + 7 : D * 0.3);
   if (L >= 4) b.mark('archive', -W * 0.62, 0, -D * 0.5).mark('library', W * 0.62, 0, D * 0.05);
   b.mark('staff', L >= 5 ? -W * 0.55 : W * 0.15, 0, L >= 5 ? D * 0.25 : D * 0.5);
+  // Before the bell tower and the chambers are built, the archive and the books keep to the rear towers and an izba.
+  b.mark('archive', -W, 0, -D);
+  if (L === 3) b.mark('library', -W * 0.2, 0, D * 0.55);
+  b.mark('library', W, 0, -D);
   // The heart of the town: the cathedral, the bell tower, the terem.
   if (L === 2) b.at(-W * 0.3, 0, -D * 0.25, 0, () => logChurch(b, 5.4));
   else b.at(-W * 0.22, 0, -D * 0.28, 0, () => cathedral(b, [0, 0, 0, 8.5, 11, 12.5][L]!, [0, 0, 0, 8, 10, 11.5][L]!, L >= 4 ? 5 : 1));
