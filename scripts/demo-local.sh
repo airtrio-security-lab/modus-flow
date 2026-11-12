@@ -4,9 +4,18 @@
 # Never use with real employee data: the demo sign-in is an SSO imitation.
 #   ./scripts/demo-local.sh           start (seeds only an empty database)
 #   ./scripts/demo-local.sh --fresh   drop the demo database and seed it again (before every show)
+#   ./scripts/demo-local.sh --dataset also import the organizer's synthetic set A-001—A-020 with the two
+#                                     labelled demo confirmations (idempotent; ADR-0022). Flags combine.
 set -euo pipefail
 FRESH=0
-[ "${1:-}" = "--fresh" ] && FRESH=1
+DATASET=0
+for arg in "$@"; do
+  case "$arg" in
+    --fresh) FRESH=1 ;;
+    --dataset) DATASET=1 ;;
+    *) echo "Неизвестный параметр: $arg (допустимы --fresh и --dataset)"; exit 1 ;;
+  esac
+done
 cd "$(dirname "$0")/.."
 mkdir -p .demo
 
@@ -41,6 +50,10 @@ npm run -s platform:migrate >/dev/null
 if [ "$(docker compose exec -T postgres psql -U modus -d modus -Atc "SELECT to_regclass('public.organizations') IS NOT NULL AND EXISTS (SELECT 1 FROM organizations WHERE slug = 'modus-demo')" 2>/dev/null || true)" != "t" ] || [ ! -f .demo/personas.json ]; then
   echo "Заполняем демо-данные…"
   npm run -s demo:seed
+fi
+if [ "$DATASET" = 1 ]; then
+  echo "Загружаем официальный набор A-001—A-020 (повторный запуск ничего не дублирует)…"
+  npm run -s platform:import-dataset -- --demo-confirm A-004,A-008 >/dev/null
 fi
 # Build the web app if it is missing or older than its sources (e.g. after git pull).
 if [ ! -f web/dist/index.html ] || [ -n "$(find web/src web/public web/index.html -newer web/dist/index.html -print -quit)" ]; then

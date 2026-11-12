@@ -88,7 +88,7 @@ npm run demo:record      # optional, on a fresh seed: records the kingdom scenar
 The final 3-minute story inside a 5-minute talk: [`docs/demo/final-3min.md`](docs/demo/final-3min.md); readiness for the pilot: [`docs/audit/2026-11-11-final-readiness.md`](docs/audit/2026-11-11-final-readiness.md).
 The city and the district screen: [`docs/demo/city-demo.md`](docs/demo/city-demo.md) (a 90–120 s version and the extended one); civilizations and councils: [`docs/demo/councils-demo.md`](docs/demo/councils-demo.md) (12 steps and a 90 s version). The 3D city and the organizer's set: [`docs/demo/world3d-demo.md`](docs/demo/world3d-demo.md); art direction: [`docs/3d/art-direction.md`](docs/3d/art-direction.md); decision and limitations: [`docs/adr/0022-world3d.md`](docs/adr/0022-world3d.md).
 The 90-second click paths for a live demo: [`docs/demo/meeting-90s.md`](docs/demo/meeting-90s.md) (meeting → work → XP) and [`docs/demo/kingdom-90s.md`](docs/demo/kingdom-90s.md) (idea → council → XP).
-Or all of it in one command (Docker + Node ≥ 22.18): `./scripts/demo-local.sh`.
+Or all of it in one command (Docker + Node ≥ 22.18): `./scripts/demo-local.sh`. With the organizer's set for the 3D demo: `./scripts/demo-local.sh --fresh --dataset`.
 
 ### Platform tests
 Integration tests use a real PostgreSQL; each test file creates and drops its own database.
