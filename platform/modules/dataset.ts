@@ -8,7 +8,7 @@ import { submitItem, type SubmitInputT } from './intake.ts';
 import * as wf from './workflow.ts';
 
 /**
- * Import of an external data set (0017, ADR-0022). Every row goes through the real services — the
+ * Import of an external data set (0017, ADR-0026). Every row goes through the real services — the
  * same submission, routing by category, reviews and decisions as an item typed in by a person — so
  * the organizer's scenarios are checked against real APIs and not against a painted table.
  *

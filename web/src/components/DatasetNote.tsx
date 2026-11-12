@@ -2,7 +2,7 @@ import { api } from '../lib/api';
 import { useLoad, useSession } from '../lib/session';
 
 /**
- * A row of an imported data set on the item card (0017, ADR-0022): the organizer's own id, type,
+ * A row of an imported data set on the item card (0017, ADR-0026): the organizer's own id, type,
  * category, priority and conditional status are shown as they were given — next to, not instead of,
  * the product's real status. A demo confirmation is always labelled.
  */

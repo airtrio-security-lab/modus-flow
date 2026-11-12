@@ -6,7 +6,7 @@ import { GEO, buildForest, buildRoads, buildSky, buildTerrain, configure, layout
 import { bannerTexture, createMaterials, createWorldMaterials, setAnisotropy } from './tex';
 
 /**
- * The 3D commonwealth (ADR-0022): one real-time scene for desktop and mobile. The engine only
+ * The 3D commonwealth (ADR-0026): one real-time scene for desktop and mobile. The engine only
  * presents what the backend reports — districts, their civilization and level, envoys and their
  * stage — and never decides anything itself.
  */

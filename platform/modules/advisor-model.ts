@@ -21,12 +21,12 @@ export interface ModelConfig {
   /** Cloud providers only. Never logged, never returned by the API. */
   apiKey?: string;
 }
-/** A cloud model: the text leaves the company's computers (ADR-0024). */
+/** A cloud model: the text leaves the company's computers (ADR-0028). */
 export const isRemote = (cfg: ModelConfig) => cfg.provider !== 'ollama';
 export const modelLabel = (cfg: ModelConfig) => (cfg.provider === 'ollama' ? `локальная модель ${cfg.model}` : `облачная модель ${cfg.model} (${cfg.provider === 'openai' ? 'OpenAI' : 'Anthropic'})`);
 
 /**
- * Which model, if any, MODUS ADVISOR may use (ADR-0013, ADR-0024).
+ * Which model, if any, MODUS ADVISOR may use (ADR-0013, ADR-0028).
  *
  *   MODUS_ADVISOR_PROVIDER=none | ollama | anthropic | openai
  *   MODUS_ADVISOR_MODEL=…                    required with a provider (e.g. claude-haiku-5-5)

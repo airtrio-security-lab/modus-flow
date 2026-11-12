@@ -807,7 +807,7 @@ export function KnowledgePage({ id }: { id: string }) {
   );
 }
 
-/** AI-Архивариус (ADR-0024): the answer of the connected model, or a plain «не подключён». */
+/** AI-Архивариус (ADR-0028): the answer of the connected model, or a plain «не подключён». */
 function ArchivistAiBox({ id }: { id: string }) {
   const s = useSession();
   const [busy, setBusy] = useState(false);

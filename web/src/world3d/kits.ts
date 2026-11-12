@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { Builder, archWall, banner, box, cone, conifer, curtain, cyl, foliage, gable, hall, hanging, lathe, palisade, roundTower, squareTower, sweptRoof, watchtower, yurt } from './geo';
 
 /**
- * Four civilizations × five levels (ADR-0022). Each kit is an original composition with its own
+ * Four civilizations × five levels (ADR-0026). Each kit is an original composition with its own
  * architectural grammar; a level adds and replaces structures — it is never a recolour.
  * All kits face +Z (their gate looks at the centre of the commonwealth) and fit a 60 m radius.
  * `ban` is the material key of the district's banner cloth.

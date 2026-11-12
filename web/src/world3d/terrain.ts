@@ -3,7 +3,7 @@ import { Builder, archWall, box, conifer, foliage } from './geo';
 import { rng } from './tex';
 
 /**
- * Geography of the commonwealth (ADR-0022): a central island plateau for the neutral buildings,
+ * Geography of the commonwealth (ADR-0026): a central island plateau for the neutral buildings,
  * a river gorge around it, district plateaus on the outer bank at different heights, forested
  * hills between them and a mountain rim. Everything is a pure function of the list of districts,
  * so the city grows when the organization adds departments.

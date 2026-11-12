@@ -15,7 +15,7 @@ import { freshDatabase, ownerQuery, person, world } from './support/db.ts';
 import { feedbackOrg, submit } from './support/feedback.ts';
 
 /**
- * The organizer's official synthetic set (0017, ADR-0022): 20 rows A-001—A-020 imported through the
+ * The organizer's official synthetic set (0017, ADR-0026): 20 rows A-001—A-020 imported through the
  * real services into their own namespace, and the organizer's six scenarios checked on the same APIs
  * the product uses. No XP comes from the set by itself.
  */

@@ -1,5 +1,5 @@
 /**
- * «3D-город» through the real UI (owner brief 2026-11-11, ADR-0022): the WebGL scene is built from the
+ * «3D-город» through the real UI (owner brief 2026-11-11, ADR-0026): the WebGL scene is built from the
  * real `/kingdom` response; the camera moves, zooms and turns; a click on the BUILDING itself (not only
  * on its label) opens the department; the citadel shows the castle in 3D with a labelled preview of the
  * next levels; search finds departments, colleagues, items and rows of the organizer's set; without

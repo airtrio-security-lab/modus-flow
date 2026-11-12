@@ -3,7 +3,7 @@ import { mergeGeometries, mergeVertices } from 'three/examples/jsm/utils/BufferG
 import type { MatKey } from './tex';
 
 /**
- * Geometry kit of the 3D commonwealth (ADR-0022). Buildings are assembled from architectural parts
+ * Geometry kit of the 3D commonwealth (ADR-0026). Buildings are assembled from architectural parts
  * — battered plinths, coursed walls with merlons, round towers with corbels and conical roofs,
  * swept hip roofs, arched gates, yurts — and merged per material, so a whole district is a handful
  * of draw calls. All UVs are in metres (see tex.ts).

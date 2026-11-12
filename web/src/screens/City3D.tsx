@@ -13,7 +13,7 @@ import { World, webglSupported, type Anchor, type AnchorKind, type Quality, type
 import { HERALDRY, envoyState } from './Kingdom';
 
 /**
- * «3D-город» (ADR-0022): the commonwealth as a real-time scene with a dark game HUD. Everything
+ * «3D-город» (ADR-0026): the commonwealth as a real-time scene with a dark game HUD. Everything
  * shown comes from the same `/kingdom` response as the schematic map and the table: departments,
  * their civilization and server-computed level, open items and their stage. The scene has no
  * rules of its own — a click only moves the camera and opens existing screens.

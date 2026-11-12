@@ -9,7 +9,7 @@ import { loadIdea } from './ideas.ts';
  * «Оценка ИИ» of a proposed solution or of a decision already taken (owner request 2026-11-12).
  *
  * Only a real language model answers here: the model of MODUS ADVISOR — local (ADR-0013) or, when the
- * owner has switched it on, a cloud one (ADR-0024), and the answer says which. When no model is connected the answer
+ * owner has switched it on, a cloud one (ADR-0028), and the answer says which. When no model is connected the answer
  * says so — the system does not pass a template off as an assessment. The result is a hint for people:
  * it is not stored, changes no status and decides nothing.
  */

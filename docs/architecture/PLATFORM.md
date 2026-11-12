@@ -235,22 +235,22 @@ same origin with a strict CSP.
   (categories, links to evidence, no counts-based ranking).
 * SSO/OIDC, rate limiting, outbox delivery to e-mail/messengers, backups/restore rehearsal.
 
-## 3D-город и импорт набора (ADR-0022, миграция 0017)
+## 3D-город и импорт набора (ADR-0026, миграция 0017)
 
 - **Сцена.** `web/src/world3d/` — Three.js без обёрток: процедурные материалы и геометрия, четыре набора архитектуры × пять уровней, рельеф с рекой и мостами, камера с пределами и перелётами, выбор объектов лучом. Данные — только `GET /kingdom`; движок не вызывает API и не знает о правах.
 - **Экраны.** `screens/City3D.tsx` — сцена с тёмным HUD (разделы, поиск по отделам, коллегам, обращениям и строкам набора, счётчики, карточка района); `components/Citadel3D.tsx` — замок отдела в 3D и подписанный предпросмотр уровней на экране района. Виды страницы «Город»: 3D / Схема / Рабочее пространство; без WebGL — схема.
 - **Новые маршруты.** `GET /people?q=` (поиск коллег: имя, должность, отдел; только участникам), `GET /datasets/:dataset`, `GET /ideas/:n/dataset`.
 - **Импорт.** `platform/modules/dataset.ts` + `npm run platform:import-dataset`: 20 строк официального набора проходят обычную подачу, маршрутизацию и решения; `dataset_items` хранит внешний ID и исходные поля; XP из набора не начисляется, демо-подтверждение — отдельный подписанный шаг.
-- **Ограничения** перечислены в ADR-0022: визуальный уровень ниже живописного референса; кадры не измерены на видеокарте и телефоне.
+- **Ограничения** перечислены в ADR-0026: визуальный уровень ниже живописного референса; кадры не измерены на видеокарте и телефоне.
 
-## Карточки гонцов, «Отложить решение», «Оценка ИИ» (ADR-0023, миграция 0018)
+## Карточки гонцов, «Отложить решение», «Оценка ИИ» (ADR-0027, миграция 0018)
 
 - `POST /ideas/:n/defer` `{until, reason}` и `POST /ideas/:n/resume` — только ответственный за решение; срок решения на паузе (`idea_deferrals`, `app_defer_idea`, `app_resume_idea`); событие уведомления `idea_deferred`.
 - `POST /ideas/:n/assessment` — ответ локальной модели или «ИИ не подключён»; не сохраняется.
 - `GET /ideas/:n` отдаёт `deferral`; `GET /kingdom` у гонцов — `author` и `deferredUntil`.
 - Веб: `components/ItemQuick.tsx` (путь в четыре шага, отложить, оценка ИИ) — на странице обращения и в карточке гонца в 3D-городе.
 
-## Облачная модель и AI-Архивариус (ADR-0024)
+## Облачная модель и AI-Архивариус (ADR-0028)
 
 - `MODUS_ADVISOR_PROVIDER=none|ollama|anthropic|openai`; облачная — только с `MODUS_ADVISOR_ALLOW_REMOTE=true`, вне демо ещё и `MODUS_ADVISOR_ALLOW_REAL_DATA=true`. Ключ — `ANTHROPIC_API_KEY` / `OPENAI_API_KEY`.
 - `platform/modules/advisor-model.ts`: `modelFetch` — один переходник для всех провайдеров; `isRemote`, `modelLabel`.

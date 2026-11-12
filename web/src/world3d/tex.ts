@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 
 /**
- * Procedural PBR materials for the 3D commonwealth (ADR-0022). Every texture is drawn here on a
+ * Procedural PBR materials for the 3D commonwealth (ADR-0026). Every texture is drawn here on a
  * canvas — albedo, a height field turned into a normal map, and roughness — so the project ships no
  * third-party art and needs no licences. UVs of all geometry are in metres; `tile` is how many
  * metres one texture repeat covers.

@@ -5,8 +5,8 @@
 #   ./scripts/demo-local.sh           start (seeds only an empty database)
 #   ./scripts/demo-local.sh --fresh   drop the demo database and seed it again (before every show)
 #   ./scripts/demo-local.sh --dataset also import the organizer's synthetic set A-001—A-020 with the two
-#                                     labelled demo confirmations (idempotent; ADR-0022). Flags combine.
-#   ./scripts/demo-local.sh --ai      connect the cloud model Claude Haiku (ADR-0024): asks for the Anthropic key
+#                                     labelled demo confirmations (idempotent; ADR-0026). Flags combine.
+#   ./scripts/demo-local.sh --ai      connect the cloud model Claude Haiku (ADR-0028): asks for the Anthropic key
 #                                     in this terminal (not shown, not saved anywhere). Paid; texts sent for
 #                                     analysis leave the computer. Demo data only.
 set -euo pipefail

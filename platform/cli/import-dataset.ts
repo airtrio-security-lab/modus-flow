@@ -5,7 +5,7 @@ import type { OrgActor, OrgRole } from '../domain/model.ts';
 import { DatasetFile, importDataset } from '../modules/dataset.ts';
 
 /**
- * Import the organizer's official synthetic set (A-001—A-020) into an organization (0017, ADR-0022).
+ * Import the organizer's official synthetic set (A-001—A-020) into an organization (0017, ADR-0026).
  * Idempotent: rows already imported are skipped, nothing is duplicated.
  *
  *   MIGRATION_DATABASE_URL=… node platform/cli/import-dataset.ts [--org modus-demo] [--file platform/data/official-synthetic-dataset.json]

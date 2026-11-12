@@ -773,7 +773,7 @@ export async function setArchivist(db: Database, actor: OrgActor, membershipId: 
 }
 
 // ---------------------------------------------------------------------------
-// AI-Архивариус (ADR-0024): a connected language model reads the card and the candidates
+// AI-Архивариус (ADR-0028): a connected language model reads the card and the candidates
 // ---------------------------------------------------------------------------
 const ArchivistAnswer = z
   .object({

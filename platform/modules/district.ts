@@ -297,7 +297,7 @@ export async function person(db: Database, actor: OrgActor, membershipId: string
 }
 
 /**
- * City search (ADR-0022): colleagues by name, for the 3D city's search box. Only what the
+ * City search (ADR-0026): colleagues by name, for the 3D city's search box. Only what the
  * district screen already shows to every full member — name, job and department; no contacts,
  * no profile fields. Guests of the organization do not see the staff list.
  */

@@ -4,7 +4,7 @@ import { advisorStatus } from '../../platform/modules/advisor.ts';
 import { isRemote, modelConfigFromEnv, modelFetch, modelLabel, modelReachable, type ModelConfig } from '../../platform/modules/advisor-model.ts';
 
 /**
- * Cloud language models (ADR-0024). They are paid and the text leaves the company, so they start only
+ * Cloud language models (ADR-0028). They are paid and the text leaves the company, so they start only
  * behind explicit switches; the key is never shown; every provider is spoken to through one adapter,
  * so the checks after the call are the same for a local and a cloud model.
  */

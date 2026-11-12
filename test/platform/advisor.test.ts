@@ -216,7 +216,7 @@ test('an originator never confirms the executor of their own item, even when the
 test('local model: off by default, local only, invented quotes dropped', async () => {
   assert.equal(modelConfigFromEnv({}), null);
   assert.throws(() => modelConfigFromEnv({ MODUS_ADVISOR_PROVIDER: 'ollama', MODUS_ADVISOR_URL: 'https://api.example.com', MODUS_ADVISOR_MODEL: 'x' }), /не на этот компьютер/);
-  // A cloud provider is refused unless the owner switches it on explicitly (ADR-0024; details in cloud-model.test.ts).
+  // A cloud provider is refused unless the owner switches it on explicitly (ADR-0028; details in cloud-model.test.ts).
   assert.throws(() => modelConfigFromEnv({ MODUS_ADVISOR_PROVIDER: 'openai', MODUS_ADVISOR_MODEL: 'x' }), /MODUS_ADVISOR_ALLOW_REMOTE=true/);
   await assert.rejects(advisor.createProtocol(db, w.maintainer.actor, { title: 'Без модели', text: PROTOCOL, method: 'model' }, undefined, null), codes('conflict'));
 

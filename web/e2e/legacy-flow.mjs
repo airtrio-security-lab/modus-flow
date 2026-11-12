@@ -153,7 +153,7 @@ try {
     await act(page, 'Внести в Библиотеку', 'Проверила отчёт о внедрении и решение');
     await expectText(page, 'проверено Архивариусом');
     await shot(page, '03-library');
-    // The helper without AI is labelled; the AI archivist answers only through a connected model (ADR-0024).
+    // The helper without AI is labelled; the AI archivist answers only through a connected model (ADR-0028).
     await page.getByRole('button', { name: 'Подобрать связи' }).click();
     await expectText(page, 'Помощник Архивариуса без ИИ');
     await page.getByRole('button', { name: 'Спросить AI-Архивариуса' }).click();

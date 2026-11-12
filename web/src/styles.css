@@ -1122,7 +1122,7 @@ button.ts:hover { border-color: var(--accent); color: var(--accent-ink); }
 .realm-map:not(.is-close) .realm-hall > g:last-of-type { display: none; }
 
 /* ---------------------------------------------------------------------------
-   «3D-город» (ADR-0022): an immersive stage with a dark game HUD. Tokens are
+   «3D-город» (ADR-0026): an immersive stage with a dark game HUD. Tokens are
    local to the stage — the rest of the product keeps its light working theme.
    --------------------------------------------------------------------------- */
 .w3d {
@@ -1315,7 +1315,7 @@ button.ts:hover { border-color: var(--accent); color: var(--accent-ink); }
   @keyframes w3d-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
 }
 
-/* «Цитадель отдела» (ADR-0022): the district screen keeps its structure and wears the dark tones of the 3D city. */
+/* «Цитадель отдела» (ADR-0026): the district screen keeps its structure and wears the dark tones of the 3D city. */
 .district {
   --paper: #101317; --surface: #171b21; --ink: #ece7dc; --ink-2: #b9b3a6; --ink-3: #9d978b;
   --line: #2b3038; --line-strong: #4a4f58; --field-border: #6f757e;

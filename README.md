@@ -80,17 +80,17 @@ npm run demo:legacy      # optional, on a fresh seed: meeting → Летопис
 npm run demo:final       # the final story: idea → envoy → council → decision → implementation → XP → castle → Летопись → Библиотека → Высший Архив
 RECORD=1 npm run demo:final   # the same at presentation pace, recorded as the fallback video .demo/final-demo.mp4
 npm run demo:councils    # optional, on a fresh seed: Japanese IT titles → small council in the Зал даймё → Great Round Table → decision → XP (ADR-0020)
-npm run platform:import-dataset -- --demo-confirm A-004,A-008   # the organizer's official synthetic set A-001—A-020, idempotent (ADR-0022)
-npm run demo:world3d     # optional, on a fresh seed WITH the set: the 3D city, camera, picking, citadel, search, fallback, phone (ADR-0022)
+npm run platform:import-dataset -- --demo-confirm A-004,A-008   # the organizer's official synthetic set A-001—A-020, idempotent (ADR-0026)
+npm run demo:world3d     # optional, on a fresh seed WITH the set: the 3D city, camera, picking, citadel, search, fallback, phone (ADR-0026)
 npm run demo:city        # optional, on a fresh seed: «Живое Королевство» — city camera, district screen, staff cards and privacy, style picker, workspace, phone (ADR-0019)
 npm run demo:record      # optional, on a fresh seed: records the kingdom scenario as a fallback video (.demo/kingdom-demo.mp4)
 ```
 The final 3-minute story inside a 5-minute talk: [`docs/demo/final-3min.md`](docs/demo/final-3min.md); readiness for the pilot: [`docs/audit/2026-11-11-final-readiness.md`](docs/audit/2026-11-11-final-readiness.md).
-The city and the district screen: [`docs/demo/city-demo.md`](docs/demo/city-demo.md) (a 90–120 s version and the extended one); civilizations and councils: [`docs/demo/councils-demo.md`](docs/demo/councils-demo.md) (12 steps and a 90 s version). The 3D city and the organizer's set: [`docs/demo/world3d-demo.md`](docs/demo/world3d-demo.md); art direction: [`docs/3d/art-direction.md`](docs/3d/art-direction.md); decision and limitations: [`docs/adr/0022-world3d.md`](docs/adr/0022-world3d.md).
+The city and the district screen: [`docs/demo/city-demo.md`](docs/demo/city-demo.md) (a 90–120 s version and the extended one); civilizations and councils: [`docs/demo/councils-demo.md`](docs/demo/councils-demo.md) (12 steps and a 90 s version). The 3D city and the organizer's set: [`docs/demo/world3d-demo.md`](docs/demo/world3d-demo.md); art direction: [`docs/3d/art-direction.md`](docs/3d/art-direction.md); decision and limitations: [`docs/adr/0026-world3d.md`](docs/adr/0026-world3d.md).
 The 90-second click paths for a live demo: [`docs/demo/meeting-90s.md`](docs/demo/meeting-90s.md) (meeting → work → XP) and [`docs/demo/kingdom-90s.md`](docs/demo/kingdom-90s.md) (idea → council → XP).
 Or all of it in one command (Docker + Node ≥ 22.18): `./scripts/demo-local.sh`. With the organizer's set for the 3D demo: `./scripts/demo-local.sh --fresh --dataset`.
 
-A language model is optional and off by default. Local (Ollama): `MODUS_ADVISOR_PROVIDER=ollama MODUS_ADVISOR_MODEL=…`. Cloud (paid, the text leaves the company — the owner's decision, ADR-0024): `ANTHROPIC_API_KEY=… MODUS_ADVISOR_PROVIDER=anthropic MODUS_ADVISOR_MODEL=claude-haiku-5-5 MODUS_ADVISOR_ALLOW_REMOTE=true`; outside the demo sign-in it also needs `MODUS_ADVISOR_ALLOW_REAL_DATA=true`. Never commit a key. The shortest way on a laptop: `./scripts/demo-local.sh --dataset --ai` asks for the Anthropic key in the terminal.
+A language model is optional and off by default. Local (Ollama): `MODUS_ADVISOR_PROVIDER=ollama MODUS_ADVISOR_MODEL=…`. Cloud (paid, the text leaves the company — the owner's decision, ADR-0028): `ANTHROPIC_API_KEY=… MODUS_ADVISOR_PROVIDER=anthropic MODUS_ADVISOR_MODEL=claude-haiku-5-5 MODUS_ADVISOR_ALLOW_REMOTE=true`; outside the demo sign-in it also needs `MODUS_ADVISOR_ALLOW_REAL_DATA=true`. Never commit a key. The shortest way on a laptop: `./scripts/demo-local.sh --dataset --ai` asks for the Anthropic key in the terminal.
 
 ### Platform tests
 Integration tests use a real PostgreSQL; each test file creates and drops its own database.

@@ -330,7 +330,7 @@ export function createApp(config: AppConfig) {
     return replied(await deferral.defer(db, actor, Number(ctx.params.number), deferral.DeferInput.parse(await ctx.body()), idemKey(ctx.req)));
   });
   route('POST', `${ORG}/ideas/(?<number>\\d+)/resume`, async (ctx) => replied(await deferral.resume(db, await org(ctx), Number(ctx.params.number), idemKey(ctx.req))));
-  // ---- imported data sets (0017, ADR-0022): the organizer's official synthetic set in its own namespace ----
+  // ---- imported data sets (0017, ADR-0026): the organizer's official synthetic set in its own namespace ----
   route('GET', `${ORG}/datasets/(?<dataset>[a-z0-9-]{2,60})`, async (ctx) => ({ status: 200, body: await datasetMod.listDataset(db, await org(ctx), ctx.params.dataset!) }));
   route('GET', `${ORG}/ideas/(?<number>\\d+)/dataset`, async (ctx) => ({ status: 200, body: await datasetMod.datasetOfItem(db, await org(ctx), Number(ctx.params.number)) }));
   route('GET', `${ORG}/people`, async (ctx) => ({ status: 200, body: await district.searchPeople(db, await org(ctx), district.PeopleQuery.parse(queryObject(ctx.query)).q) }));
@@ -484,7 +484,7 @@ export function createApp(config: AppConfig) {
   const KN = `/knowledge/(?<id>${UUID})`;
   route('GET', `${ORG}${KN}`, async (ctx) => ({ status: 200, body: await legacy.get(db, await org(ctx), ctx.params.id!) }));
   route('GET', `${ORG}${KN}/helper`, async (ctx) => ({ status: 200, body: await legacy.helper(db, await org(ctx), ctx.params.id!) }));
-  // AI-Архивариус (ADR-0024): only with a connected model; otherwise «не подключён».
+  // AI-Архивариус (ADR-0028): only with a connected model; otherwise «не подключён».
   route('POST', `${ORG}${KN}/helper/ai`, async (ctx) => ({ status: 200, body: await legacy.helperAi(db, await org(ctx), ctx.params.id!, config.advisorModel ?? null, config.advisorFetch) }));
   json('POST', `${KN}/versions`, legacy.ReviseInput, (a, i, p) => legacy.revise(db, a, p.id!, i), 201);
   json('POST', `${KN}/sources`, legacy.SourceInput, (a, i, p) => legacy.addSource(db, a, p.id!, i), 201);

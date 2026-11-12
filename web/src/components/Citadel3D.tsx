@@ -3,7 +3,7 @@ import { useLite } from '../lib/lite';
 import type { Civ } from './civ';
 
 /**
- * The hero of «Цитадель отдела» (ADR-0022): the department's castle in 3D at its real level, and a
+ * The hero of «Цитадель отдела» (ADR-0026): the department's castle in 3D at its real level, and a
  * clearly labelled preview of the other levels. Without WebGL, with reduced motion or in the lite
  * mode nothing is rendered here — the drawn castle in the header below stays.
  */

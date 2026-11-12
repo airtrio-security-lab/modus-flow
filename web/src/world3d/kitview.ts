@@ -5,7 +5,7 @@ import { buildSky } from './terrain';
 import { bannerTexture, createMaterials, createWorldMaterials, setAnisotropy } from './tex';
 
 /**
- * One district on its own hill (ADR-0022): the hero of the «Цитадель» screen and the preview of the
+ * One district on its own hill (ADR-0026): the hero of the «Цитадель» screen and the preview of the
  * next levels. The same kits and materials as the city — a level shown here is exactly what the city
  * builds when the server reports that level.
  */
