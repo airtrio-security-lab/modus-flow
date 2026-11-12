@@ -22,3 +22,20 @@
 @media(max-width:900px){.town-shortcuts{grid-template-columns:repeat(2,minmax(0,1fr))}.town-heading{flex-wrap:wrap}.town-heading-actions{justify-items:start}}
 @media(max-width:480px){.town-heading{padding:1rem}.town-canvas{min-width:880px}.town-hotspot{width:44px;height:44px}.town-shortcuts{gap:.4rem;padding:.6rem}.town-shortcuts a{padding:.6rem}.town-shortcuts small{font-size:.7rem}}
 @media(prefers-reduced-motion:reduce){.town-hotspot{transition:none}}
+
+
+/* Layered, pointer-transparent atmosphere shared by the cinematic towns. */
+.town-atmosphere{position:absolute;inset:0;pointer-events:none;overflow:hidden;z-index:1}
+.town-hotspots{z-index:2}
+.town-atmo-cloud{position:absolute;top:7%;left:-29%;width:30%;height:9%;border-radius:50%;background:radial-gradient(ellipse,rgba(255,250,231,.42),rgba(241,243,235,.08) 63%,transparent 76%);filter:blur(11px);animation:town-cloud-drift 95s linear infinite;opacity:.7}
+.town-atmo-cloud-b{top:17%;left:-25%;width:24%;height:8%;animation-duration:123s;animation-delay:-42s;opacity:.53}
+.town-atmo-haze{position:absolute;inset:0;background:linear-gradient(0deg,rgba(218,209,188,.11),transparent 32%),radial-gradient(ellipse at 35% 43%,rgba(250,244,224,.10),transparent 35%);animation:town-haze-breathe 13s ease-in-out infinite alternate}
+.town-atmo-smoke{position:absolute;left:44%;top:66%;height:3.5%;width:2.4%;border-radius:50%;filter:blur(8px);background:radial-gradient(circle,rgba(244,244,234,.5),rgba(223,233,225,.09),transparent);animation:town-smoke-rise 9s ease-out infinite;opacity:0}
+.town-atmo-smoke-b{left:76%;top:56%;animation-delay:-4.5s;animation-duration:11s}
+@keyframes town-cloud-drift{from{transform:translateX(0)}to{transform:translateX(550%)}}
+@keyframes town-haze-breathe{from{opacity:.35}to{opacity:.8}}
+@keyframes town-smoke-rise{0%{transform:translate(0,15px) scale(.5);opacity:0}18%{opacity:.48}100%{transform:translate(23px,-90px) scale(2);opacity:0}}
+@media(prefers-reduced-motion:reduce){
+  .town-atmo-cloud,.town-atmo-haze,.town-atmo-smoke{animation:none!important}
+  .town-atmo-cloud,.town-atmo-smoke{opacity:0!important}
+}
