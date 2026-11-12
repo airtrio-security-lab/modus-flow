@@ -182,11 +182,11 @@ try {
     await page.locator('.camelot-town-viewport').waitFor();
     must((await page.locator('.camelot-town-hotspot').count()) === 8, 'Camelot must have eight clickable buildings');
     await page.locator('.camelot-warriors').click();
-    await page.waitForURL(/#\\/castles\\/[0-9a-f-]{36}\\/warriors$/);
+    await page.waitForURL(/#\/castles\/[0-9a-f-]{36}\/warriors$/);
     await page.getByRole('heading', { name: /Зал воинов/ }).first().waitFor();
     await page.goto(`${BASE}/#${districtUrl}`);
     await page.locator('.camelot-council').click();
-    await page.waitForURL(/#\\/castles\\/[0-9a-f-]{36}\\/council$/);
+    await page.waitForURL(/#\/castles\/[0-9a-f-]{36}\/council$/);
     await page.getByRole('heading', { name: /У малого совета/ }).waitFor();
     step('Камелот: панорама, восемь кликабельных зданий, Зал воинов и Совет');
     await page.goto(`${BASE}/#${districtUrl}/growth`);
