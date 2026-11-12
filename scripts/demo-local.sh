@@ -6,18 +6,42 @@
 #   ./scripts/demo-local.sh --fresh   drop the demo database and seed it again (before every show)
 #   ./scripts/demo-local.sh --dataset also import the organizer's synthetic set A-001—A-020 with the two
 #                                     labelled demo confirmations (idempotent; ADR-0022). Flags combine.
+#   ./scripts/demo-local.sh --ai      connect the cloud model Claude Haiku (ADR-0024): asks for the Anthropic key
+#                                     in this terminal (not shown, not saved anywhere). Paid; texts sent for
+#                                     analysis leave the computer. Demo data only.
 set -euo pipefail
 FRESH=0
 DATASET=0
+AI=0
 for arg in "$@"; do
   case "$arg" in
     --fresh) FRESH=1 ;;
     --dataset) DATASET=1 ;;
-    *) echo "Неизвестный параметр: $arg (допустимы --fresh и --dataset)"; exit 1 ;;
+    --ai) AI=1 ;;
+    *) echo "Неизвестный параметр: $arg (допустимы --fresh, --dataset и --ai)"; exit 1 ;;
   esac
 done
 cd "$(dirname "$0")/.."
 mkdir -p .demo
+
+# --ai: the key is asked here, on its own line, so a pasted block of commands cannot be taken for it.
+if [ "$AI" = 1 ]; then
+  key_ok() { [ "${#1}" -ge 20 ] && [ "${1#* }" = "$1" ]; }
+  if ! key_ok "${ANTHROPIC_API_KEY:-}"; then
+    printf 'Вставьте ключ Anthropic и нажмите Enter (на экране он не отображается): '
+    IFS= read -rs ANTHROPIC_API_KEY < /dev/tty
+    echo
+    if ! key_ok "$ANTHROPIC_API_KEY"; then
+      echo "Это не похоже на ключ: он длиннее 20 символов и без пробелов. Запустите команду ещё раз и вставьте только ключ."
+      exit 1
+    fi
+  fi
+  export ANTHROPIC_API_KEY
+  export MODUS_ADVISOR_PROVIDER=anthropic
+  export MODUS_ADVISOR_MODEL="${MODUS_ADVISOR_MODEL:-claude-haiku-5-5}"
+  export MODUS_ADVISOR_ALLOW_REMOTE=true
+  echo "Облачная модель: $MODUS_ADVISOR_MODEL (Anthropic). Тексты, отправленные на разбор, уйдут за пределы этого компьютера; запросы платные."
+fi
 
 node -e 'const [a,b]=process.versions.node.split(".").map(Number); if (a<22 || (a===22 && b<18)) { console.error("Нужен Node.js 22.18 или новее (сейчас " + process.versions.node + ")"); process.exit(1) }'
 docker info >/dev/null 2>&1 || { echo "Запустите Docker (OrbStack или Docker Desktop) и повторите."; exit 1; }
