@@ -781,7 +781,7 @@ function Hud({ k, onMode, onPick, onItem, onPerson }: { k: KingdomData; onMode: 
         <input
           type="search"
           value={q}
-          placeholder="Подразделение, коллега или обращение"
+          placeholder="Поиск по городу"
           aria-label="Поиск по городу: подразделения, коллеги, обращения"
           onChange={(e) => {
             setQ(e.target.value);
