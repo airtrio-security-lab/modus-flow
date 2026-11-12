@@ -10,6 +10,7 @@ import { CouncilScene } from '../components/scenes';
 import { Citadel3D } from '../components/Citadel3D';
 import { WarriorHall } from './WarriorHall';
 import { CivilizationPanorama } from '../components/CityPanorama';
+import { hasPanorama, townBuildings } from '../components/town';
 import { HERALDRY } from './Kingdom';
 
 /**
@@ -30,6 +31,7 @@ const TABS = [
 ] as const;
 type Tab = (typeof TABS)[number]['id'];
 const TAB_KEY = 'modus.district.tab';
+const TOWN_KEY = 'modus.town.view';
 const NO_DATA = 'Нет данных';
 const hashParams = () => new URLSearchParams(location.hash.split('?')[1] ?? '');
 
@@ -48,8 +50,24 @@ export function DistrictPage({ id, tab }: { id: string; tab?: string }) {
   const { data, error, loading, reload } = useLoad(() => api<DistrictData>(`/orgs/${s.org}/castles/${id}/district`), [s.org, id]);
   const current: Tab = TABS.some((t) => t.id === tab)
     ? (tab as Tab)
-    : data && ['camelot', 'russia'].includes(data.civilization.id) ? 'city' : rememberedTab();
+    : data && hasPanorama(data.civilization.id) ? 'city' : rememberedTab();
   const [picker, setPicker] = useState(false);
+  // The town of a district has two faces (ADR-0029): the painted panorama and the 3D town. The choice is remembered.
+  const [townView, setTownView] = useState<'panorama' | '3d'>(() => {
+    try {
+      return localStorage.getItem(TOWN_KEY) === '3d' ? '3d' : 'panorama';
+    } catch {
+      return 'panorama';
+    }
+  });
+  const pickTown = (v: 'panorama' | '3d') => {
+    setTownView(v);
+    try {
+      localStorage.setItem(TOWN_KEY, v);
+    } catch {
+      /* ignore */
+    }
+  };
   const closePicker = useCallback(() => setPicker(false), []);
   useEffect(() => {
     try {
@@ -63,16 +81,38 @@ export function DistrictPage({ id, tab }: { id: string; tab?: string }) {
   if (loading && !data) return <Loading label="Открываем замок…" rows={5} />;
   if (!data) return null;
   const color = HERALDRY[data.colorIndex % HERALDRY.length]!;
+  const painted = hasPanorama(data.civilization.id);
   return (
     <div className={`district stack-lg civ-${civOf(data.civilization.id)}`}>
       <a className="back-link" href="#/kingdom">
         ← Город
       </a>
-      {current === 'city' && ['camelot', 'russia'].includes(data.civilization.id) ? (
+      {current === 'city' && painted ? (
+        <div className="town-switch">
+          <p>{townView === '3d' ? 'Город в 3D растёт вместе с уровнем отдела.' : 'Панорама города — авторская иллюстрация.'}</p>
+          <div className="segmented" role="group" aria-label="Вид города">
+            <button type="button" aria-pressed={townView === 'panorama'} onClick={() => pickTown('panorama')}>
+              Панорама
+            </button>
+            <button type="button" aria-pressed={townView === '3d'} onClick={() => pickTown('3d')}>
+              3D
+            </button>
+          </div>
+        </div>
+      ) : null}
+      {current === 'city' && painted && townView === 'panorama' ? (
         <CivilizationPanorama district={data} onPickStyle={() => setPicker(true)} />
       ) : (
         <>
-          <Citadel3D civ={civOf(data.civilization.id)} civName={data.civilization.name} level={data.level} levelNames={data.levels.names} color={color} name={data.name} />
+          <Citadel3D
+            civ={civOf(data.civilization.id)}
+            civName={data.civilization.name}
+            level={data.level}
+            levelNames={data.levels.names}
+            color={color}
+            name={data.name}
+            town={current === 'city' ? townBuildings(data) : undefined}
+          />
           <DistrictHeader d={data} color={color} onPick={() => setPicker(true)} />
         </>
       )}
@@ -85,7 +125,7 @@ export function DistrictPage({ id, tab }: { id: string; tab?: string }) {
         ))}
       </nav>
       <section role="tabpanel" aria-label={TABS.find((t) => t.id === current)!.name}>
-        {current === 'city' && !['camelot', 'russia'].includes(data.civilization.id) ? <p className="muted small">Панорамный экран этого города готовится. Все рабочие разделы доступны во вкладках выше.</p> : null}
+        {current === 'city' && !painted ? <p className="muted small">Панорама этого города ещё не нарисована — показан город в 3D. Все рабочие разделы доступны и во вкладках выше.</p> : null}
         {current === 'staff' ? <StaffTab d={data} reload={reload} /> : null}
         {current === 'tasks' ? <TasksTab d={data} /> : null}
         {current === 'initiatives' ? <InitiativesTab d={data} /> : null}

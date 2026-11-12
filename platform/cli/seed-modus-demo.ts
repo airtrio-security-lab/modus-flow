@@ -414,7 +414,7 @@ async function main() {
   await setCivilization(db, salesHead, D.sales, 'camelot');
   await setCivilization(db, svcHead, D.service, 'mongolia');
   await setCivilization(db, sysAdmin, D.pnr, 'camelot');
-  await setCivilization(db, sysAdmin, D.purchasing, 'japan');
+  await setCivilization(db, sysAdmin, D.purchasing, 'russia');
   await setCivilization(db, sysAdmin, D.design, 'mongolia');
   // More (fictional) people of the IT district, so its Japanese titles are visible.
   const itDeputy = await mk('Арман Жаксыбеков', 'Ведущий разработчик', 'ИТ-разработка', ['employee']);

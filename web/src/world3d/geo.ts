@@ -16,6 +16,14 @@ export class Builder {
   private n = 0;
   /** Height of the ground under the buildings: walls are darker and damper near it. */
   ground = 0;
+  /** Named places of a kit (the origin of a structure), for the building pins of the 3D town. */
+  marks = new Map<string, THREE.Vector3>();
+
+  /** Remember where a named building stands: the given point in the current local frame. The first mark of a name wins. */
+  mark(id: string, x = 0, y = 0, z = 0) {
+    if (!this.marks.has(id)) this.marks.set(id, new THREE.Vector3(x, y, z).applyMatrix4(this.stack[this.stack.length - 1]!));
+    return this;
+  }
 
   /** Run `fn` with a local transform (translate, then rotate around Y, then uniform scale). */
   at(x: number, y: number, z: number, rotY: number, fn: () => void, scale = 1) {

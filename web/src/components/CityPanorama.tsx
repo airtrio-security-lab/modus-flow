@@ -31,6 +31,8 @@ export function CivilizationPanorama({ district, onPickStyle }: { district: Dist
   const [active, setActive] = useState<string | null>(null);
   const isRussia = district.civilization.id === 'russia';
   const cityName = isRussia ? 'Русское царство' : 'Камелот';
+  // Genitive for «все здания …».
+  const cityOf = isRussia ? 'Русского царства' : 'Камелота';
   const buildings = isRussia ? RUSSIAN_BUILDINGS : CAMELOT_BUILDINGS;
   const cityImage = isRussia ? '/media/russian-tsardom-city.svg' : '/media/camelot-city.webp';
   const imageAlt = isRussia
@@ -96,7 +98,7 @@ export function CivilizationPanorama({ district, onPickStyle }: { district: Dist
           </div>
         </div>
       </div>
-      <nav className="town-shortcuts" aria-label={'Все здания ' + cityName}>
+      <nav className="town-shortcuts" aria-label={'Все здания ' + cityOf}>
         {buildings.map((b) => (
           <a key={b.id} href={routeFor(b.tab)}
             onFocus={() => setActive(b.id)} onBlur={() => setActive(null)}

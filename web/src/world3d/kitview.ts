@@ -31,6 +31,16 @@ export class KitView {
   private disposed = false;
   /** Slow turn of the camera while nobody touches it. */
   spin = true;
+  /** Buildings of the town (ADR-0029): where each section's pin stands, in scene coordinates. */
+  private pins: { id: string; at: THREE.Vector3 }[] = [];
+  private pinIds: string[] = [];
+  private turnTo: number | null = null;
+  private span = 150;
+  private zoomed = false;
+  /** Extra room around the kit (the town shows the posad before the gate and the pins above the roofs). */
+  pad = 1;
+  /** Called after every drawn frame with the screen position of each pin (CSS pixels inside the canvas). */
+  onPins: ((list: { id: string; x: number; y: number; depth: number; shown: boolean }[]) => void) | null = null;
 
   constructor(private canvas: HTMLCanvasElement) {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
@@ -132,16 +142,102 @@ export class KitView {
     this.mats['ban:kit'] = this.banner;
     const b = new Builder();
     (KITS[civ] ?? KITS.camelot)(b, Math.min(5, Math.max(1, Math.round(level))), 'ban:kit');
+    const marks = b.marks;
     const g = b.build(this.mats);
     g.scale.setScalar(1.4);
     this.scene.add(g);
     this.kit = g;
     const box = new THREE.Box3().setFromObject(g);
     const size = box.getSize(new THREE.Vector3());
-    this.centerY = Math.min(22, size.y * 0.32);
-    this.want = Math.max(64, Math.hypot(size.x, size.z) * 1.05 + size.y * 0.5);
+    this.placePins(marks, box);
+    // The town is looked at a little lower: the posad before the gate stays in the frame, the sky is left to the pins.
+    this.centerY = Math.min(22, size.y * 0.32) * (this.pad > 1 ? 0.72 : 1);
+    this.span = Math.max(64, Math.hypot(size.x, size.z) * 1.05 + size.y * 0.5);
+    this.fit();
     this.renderer.shadowMap.needsUpdate = true;
     this.dirty = true;
+  }
+
+  /** Which sections get a pin. A section the kit has a building for stands on it; the rest take the most prominent free roofs. */
+  setPins(ids: string[]) {
+    this.pinIds = ids;
+    if (this.kit) this.placePins(this.lastMarks, new THREE.Box3().setFromObject(this.kit));
+    this.dirty = true;
+  }
+  private lastMarks = new Map<string, THREE.Vector3>();
+  private placePins(marks: Map<string, THREE.Vector3>, box: THREE.Box3) {
+    this.lastMarks = marks;
+    this.pins = [];
+    if (!this.kit || !this.pinIds.length) return;
+    this.kit.updateMatrixWorld(true);
+    const ray = new THREE.Raycaster();
+    const down = new THREE.Vector3(0, -1, 0);
+    const top = (x: number, z: number) => {
+      ray.set(new THREE.Vector3(x, box.max.y + 20, z), down);
+      const hit = ray.intersectObject(this.kit!, true)[0];
+      return hit ? hit.point.y : 0;
+    };
+    const k = this.kit.scale.x;
+    const taken: THREE.Vector3[] = [];
+    const rest: string[] = [];
+    for (const id of this.pinIds) {
+      const m = marks.get(id);
+      if (!m) {
+        rest.push(id);
+        continue;
+      }
+      const at = new THREE.Vector3(m.x * k, top(m.x * k, m.z * k) + 2.4, m.z * k);
+      this.pins.push({ id, at });
+      taken.push(at);
+    }
+    if (rest.length) {
+      // Sections without a building of their own yet: the highest roofs that are far enough from every other pin.
+      const size = box.getSize(new THREE.Vector3());
+      // One pass over the vertices: the highest point of every cell of a coarse grid (trees and banners do not count).
+      const N = 11;
+      const peak: (THREE.Vector3 | undefined)[] = new Array(N * N);
+      this.kit.traverse((o) => {
+        const mesh = o as THREE.Mesh;
+        if (!mesh.isMesh || /^(leaf|trunk|ban|fire|pond)/.test(mesh.name)) return;
+        const pos = mesh.geometry.attributes.position as THREE.BufferAttribute;
+        for (let i = 0; i < pos.count; i++) {
+          const x = pos.getX(i) * k;
+          const y = pos.getY(i) * k;
+          const z = pos.getZ(i) * k;
+          const c = Math.min(N - 1, Math.max(0, Math.floor(((x - box.min.x) / size.x) * N))) * N + Math.min(N - 1, Math.max(0, Math.floor(((z - box.min.z) / size.z) * N)));
+          const p = peak[c];
+          if (!p) peak[c] = new THREE.Vector3(x, y, z);
+          else if (y > p.y) p.set(x, y, z);
+        }
+      });
+      const cand = peak.filter((p): p is THREE.Vector3 => !!p).map((p) => p.setY(p.y + 2.4));
+      cand.sort((a, b) => b.y - a.y);
+      let sep = Math.hypot(size.x, size.z) * 0.24;
+      while (rest.length && sep > 1) {
+        for (const c of cand) {
+          if (!rest.length) break;
+          if (taken.every((t) => Math.hypot(t.x - c.x, t.z - c.z) >= sep)) {
+            this.pins.push({ id: rest.shift()!, at: c });
+            taken.push(c);
+          }
+        }
+        sep *= 0.7;
+      }
+    }
+  }
+  /** Turn the camera so that the building of a section faces the viewer. */
+  look(id: string) {
+    const p = this.pins.find((x) => x.id === id);
+    if (!p) return;
+    this.spin = false;
+    this.turnTo = Math.atan2(p.at.x, p.at.z);
+    this.dirty = true;
+  }
+
+  /** Distance at which the whole kit is in the frame: farther on a narrow (portrait) stage. */
+  private fit() {
+    const a = this.camera.aspect;
+    this.want = Math.min(420, this.span * this.pad * (a < 1.35 ? Math.min(2, 1.35 / a) : 1));
   }
 
   resize(w: number, h: number) {
@@ -149,6 +245,7 @@ export class KitView {
     this.renderer.setSize(w, h, false);
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
+    if (!this.zoomed) this.fit();
     this.dirty = true;
   }
 
@@ -157,6 +254,7 @@ export class KitView {
     this.canvas.setPointerCapture?.(e.pointerId);
     this.drag = { x: e.clientX, y: e.clientY };
     this.spin = false;
+    this.turnTo = null;
     if (this.pointers.size === 2) {
       const [a, b] = [...this.pointers.values()] as [{ x: number; y: number }, { x: number; y: number }];
       this.pinch = Math.hypot(a.x - b.x, a.y - b.y);
@@ -168,7 +266,10 @@ export class KitView {
     if (this.pointers.size === 2) {
       const [a, b] = [...this.pointers.values()] as [{ x: number; y: number }, { x: number; y: number }];
       const d = Math.hypot(a.x - b.x, a.y - b.y);
-      if (this.pinch > 0) this.want = Math.min(420, Math.max(45, this.want * (this.pinch / Math.max(1, d))));
+      if (this.pinch > 0) {
+        this.want = Math.min(420, Math.max(45, this.want * (this.pinch / Math.max(1, d))));
+        this.zoomed = true;
+      }
       this.pinch = d;
     } else if (this.drag) {
       this.az -= (e.clientX - this.drag.x) * 0.006;
@@ -186,6 +287,7 @@ export class KitView {
     if (!e.ctrlKey && !e.metaKey) return;
     e.preventDefault();
     this.want = Math.min(420, Math.max(45, this.want * Math.exp(e.deltaY * 0.002)));
+    this.zoomed = true;
     this.dirty = true;
   };
   private onVisibility = () => {
@@ -197,6 +299,13 @@ export class KitView {
     this.raf = requestAnimationFrame(this.frame);
     if (this.spin) {
       this.az += 0.0012;
+      this.dirty = true;
+    }
+    if (this.turnTo !== null) {
+      // The shortest way round.
+      const d = Math.atan2(Math.sin(this.turnTo - this.az), Math.cos(this.turnTo - this.az));
+      if (Math.abs(d) < 0.004) this.turnTo = null;
+      else this.az += d * 0.14;
       this.dirty = true;
     }
     if (Math.abs(this.want - this.dist) > 0.1) {
@@ -213,6 +322,17 @@ export class KitView {
     if (this.camera.position.y < 4) this.camera.position.y = 4;
     this.camera.lookAt(0, this.centerY, 0);
     this.renderer.render(this.scene, this.camera);
+    if (this.onPins && this.pins.length) {
+      const w = this.canvas.clientWidth;
+      const h = this.canvas.clientHeight;
+      const v = new THREE.Vector3();
+      this.onPins(
+        this.pins.map((p) => {
+          v.copy(p.at).project(this.camera);
+          return { id: p.id, x: (v.x * 0.5 + 0.5) * w, y: (-v.y * 0.5 + 0.5) * h, depth: v.z, shown: v.z < 1 && v.x > -1.05 && v.x < 1.05 && v.y > -1.05 && v.y < 1.05 };
+        }),
+      );
+    }
   }
 
   dispose() {

@@ -23,3 +23,11 @@
 | [0019](0019-living-city.md) | «Живое Королевство»: SVG city with a viewBox camera (measured, no PixiJS); district screen over existing facts; four equal architectural styles chosen by the head or admin, logged, no rights; staff groups from roles and confirmed results; skills to self and leads, preferences to self only; «Нет данных» instead of 0 | Accepted (owner master prompt 2026-11-11) |
 | [0020](0020-civilizations-councils.md) | Civilizations & councils: a registry of styles, halls, titles and invitation words; titles from functions and personal choices, never rights; Камелот as a full civilization; small councils and one Great Round Table with a once-only, reasoned hand-over by those with authority; agenda; scenes | Accepted (owner brief 2026-11-11) |
 | [0021](0021-commonwealth-model.md) | Game world model: one organization = one configurable commonwealth («Великое Содружество»); departments are districts that choose civilizations (styles, not tenants); the Great Round Table belongs to the whole commonwealth; real company name kept for administration | Accepted (owner clarification 2026-11-11) |
+| [0022](0022-royal-audience-shortcut.md) | Королевская аудиенция: короткий путь обращения к Королю поверх существующих маршрутов | Draft (owner branch) |
+| [0023](0023-warrior-hall.md) | «Зал воинов»: личные мысли и заметки района | Draft (owner branch) |
+| [0024](0024-interactive-city.md) | Нарисованная панорама города отдела с восемью зданиями-ссылками (Камелот) | Prototype (owner branch) |
+| [0025](0025-russian-tsardom.md) | Русское царство — пятая цивилизация: звания, Боярская дума, панорама, миграция 0018 | Draft (owner branch) |
+| [0026](0026-world3d.md) | 3D-город на Three.js из данных `GET /kingdom`, цитадель отдела, импорт набора организатора, запасная схема | Accepted (owner brief 2026-11-12) |
+| [0027](0027-envoy-cards-defer-ai.md) | Карточки над гонцами, «Отложить решение» со сроком на паузе, «Оценка ИИ» только от подключённой модели | Accepted (owner decisions 2026-11-12) |
+| [0028](0028-cloud-model.md) | Облачная языковая модель за явным согласием, AI-Архивариус; ключ только из окружения | Accepted (owner decision 2026-11-12) |
+| [0029](0029-town3d.md) | Город отдела в 3D как второй вид панорамы, Русское царство в 3D, сведение веток, двойные номера миграций | Accepted (owner request 2026-11-12) |

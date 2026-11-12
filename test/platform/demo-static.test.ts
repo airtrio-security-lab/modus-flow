@@ -34,6 +34,8 @@ before(async () => {
   await writeFile(join(web, 'index.html'), '<!doctype html><title>MODUS FLOW</title><div id="root"></div>');
   await writeFile(join(web, 'assets', 'app-1a2b.js'), 'console.log(1)');
   await writeFile(join(web, 'manifest.webmanifest'), '{}');
+  await mkdir(join(web, 'media'));
+  await writeFile(join(web, 'media', 'town.webp'), 'RIFF');
 });
 after(async () => {
   await Promise.all(servers.map((s) => new Promise((r) => s.close(r))));
@@ -91,6 +93,11 @@ test('the web app is served from the same origin with a strict CSP; traversal an
   const asset = await fetch(`${base}/assets/app-1a2b.js`);
   assert.equal(asset.headers.get('content-type'), 'text/javascript; charset=utf-8');
   assert.match(asset.headers.get('cache-control') ?? '', /immutable/);
+
+  // The painted towns are WebP: with «nosniff» a browser needs the real image type to show them.
+  const picture = await fetch(`${base}/media/town.webp`);
+  assert.equal(picture.headers.get('content-type'), 'image/webp');
+  assert.equal(picture.headers.get('x-content-type-options'), 'nosniff');
 
   for (const p of ['/%2e%2e/%2e%2e/package.json', '/..%2fpackage.json', '/assets/..%2f..%2fpackage.json']) {
     const r = await fetch(`${base}${p}`);

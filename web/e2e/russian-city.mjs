@@ -4,12 +4,14 @@
  */
 import { chromium } from 'playwright';
 import { readFileSync } from 'node:fs';
+import { schematic } from './schematic.mjs';
 
 const BASE = process.env.BASE ?? 'http://127.0.0.1:3100';
 const people = JSON.parse(readFileSync(process.env.PERSONAS ?? '.demo/personas.json', 'utf8')).personas;
 const admin = people.find((p) => p.title === 'Администратор системы');
 if (!admin) throw new Error('Missing demo admin persona');
-const browser = await chromium.launch();
+// The scenario enters through the schematic city; the 3D city has its own scenario (world3d-flow.mjs).
+const browser = schematic(await chromium.launch());
 const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
 const page = await ctx.newPage();
 let oldStyle = null;
@@ -30,7 +32,8 @@ try {
   await page.getByRole('button', { name: new RegExp(admin.name) }).click();
   await page.waitForSelector('.shell');
   await page.goto(BASE + '/#/kingdom');
-  await page.locator('.realm-castle').first().click();
+  // The demo already has a Russian district; take one of another style, so the switch and the restore are real.
+  await page.locator('.realm-castle:not([aria-label*="Русское царство"])').first().click();
   await page.waitForURL(/#\/castles\/[0-9a-f-]{36}$/);
   dept = page.url().split('#')[1].split('/')[2];
   oldStyle = (await api('GET', '/castles/' + dept + '/district')).civilization.id;
@@ -42,7 +45,7 @@ try {
     img.complete && img.naturalWidth > 1000);
   if (!imgOK) throw new Error('Russian city asset not loaded');
   if (await page.locator('.town-hotspot').count() !== 8) throw new Error('Expected 8 buildings');
-  await page.getByRole('navigation', { name: 'Все здания Русское царство' })
+  await page.getByRole('navigation', { name: 'Все здания Русского царства' })
     .getByRole('link', { name: /Боярская дума/ }).click();
   await page.waitForURL(new RegExp('#/castles/' + dept + '/council$'));
   console.log('✓ Russian Tsardom panorama, eight buildings, Boyar Duma route');

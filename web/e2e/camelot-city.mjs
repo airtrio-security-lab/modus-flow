@@ -5,12 +5,14 @@
  */
 import { chromium } from 'playwright';
 import { readFileSync } from 'node:fs';
+import { schematic } from './schematic.mjs';
 
 const BASE = process.env.BASE ?? 'http://localhost:3100';
 const personas = JSON.parse(readFileSync(process.env.PERSONAS ?? '.demo/personas.json', 'utf8')).personas;
 const admin = personas.find((p) => p.title === 'Администратор системы');
 if (!admin) throw new Error('Missing demo admin persona');
-const browser = await chromium.launch();
+// The scenario enters through the schematic city; the 3D city has its own scenario (world3d-flow.mjs).
+const browser = schematic(await chromium.launch());
 
 async function session(viewport) {
   const ctx = await browser.newContext({ viewport });

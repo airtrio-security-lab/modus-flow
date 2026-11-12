@@ -73,6 +73,7 @@ const camelot: Kit = (b, L, ban) => {
       const a2 = a + (Math.PI * 2) / 9;
       palisade(b, x, z, Math.sin(a2) * R, Math.cos(a2) * R, 4);
     }, -Math.PI / 9);
+    b.mark('growth', -5, 0, -4).mark('council', 5, 0, -3).mark('staff', 4, 0, 6).mark('tasks', -6, 0, 6).mark('initiatives', 0, 0, 3);
     b.at(-5, 0, -4, 0, () => {
       roundTower(b, 'stone', 3.2, 8, null);
       b.at(4.6, 0, 0, Math.PI / 2, () => scaffold(b, 4, 9));
@@ -106,6 +107,10 @@ const camelot: Kit = (b, L, ban) => {
   const kw = [0, 0, 9, 11, 12.5, 14][L]!;
   const kh = [0, 0, 15, 20, 26, 32][L]!;
   b.at(L >= 3 ? -W * 0.25 : 0, 0, -D * 0.35, 0, () => donjon(b, ban, kw, kh, L >= 3));
+  // Where the sections of the town live (the pins of the 3D town): a building once it is built.
+  b.mark('growth', L >= 3 ? -W * 0.25 : 0, 0, -D * 0.35).mark('warriors', 0, 0, D).mark('archive', W, 0, -D).mark('staff', -W * 0.55, 0, D * 0.45).mark('initiatives', 0, 0, D * 0.42);
+  if (L >= 3) b.mark('council', W * 0.45, 0, -D * 0.3).mark('tasks', W * 0.5, 0, D * 0.45);
+  if (L >= 4) b.mark('library', -W * 0.6, 0, -D * 0.05);
   // Buildings of the ward.
   if (L >= 3) b.at(W * 0.45, 0, -D * 0.3, Math.PI / 2, () => hall(b, 'stone', 'slate', 15, 7.5, 6, 5, { chimney: true }));
   if (L >= 3) b.at(W * 0.5, 0, D * 0.45, 0, () => hall(b, 'wood', 'slate', 8, 5.5, 3.6, 3.2));
@@ -630,6 +635,7 @@ function russia(b: Builder, L: number, ban: string) {
       const a2 = a + (Math.PI * 2) / 9;
       palisade(b, x, z, Math.sin(a2) * R, Math.cos(a2) * R, 4.2);
     }, -Math.PI / 9);
+    b.mark('growth', -6, 0, -5).mark('library', 4.5, 0, -4).mark('tasks', -4.5, 0, 5).mark('staff', 5, 0, 5.5).mark('initiatives', 0, 0, 2);
     b.at(-6, 0, -5, 0, () => watchtower(b, 10, 'woodLight'));
     b.at(4.5, 0, -4, 0, () => logChurch(b, 4.2));
     izba(-4.5, 5, 0.2);
@@ -662,6 +668,11 @@ function russia(b: Builder, L: number, ban: string) {
   }
   if (L >= 4) for (const [x, z] of [[-W, 0], [W, 0], [0, -D]] as [number, number][]) b.at(x, 0, z, 0, () => rusTower(b, 'brickRed', 4.6, th - 2.5, 5, 'copper'));
   if (L >= 5) for (const [x, z] of [[-W * 0.5, D], [W * 0.5, D], [-W * 0.5, -D], [W * 0.5, -D]] as [number, number][]) b.at(x, 0, z, 0, () => rusTower(b, 'brickRed', 4, th - 4, 4.4, 'tileGreen'));
+  // Where the sections of the town live (the pins of the 3D town): a building once it is built.
+  b.mark('growth', L === 2 ? -W * 0.3 : -W * 0.22, 0, L === 2 ? -D * 0.25 : -D * 0.28).mark('council', W * 0.4, 0, -D * 0.38).mark('warriors', 0, 0, D);
+  b.mark('tasks', -W * 0.6, 0, D * 0.55).mark('initiatives', L >= 3 ? -W * 0.55 : 0, 0, L >= 3 ? D + 7 : D * 0.3);
+  if (L >= 4) b.mark('archive', -W * 0.62, 0, -D * 0.5).mark('library', W * 0.62, 0, D * 0.05);
+  b.mark('staff', L >= 5 ? -W * 0.55 : W * 0.15, 0, L >= 5 ? D * 0.25 : D * 0.5);
   // The heart of the town: the cathedral, the bell tower, the terem.
   if (L === 2) b.at(-W * 0.3, 0, -D * 0.25, 0, () => logChurch(b, 5.4));
   else b.at(-W * 0.22, 0, -D * 0.28, 0, () => cathedral(b, [0, 0, 0, 8.5, 11, 12.5][L]!, [0, 0, 0, 8, 10, 11.5][L]!, L >= 4 ? 5 : 1));
@@ -680,7 +691,14 @@ function russia(b: Builder, L: number, ban: string) {
   // The posad before the gate: trading rows and carts.
   if (L >= 3) b.at(-W * 0.55, 0, D + 7, 0, () => rows(b, L >= 4 ? 16 : 11));
   if (L >= 5) b.at(W * 0.55, 0, D + 7, 0, () => rows(b, 16));
-  if (L === 2) b.at(W * 0.6, 0, D + 5, 0.4, () => cart(b));
+  // Before the rows are built, two market stalls stand at the gate.
+  if (L === 2)
+    for (const [x, r, top] of [[W * 0.55, 0.3, 'red'], [W * 0.78, -0.2, 'woodLight']] as [number, number, MatKey][])
+      b.at(x, 0, D + 5, r, () => {
+        for (const sx of [-1, 1]) for (const sz of [-1, 1]) b.add('wood', cyl(0.08, 0.08, 2.2, 5), sx * 1.3, 0, sz * 0.9);
+        b.add(top, box(3, 0.14, 2.2), 0, 2.2, 0);
+        b.add('wood', box(2.4, 0.9, 1), 0, 0, 0);
+      });
   for (const [x, z] of [[-W - 6, -D * 0.4], [W + 6, D * 0.3], [-W - 5, D * 0.6]] as [number, number][]) tree(b, x, z, 'leaf', 1.1);
 }
 

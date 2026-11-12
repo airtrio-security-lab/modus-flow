@@ -20,7 +20,7 @@ const storekeeper = by('Кладовщик');
 const whHead = by('Начальник склада');
 const ops = by('Операционный директор');
 const SHOTS = process.env.SHOTS;
-const CIV = { camelot: 'Камелот', japan: 'Японский сёгунат', kazakh: 'Казахское ханство', mongolia: 'Монгольская держава' };
+const CIV = { camelot: 'Камелот', japan: 'Японский сёгунат', kazakh: 'Казахское ханство', mongolia: 'Монгольская держава', russia: 'Русское царство' };
 
 const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
 const errors = [];
@@ -167,8 +167,11 @@ try {
 
     // 4. Into the citadel: the same department screen, the castle in 3D, a labelled preview of the next levels.
     await page.getByRole('button', { name: 'Войти в цитадель' }).click();
-    await page.locator('.district-head').waitFor({ timeout: 20000 });
+    await page.locator('.district-tabs').waitFor({ timeout: 20000 });
     must(page.url().endsWith(`#/castles/${target.id}`), 'the citadel is the department screen');
+    // Camelot and the Russian Tsardom open on their painted town; the citadel and the header are on every other tab.
+    if (!(await page.locator('.district-head').count())) await page.goto(`${BASE}/#/castles/${target.id}/staff`);
+    await page.locator('.district-head').waitFor({ timeout: 20000 });
     await page.locator('.citadel3d-levels').waitFor({ timeout: 60000 });
     await page.waitForFunction(() => !document.querySelector('.citadel3d-wait'), null, { timeout: 90000 });
     must((await page.locator('.citadel3d-cap').innerText()).includes(`уровень ${target.level}`), 'the citadel shows the real level');
@@ -335,6 +338,64 @@ try {
     await page.locator('table.work-table').waitFor({ timeout: 30000 });
     step('старый сохранённый выбор «карта» не скрывает 3D; выбор «таблица» сохранён');
   });
+
+  // 7b. The town of a district in 3D (ADR-0029): the Russian Tsardom of the demo, eight buildings, each a plain link.
+  await as(storekeeper, async (page) => {
+    const k = await page.evaluate(async () => (await fetch('/api/v1/orgs/modus-demo/kingdom', { headers: { authorization: `Bearer ${sessionStorage.getItem('modus.token')}` } })).json());
+    const rus = k.castles.find((c) => c.name === 'Закупки');
+    must(rus, 'the demo has the purchasing district');
+    await page.goto(`${BASE}/#/castles/${rus.id}/city`);
+    // The painted panorama is the default; 3D is the second view of the same town and is remembered.
+    await page.locator('.town-canvas img').waitFor({ timeout: 30000 });
+    must((await page.locator('.town-hotspot').count()) === 8, 'the painted Russian town has eight buildings');
+    await page.getByRole('group', { name: 'Вид города' }).getByRole('button', { name: '3D' }).click();
+    await page.locator('.town3d-pin').first().waitFor({ state: 'attached', timeout: 90000 });
+    must((await page.locator('.citadel3d').getAttribute('aria-label')).includes('Город отдела «Закупки» в 3D'), 'the 3D town is named');
+    must((await page.locator('.town3d-pin').count()) === 8, 'eight pins stand over the 3D town');
+    await page.waitForFunction(() => [...document.querySelectorAll('.town3d-pin')].filter((e) => e.style.visibility === 'visible').length >= 6, null, { timeout: 60000 });
+    const names = await page.locator('.town3d-list a strong').allInnerTexts();
+    must(['Московский Кремль', 'Боярская дума', 'Торговая площадь', 'Воинская палата'].every((n) => names.includes(n)), `the list names the Russian buildings: ${names.join(', ')}`);
+    must((await page.locator('.citadel3d-cap').innerText()).includes('Русское царство'), 'the caption names the civilization');
+    // A higher level is a labelled preview: the real level does not change.
+    await page.getByRole('button', { name: /Уровень 5/ }).click();
+    await page.getByText('Предпросмотр уровня 5').waitFor();
+    await page.waitForTimeout(1500);
+    await shot(page, '08-town3d-russia');
+    must((await page.evaluate(() => localStorage.getItem('modus.town.view'))) === '3d', 'the choice of 3D is remembered');
+    // A pin and a list entry are the same ordinary link.
+    const pin = page.locator('.town3d-pin', { hasText: 'Боярская дума' });
+    must((await pin.getAttribute('href')) === `#/castles/${rus.id}/council`, 'the pin of the Duma leads to the council of the district');
+    await page.getByRole('navigation', { name: 'Все здания города «Закупки»' }).getByRole('link', { name: /Торговая площадь/ }).click();
+    await page.waitForFunction((id) => location.hash === `#/castles/${id}/initiatives`, rus.id, { timeout: 20000 });
+    step('город отдела в 3D: Русское царство, восемь зданий-ссылок, предпросмотр уровня подписан, выбор вида запоминается');
+    // A civilization without a painted panorama gets the 3D town straight away, with the hall named by the server.
+    const it = k.castles.find((c) => c.name === 'ИТ-разработка');
+    await page.goto(`${BASE}/#/castles/${it.id}/city`);
+    await page.locator('.town3d-pin').first().waitFor({ state: 'attached', timeout: 90000 });
+    must((await page.getByRole('group', { name: 'Вид города' }).count()) === 0, 'no panorama switch where no panorama is painted');
+    must((await page.locator('.town3d-list a strong').allInnerTexts()).includes('Зал даймё'), 'the council hall of the Japanese district keeps its name');
+    await page.evaluate(() => localStorage.removeItem('modus.town.view'));
+    step('город без нарисованной панорамы открывается сразу в 3D');
+  });
+  // 7c. Without WebGL the town is the list of its buildings, and it says so.
+  await as(
+    storekeeper,
+    async (page) => {
+      const k = await page.evaluate(async () => (await fetch('/api/v1/orgs/modus-demo/kingdom', { headers: { authorization: `Bearer ${sessionStorage.getItem('modus.token')}` } })).json());
+      const it = k.castles.find((c) => c.name === 'ИТ-разработка');
+      await page.goto(`${BASE}/#/castles/${it.id}/city`);
+      await page.getByText('3D здесь недоступно').waitFor({ timeout: 30000 });
+      must((await page.locator('.town3d-list a').count()) === 8 && (await page.locator('.town3d-pin').count()) === 0, 'the list of eight buildings replaces the 3D town');
+      step('без WebGL город отдела — список зданий с объяснением');
+    },
+    DESK,
+    () => {
+      const real = HTMLCanvasElement.prototype.getContext;
+      HTMLCanvasElement.prototype.getContext = function (type, ...rest) {
+        return /webgl/.test(type) ? null : real.call(this, type, ...rest);
+      };
+    },
+  );
 
   // 8. Phone: the same world, a bottom tab bar, a bottom sheet, the list as an alternative to the map.
   await as(

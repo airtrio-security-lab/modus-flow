@@ -148,7 +148,8 @@ test('small councils: the invitation speaks the words of the district, the facts
   assert.equal((await asUser(master, 'SELECT * FROM meeting_agenda WHERE meeting_id = $1', [id])).rowCount, 1);
   assert.equal((await asUser(w.colleague, 'SELECT * FROM meeting_agenda WHERE meeting_id = $1', [id])).rowCount, 0);
   const view = await meetings.getMeeting(db, f.head.actor, id, { model: null, engine: null });
-  assert.deepEqual([view.place.council, view.place.hall], ['small', 'Совет нойонов']);
+  // The loop above ends on the Russian Tsardom, so the place carries its hall.
+  assert.deepEqual([view.place.council, view.place.hall], ['small', 'Боярская дума']);
   await setCiv('japan');
 });
 
