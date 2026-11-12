@@ -1,0 +1,17 @@
+# Local PostgreSQL for the platform API and its tests. Not a production setup.
+# "modus" owns the schema (migrations, provisioning, tests);
+# "modus_api" is the unprivileged login the API server uses (RLS always applies).
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: modus
+      POSTGRES_PASSWORD: modus-local-only
+      POSTGRES_DB: modus
+    ports:
+      - "127.0.0.1:${MODUS_PG_PORT:-5432}:5432"
+    volumes:
+      - modus-pg:/var/lib/postgresql/data
+      - ./platform/db/dev/init-roles.sql:/docker-entrypoint-initdb.d/10-roles.sql:ro
+volumes:
+  modus-pg:

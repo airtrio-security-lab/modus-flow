@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# Blocks the commit when typecheck, unit tests or any staged test file fails.
+set -euo pipefail
+staged=$(git diff --cached --name-only --diff-filter=ACM | grep -E '^test/.*\.test\.ts$' || true)
+# shellcheck disable=SC2086
+exec scripts/verify.sh --quick $staged

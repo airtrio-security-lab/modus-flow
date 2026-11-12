@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# Blocks the push unless the full local gate passes.
+set -euo pipefail
+exec scripts/verify.sh

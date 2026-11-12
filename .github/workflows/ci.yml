@@ -1,18 +1,36 @@
 name: CI
 on:
   push:
-    branches: [main, feat/mvp-foundation]
+    branches: [main]
   pull_request:
 jobs:
   test:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: modus
+          POSTGRES_PASSWORD: modus-ci
+          POSTGRES_DB: modus
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U modus"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      TEST_DATABASE_URL: postgres://modus:modus-ci@127.0.0.1:5432/postgres
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: ''
-      - run: npm test
+          cache: npm
+      - run: npm ci
       - run: npm run check
+      - run: npm run test:legacy
+      - run: npm run test:platform

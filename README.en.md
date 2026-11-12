@@ -32,7 +32,7 @@ Workplaces generate ideas, concerns, improvement requests and decisions every da
 | **04 / Deliver** | **05 / Verify** | **06 / Remember** |
 | The work moves through a documented process. | The real implementation and impact are confirmed. | Learning progresses through the Chronicle, Library and Higher Archive. |
 
-**Human judgment remains authoritative.** AI may advise, not automatically approve. The current advisor is rule-based, clearly labelled as such; a connected LLM is not shipped.
+**Human judgment remains authoritative.** AI may advise, not automatically approve. The advisor is rule-based and labelled as such; a language model is optional, off by default, and where none is connected the interface says so instead of imitating one.
 
 ## Why the Commonwealth?
 
@@ -64,12 +64,13 @@ The **Great Commonwealth** is an optional visual workspace **over the service**.
 | **Japanese Shogunate** | Tiered castles, gardens, wooden walkways | Daimyō Hall |
 | **Kazakh Khanate** | Khan's orda, yurts and steppe settlement | Khan's Yurt |
 | **Mongol Realm** | Encampments, banners, nomadic structures | Noyons' Council |
+| **Russian Tsardom** | Red-brick kremlin, tent-roofed towers, white-stone cathedrals, trading rows | Boyar Duma |
 
 A civilization is a visual department setting: **it never changes access rights, XP rules, pay or job roles**. The standard non-graphic workplace stays available.
 
 ## Progress backed by evidence
 
-In the experimental platform branch, an append-only XP ledger is linked to confirmed implementation and impact. Merely filing an idea grants no progress. Database-level constraints prevent duplicate awards for a single qualifying event.
+In the platform, an append-only XP ledger is linked to confirmed implementation and impact. Merely filing an idea grants no progress. Database-level constraints prevent duplicate awards for a single qualifying event.
 
 **A person → an issue → a decision → implementation → evidence → knowledge.**
 
@@ -77,34 +78,44 @@ In the experimental platform branch, an append-only XP ledger is linked to confi
 
 <div align="center"><img src=".github/media/service-architecture.svg" width="100%" alt="MODUS FLOW architecture: client, API, authorization, database and optional visual layer" /></div>
 
-**Current \`main\`:** isolated Node.js demo with employee submission, role-scoped state transitions, status history and Russian UI. The active [\`feat/kingdom-map\` branch](../../tree/feat/kingdom-map) contains a broader React / TypeScript / PostgreSQL platform, departmental councils, knowledge and a responsive SVG city. Cinematic Three.js / React Three Fiber 3D is a **development direction**, not a shipped capability.
+**\`main\`** contains the React / TypeScript / Node.js / PostgreSQL 16 platform: issues with routing and deadlines, decisions with history, row-level access control, councils and meetings, knowledge, a mobile PWA. The Commonwealth city has three views of the same data and rights: a Three.js 3D scene, an SVG schematic and an ordinary work table. The early standalone Node.js demo is kept alongside.
 
 | Component | Technology / approach |
 |:--|:--|
-| Early demo in \`main\` | Node.js, browser UI, native Node test runner |
-| Active platform branch | React, TypeScript, Vite, Node.js, PostgreSQL 16, RLS |
+| Platform | React, TypeScript, Vite, Node.js, PostgreSQL 16, RLS |
 | Decisions and evidence | Authorized API, domain rules, history and idempotent XP |
-| Current visual city | React/SVG and ordinary non-graphic workflow |
-| 3D art direction | Three.js / React Three Fiber, subject to implementation |
-| Access | Desktop/mobile web; physical-device 3D testing pending |
+| Commonwealth city | Three.js (procedural models and materials, no third-party assets), SVG fallback, work table |
+| District town | Painted panorama (Camelot, Russian Tsardom) and the same town in 3D |
+| Language model | Optional and off by default; without it the interface says "not connected" |
+| Access | Desktop/mobile web |
+| Early demo | Node.js, browser UI, native Node test runner |
+
+**Not done and not verified yet.** The 3D scene is procedural geometry and is below the concept art above; there are no authored 3D models and no moving envoys or residents. Frame rate was measured on software rendering only and the phone layout in emulation only: real GPUs and devices are still to be tested. Project checks run locally; GitHub CI is not running at the moment.
 
 **Security:** this is an evolving system, **not approved to handle real employee information in production**. Real authentication, operational controls and privacy/legal reviews are still required.
 
 ## Run the demo
 
-Current **\`main\`** supports an isolated demo using Node.js ≥ 22.
+**Platform with demo data** (macOS / Linux, Node.js ≥ 22.18, Docker running for PostgreSQL 16; all people and issues are fictional):
 
 ~~~bash
 git clone https://github.com/airtrio-security-lab/modus-flow.git
 cd modus-flow
+./scripts/demo-local.sh --fresh --dataset
+# http://127.0.0.1:3100
+~~~
+
+Details, tests and the local release gate: [DEVELOPMENT.md](DEVELOPMENT.md). 3D city walkthrough: [docs/demo/world3d-demo.md](docs/demo/world3d-demo.md) (Russian).
+
+**Early standalone demo** (no database):
+
+~~~bash
 npm ci
 DEMO_MODE=true npm start
 # http://localhost:3000
-
-npm test
 ~~~
 
-The demo exposes example bearer tokens in browser source. **Never put it on the public internet or use real staff data.** For the PostgreSQL platform see the [feature branch README](../../blob/feat/kingdom-map/README.md).
+The demo sign-in is intentionally insecure. **Never put it on the public internet or use real staff data.**
 
 ## Art direction and identity
 

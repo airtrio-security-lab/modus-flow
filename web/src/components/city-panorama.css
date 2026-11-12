@@ -1,0 +1,55 @@
+.town-section{overflow:hidden;border:1px solid #b79b66;border-radius:18px;background:#101e2d;color:#f5eddd;box-shadow:0 18px 50px #090e1850}
+.town-heading{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:1.3rem 1.5rem;background:linear-gradient(105deg,#112234,#304257 70%,#453c2b)}
+.town-heading h1{margin:.2rem 0;font:700 clamp(1.7rem,3vw,2.7rem)/1.15 Georgia,serif}
+.town-heading h1 span{color:#e5c38a}.town-heading p{margin:.3rem 0 0;color:#d6d5d0;max-width:60ch}
+.town-overline{color:#cfb57e;text-transform:uppercase;font-size:.7rem;letter-spacing:.18em}
+.town-heading-actions{display:grid;justify-items:end;gap:.5rem}.town-level{border:1px solid #ae946b;background:#182a3dcc;color:#f2d7a7;padding:.4rem .8rem;border-radius:999px;font-size:.82rem}
+.town-heading .btn{color:#f4e8cd;border-color:#967e53}
+.town-scroll{overflow-x:auto;overflow-y:hidden;overscroll-behavior-x:contain;background:#1d2934}
+.town-canvas{position:relative;width:100%;min-width:880px;aspect-ratio:1448/1086;max-height:none}
+.town-canvas>img{display:block;width:100%;height:100%;object-fit:cover}
+.town-hotspots{position:absolute;inset:0;pointer-events:none}
+.town-hotspot{position:absolute;display:grid;place-items:center;translate:-50% -50%;width:48px;height:48px;border:1px solid #e8cf98;border-radius:50%;background:#14283acf;box-shadow:0 0 0 5px #e6b86b36,0 5px 15px #0008;color:#f6dfab;text-decoration:none;pointer-events:auto;z-index:1;transition:box-shadow .18s,background .18s,scale .18s}
+.town-hotspot:hover,.town-hotspot:focus-visible,.town-hotspot.is-active{z-index:10;scale:1.12;outline:3px solid #f8e4ae;outline-offset:3px;background:#4b3924;box-shadow:0 0 0 8px #efc77855,0 5px 25px #000b}
+.town-hotspot-dot{font-size:1.65rem;line-height:1}
+.town-hotspot-info{display:none;position:absolute;bottom:calc(100% + 12px);left:50%;translate:-50% 0;min-width:180px;padding:.6rem .8rem;text-align:center;border:1px solid #c4a16d;border-radius:8px;background:#101d2aef;color:#fff4e3;box-shadow:0 6px 24px #0008;white-space:nowrap;pointer-events:none}
+.town-hotspot-info strong,.town-hotspot-info small{display:block}.town-hotspot-info small{margin-top:.15rem;color:#dcc7a1}
+.town-hotspot:hover .town-hotspot-info,.town-hotspot:focus-visible .town-hotspot-info,.town-hotspot.is-active .town-hotspot-info{display:block}
+.town-shortcuts{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:.5rem;padding:1rem;background:#162536}
+.town-shortcuts a{display:grid;gap:.3rem;padding:.75rem;border:1px solid #71664c;border-radius:7px;text-decoration:none;color:#f0e5d0;background:#263444}
+.town-shortcuts a:hover,.town-shortcuts a:focus-visible,.town-shortcuts a.is-active{outline:2px solid #e9c485;outline-offset:1px;background:#34465a}
+.town-shortcuts small{font-size:.75rem;color:#d9c6a6}.town-instruction{padding:0 1rem 1rem!important;margin:0!important;color:#bdbbad!important}
+@media(max-width:900px){.town-shortcuts{grid-template-columns:repeat(2,minmax(0,1fr))}.town-heading{flex-wrap:wrap}.town-heading-actions{justify-items:start}}
+@media(max-width:480px){.town-heading{padding:1rem}.town-canvas{min-width:880px}.town-hotspot{width:44px;height:44px}.town-shortcuts{gap:.4rem;padding:.6rem}.town-shortcuts a{padding:.6rem}.town-shortcuts small{font-size:.7rem}}
+@media(prefers-reduced-motion:reduce){.town-hotspot{transition:none}}
+
+
+/* Layered, pointer-transparent atmosphere shared by the cinematic towns. */
+.town-atmosphere{position:absolute;inset:0;pointer-events:none;overflow:hidden;z-index:1}
+.town-hotspots{z-index:2}
+.town-atmo-cloud{position:absolute;top:7%;left:-29%;width:30%;height:9%;border-radius:50%;background:radial-gradient(ellipse,rgba(255,250,231,.42),rgba(241,243,235,.08) 63%,transparent 76%);filter:blur(11px);animation:town-cloud-drift 95s linear infinite;opacity:.7}
+.town-atmo-cloud-b{top:17%;left:-25%;width:24%;height:8%;animation-duration:123s;animation-delay:-42s;opacity:.53}
+.town-atmo-haze{position:absolute;inset:0;background:linear-gradient(0deg,rgba(218,209,188,.11),transparent 32%),radial-gradient(ellipse at 35% 43%,rgba(250,244,224,.10),transparent 35%);animation:town-haze-breathe 13s ease-in-out infinite alternate}
+.town-atmo-smoke{position:absolute;left:44%;top:66%;height:3.5%;width:2.4%;border-radius:50%;filter:blur(8px);background:radial-gradient(circle,rgba(244,244,234,.5),rgba(223,233,225,.09),transparent);animation:town-smoke-rise 9s ease-out infinite;opacity:0}
+.town-atmo-smoke-b{left:76%;top:56%;animation-delay:-4.5s;animation-duration:11s}
+@keyframes town-cloud-drift{from{transform:translateX(0)}to{transform:translateX(550%)}}
+@keyframes town-haze-breathe{from{opacity:.35}to{opacity:.8}}
+@keyframes town-smoke-rise{0%{transform:translate(0,15px) scale(.5);opacity:0}18%{opacity:.48}100%{transform:translate(23px,-90px) scale(2);opacity:0}}
+@media(prefers-reduced-motion:reduce){
+  .town-atmo-cloud,.town-atmo-haze,.town-atmo-smoke{animation:none!important}
+  .town-atmo-cloud,.town-atmo-smoke{opacity:0!important}
+}
+
+/* Three subtle window glints and two long, infrequent bird flights. */
+.town-atmo-light{position:absolute;width:9px;height:9px;border-radius:50%;background:radial-gradient(circle,#ffdfa0,rgba(244,173,63,.48) 46%,transparent 72%);box-shadow:0 0 16px 6px rgba(250,189,83,.15);animation:town-flicker 3.8s ease-in-out infinite alternate;opacity:.62}
+.town-atmo-light-a{left:32%;top:43%}.town-atmo-light-b{left:68%;top:39%;animation-delay:-1.8s}.town-atmo-light-c{left:78%;top:56%;animation-delay:-2.6s}
+.town-atmo-birds{position:absolute;top:12%;left:-5%;width:15px;height:10px;opacity:.5;animation:town-bird-flight 32s linear infinite}
+.town-atmo-birds-b{top:18%;left:-9%;animation-delay:-16s;animation-duration:43s;opacity:.38}
+.town-atmo-birds::before,.town-atmo-birds::after{content:"";position:absolute;top:4px;width:9px;height:2px;border-radius:100%;background:rgba(42,47,52,.8)}
+.town-atmo-birds::before{left:0;transform:rotate(-24deg)}.town-atmo-birds::after{right:0;transform:rotate(24deg)}
+@keyframes town-flicker{0%{opacity:.36;scale:.86}100%{opacity:.85;scale:1.1}}
+@keyframes town-bird-flight{from{transform:translate(0,0) scale(.8)}to{transform:translate(1650px,-20px) scale(1)}}
+@media(prefers-reduced-motion:reduce){
+  .town-atmo-birds,.town-atmo-light{animation:none!important}
+  .town-atmo-birds{opacity:0!important}
+}

@@ -8,4 +8,4 @@
 - **13 Nov**: deployment rehearsal, backups and restore test.
 - **14 Nov**: production gate based on passing security and operational criteria.
 
-Do not call the app production-ready until all blockers in README are closed.
+Do not call the app production-ready until all blockers in DEVELOPMENT.md are closed.

@@ -5,10 +5,54 @@
   "scripts": {
     "dev": "node --watch src/server.js",
     "start": "node src/server.js",
-    "test": "node --test",
-    "check": "node --check src/server.js && node --check src/domain.js"
+    "test": "npm run test:legacy && npm run test:platform",
+    "test:legacy": "node --test \"test/*.test.js\"",
+    "test:domain": "node --test test/platform/domain.test.ts",
+    "test:platform": "node --test --test-concurrency=1 \"test/platform/*.test.ts\"",
+    "typecheck": "tsc -p .",
+    "check": "node --check src/server.js && node --check src/domain.js && npm run typecheck",
+    "verify": "scripts/verify.sh",
+    "verify:quick": "scripts/verify.sh --quick",
+    "gate:selftest": "scripts/gate-selftest.sh",
+    "asr:smoke": "node scripts/asr-smoke.mjs",
+    "asr:server": "python3 scripts/whisper-server.py",
+    "hooks:install": "git config core.hooksPath .githooks",
+    "platform:start": "node platform/main.ts",
+    "platform:migrate": "node platform/cli/migrate.ts",
+    "platform:seed-demo": "node platform/cli/seed-demo.ts",
+    "platform:token": "node platform/cli/issue-token.ts",
+    "platform:seed-modus-demo": "node platform/cli/seed-modus-demo.ts",
+    "platform:import-dataset": "node platform/cli/import-dataset.ts",
+    "platform:escalate": "node platform/cli/escalate.ts",
+    "platform:retention": "node platform/cli/retention.ts",
+    "platform:ledger": "node platform/cli/erasure-ledger.ts",
+    "web:build": "npm --prefix web ci && npm --prefix web run build",
+    "demo:seed": "node platform/cli/seed-modus-demo.ts",
+    "demo:start": "node platform/cli/demo-start.ts",
+    "demo:e2e": "node web/e2e/demo-flow.mjs",
+    "demo:kingdom": "node web/e2e/kingdom-flow.mjs",
+    "demo:record": "node web/e2e/record-demo.mjs",
+    "demo:advisor": "node web/e2e/advisor-flow.mjs",
+    "demo:meeting": "node web/e2e/meeting-flow.mjs",
+    "demo:messages": "node web/e2e/messages-flow.mjs",
+    "demo:legacy": "node web/e2e/legacy-flow.mjs",
+    "demo:final": "node web/e2e/final-flow.mjs",
+    "demo:city": "node web/e2e/city-flow.mjs",
+    "demo:councils": "node web/e2e/councils-flow.mjs",
+    "demo:world3d": "node web/e2e/world3d-flow.mjs",
+    "demo:town:camelot": "node web/e2e/camelot-city.mjs",
+    "demo:town:russia": "node web/e2e/russian-city.mjs"
   },
   "engines": {
     "node": ">=22"
+  },
+  "dependencies": {
+    "pg": "^8.23.1",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.5",
+    "@types/pg": "^8.23.1",
+    "typescript": "^5.9.3"
   }
 }
