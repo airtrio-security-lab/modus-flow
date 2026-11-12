@@ -35,7 +35,7 @@ export interface CivilizationTitles {
   member: string;
 }
 export interface Civilization {
-  id: 'camelot' | 'japan' | 'mongolia' | 'kazakh';
+  id: 'camelot' | 'japan' | 'mongolia' | 'kazakh' | 'russia';
   name: string;
   motto: string;
   /** Where the small council of a department in this style meets. */
@@ -69,6 +69,14 @@ export const CIVILIZATIONS: readonly Civilization[] = [
     hall: 'Ханская юрта',
     invite: (a) => `${a}, в Орде созывается совет`,
     titles: { head: 'Хан', deputy: 'Султан', authorized: 'Би', master: 'Шебер', honor: 'Батыр', novice: null, member: 'Житель Орды' },
+  },
+  {
+    id: 'russia',
+    name: 'Русское царство',
+    motto: 'Москва XVI–XVII веков: краснокирпичный Кремль, соборы, боярские палаты и торговые ряды',
+    hall: 'Боярская дума',
+    invite: (a) => `${a}, вас приглашают в Боярскую думу`,
+    titles: { head: 'Воевода', deputy: 'Думный дьяк', authorized: 'Дьяк', master: 'Мастеровой', honor: 'Богатырь', novice: null, member: 'Житель царства' },
   },
   {
     id: 'mongolia',
