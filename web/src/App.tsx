@@ -154,6 +154,7 @@ function Shell() {
   else
     page = (
       <div className="empty">
+        <h1 className="empty-title">{['work', 'overview', 'settings'].includes(head) ? 'Раздел недоступен' : 'Страница не найдена'}</h1>
         {['work', 'overview', 'settings'].includes(head)
           ? head === 'settings'
             ? 'Настройки доступны администраторам системы.'

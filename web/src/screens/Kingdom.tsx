@@ -504,7 +504,7 @@ function Realm({
             {...cam.handlers}
             viewBox={`${cam.view.x} ${cam.view.y} ${cam.view.w} ${cam.view.h}`}
             style={{ touchAction: zoomed ? 'none' : 'pan-y' }}
-            role="img"
+            role="group"
             aria-label={`Город Содружества «${realm}»: ${k.castles.length} замков подразделений, ${envoysWord(k.envoys.length)} в работе`}
           >
             {scene}

@@ -116,17 +116,17 @@ export function ItemPage({ number }: { number: number }) {
       <div className="item-grid">
         <div className="stack-lg">
           <section className="essence panel" aria-label="Суть обращения">
-            <h3>{item.kind === 'problem' ? 'Что происходит' : 'Проблема'}</h3>
+            <h2>{item.kind === 'problem' ? 'Что происходит' : 'Проблема'}</h2>
             <p className="prose">{current.problem}</p>
             {current.proposal && (
               <>
-                <h3>Предложение</h3>
+                <h2>Предложение</h2>
                 <p className="prose">{current.proposal}</p>
               </>
             )}
             {current.success_criteria && (
               <>
-                <h3>Как поймём, что решено</h3>
+                <h2>Как поймём, что решено</h2>
                 <p className="prose">{current.success_criteria}</p>
               </>
             )}

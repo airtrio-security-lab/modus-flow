@@ -636,7 +636,7 @@ function ArgueForm({ number, canRecommend, onDone }: { number: number; canRecomm
       </h2>
       <div className="segmented wrap" role="radiogroup" aria-label="Что вы добавляете">
         {options.map((o) => (
-          <button key={o.id} type="button" role="radio" aria-checked={kind === o.id} aria-pressed={kind === o.id} onClick={() => setKind(o.id)}>
+          <button key={o.id} type="button" role="radio" aria-checked={kind === o.id} onClick={() => setKind(o.id)}>
             {o.label}
           </button>
         ))}
@@ -855,7 +855,7 @@ function DecideForm({ view, onDone }: { view: CouncilView; onDone: (t: string) =
     >
       <div className="segmented" role="radiogroup" aria-label="Решение">
         {(['merge', 'reject', 'close'] as const).map((o) => (
-          <button key={o} type="button" role="radio" aria-checked={outcome === o} aria-pressed={outcome === o} onClick={() => setOutcome(o)}>
+          <button key={o} type="button" role="radio" aria-checked={outcome === o} onClick={() => setOutcome(o)}>
             {label[o]}
           </button>
         ))}
