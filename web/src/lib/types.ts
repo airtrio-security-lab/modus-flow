@@ -94,8 +94,55 @@ export interface Evidence {
   metric: string | null;
   value: number | null;
   unit: string | null;
+  period?: string | null;
+  source?: string | null;
+  goal?: 'decrease' | 'increase' | null;
+  comparable?: boolean | null;
   createdAt: string;
   recordedBy: string;
+}
+/** Product refinement (ADR-0031). */
+export type WorkStage = 'design' | 'procurement' | 'installation' | 'commissioning' | 'operation' | 'internal' | 'other';
+export interface ItemContext {
+  project: string | null;
+  workStage: WorkStage | null;
+  workStageName: string | null;
+  setBy: string | null;
+  setAt: string | null;
+  affected: { id: string; name: string; addedBy: string; at: string }[];
+}
+export interface EffectPoint {
+  evidenceId: string;
+  value: number;
+  unit: string | null;
+  period: string | null;
+  source: string | null;
+  recordedBy: string | null;
+  at: string;
+}
+export interface EffectLine {
+  metric: string;
+  state: 'measured' | 'not_measured' | 'incomparable';
+  reason: 'no_baseline' | 'no_result' | 'units' | 'conditions' | null;
+  goal: 'decrease' | 'increase' | null;
+  before: EffectPoint | null;
+  after: EffectPoint | null;
+  delta: number | null;
+  percent: number | null;
+  verdict: 'improved' | 'worsened' | 'unchanged' | 'changed' | null;
+}
+export interface ItemEffect {
+  lines: EffectLine[];
+  measured: boolean;
+  approval: { by: string; at: string } | null;
+}
+export interface Specialists {
+  method: 'rules';
+  affected: { id: string; name: string }[];
+  heads: { membershipId: string; name: string; jobTitle: string | null; department: string }[];
+  specialists: { membershipId: string; name: string; jobTitle: string | null; department: string | null; matched: string[] }[];
+  canSeeSkills: boolean;
+  note: string;
 }
 export interface Verification {
   id: string;
@@ -150,6 +197,8 @@ export interface Deferral {
   at: string;
 }
 export interface IdeaDetail {
+  context: ItemContext;
+  effect: ItemEffect;
   id: string;
   number: number;
   kind: Kind;

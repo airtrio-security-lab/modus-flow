@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState, type ReactNode } from 'react';
 import { ItemKingdom } from '../components/ItemKingdom';
+import { EffectPanel, ItemContextPanel } from '../components/ProjectContext';
 import { EnvoyShortcut } from '../components/Audience';
 import { ItemOrigin } from '../components/ItemOrigin';
 import { DatasetNote } from '../components/DatasetNote';
@@ -22,6 +23,7 @@ type Mode =
   | 'revise'
   | 'assign'
   | 'check'
+  | 'impact'
   | 'decide'
   | 'implementer'
   | 'complete'
@@ -88,6 +90,21 @@ export function ItemPage({ number }: { number: number }) {
         <Signal status={item.status} />
         <p className="now">{nowLine(item)}</p>
         <ItemKingdom item={item} />
+        <EffectPanel effect={item.effect} implemented={item.status === 'implemented'} />
+        <ItemContextPanel item={item} onChanged={() => void reload()} />
+        {item.status === 'implemented' ? (
+          <div className="notice library-offer" role="note">
+            <b>Сохранить полученный опыт в Библиотеку знаний.</b>{' '}
+            {s.isLead || s.isAdmin || s.isArchivist
+              ? 'Черновик соберётся из обращения, решения и сопоставимых измерений; личные заметки и вложения в него не попадают. Запись проверяет и принимает Архивариус — сама она в Высший Архив не попадает.'
+              : 'Вносить записи может Архивариус или руководитель: предложите им сохранить этот опыт. В Высший Архив запись попадает только после их проверки.'}
+            {s.isLead || s.isAdmin || s.isArchivist ? (
+              <a className="btn small primary" href={`#/library/new?idea=${item.number}`}>
+                Внести в Летопись
+              </a>
+            ) : null}
+          </div>
+        ) : null}
         <ItemOrigin number={item.number} />
         <DatasetNote number={item.number} />
         {item.deferral || f.defer || item.status !== 'unrouted' ? (
@@ -97,7 +114,7 @@ export function ItemPage({ number }: { number: number }) {
           </section>
         ) : null}
         <EnvoyShortcut item={item} />
-        {s.isLead || s.isAdmin || s.isArchivist ? (
+        {(s.isLead || s.isAdmin || s.isArchivist) && item.status !== 'implemented' ? (
           <div className="row">
             <a className="btn small" href={`#/library/new?idea=${item.number}`}>
               Внести в Летопись
@@ -224,6 +241,7 @@ function Actions({ f, item, mode, open, reload, busy }: { f: Facts; item: IdeaDe
   if (f.complete) buttons.push(b('complete', 'Отметить как реализовано', true));
   if (f.askAuthor) buttons.push(b('ask', 'Задать вопрос автору'));
   if (f.startCheck) buttons.push(b('check', 'Проверить на практике'));
+  if (f.startImpact) buttons.push(b('impact', 'Измерить эффект внедрения'));
   if (f.revise) buttons.push(b('revise', 'Уточнить текст', item.status === 'needs_info'));
   if (f.progress) buttons.push(b('progress', 'Сообщить о ходе работ'));
   if (f.setImplementer && !item.implementerMembershipId) buttons.push(b('implementer', 'Назначить исполнителя'));
@@ -319,6 +337,8 @@ function Composer({ mode, ctx }: { mode: Exclude<Mode, null>; ctx: ComposerCtx }
       return <AssignForm ctx={ctx} />;
     case 'check':
       return <CheckForm ctx={ctx} />;
+    case 'impact':
+      return <CheckForm ctx={ctx} impact />;
     case 'evidence':
       return <EvidenceForm ctx={ctx} verificationId={id!} />;
     case 'conclude':
@@ -523,7 +543,7 @@ function AssignForm({ ctx }: { ctx: ComposerCtx }) {
   );
 }
 
-function CheckForm({ ctx }: { ctx: ComposerCtx }) {
+function CheckForm({ ctx, impact = false }: { ctx: ComposerCtx; impact?: boolean }) {
   const cur = ctx.item.revisions.find((r) => r.number === ctx.item.currentRevision)!;
   const [plan, setPlan] = useState('');
   const [criteria, setCriteria] = useState(cur.success_criteria ?? '');
@@ -532,17 +552,24 @@ function CheckForm({ ctx }: { ctx: ComposerCtx }) {
   return (
     <FormShell
       ctx={ctx}
-      submit="Начать проверку"
+      submit={impact ? 'Начать измерение' : 'Начать проверку'}
       disabled={plan.trim().length < 10 || criteria.trim().length < 10 || !owner}
-      onSubmit={() => void ctx.run('/verifications', { plan: plan.trim(), successCriteria: criteria.trim(), owner }, 'Проверка начата')}
+      onSubmit={() =>
+        void ctx.run(impact ? '/impact-verifications' : '/verifications', { plan: plan.trim(), successCriteria: criteria.trim(), owner }, impact ? 'Измерение эффекта начато' : 'Проверка начата')
+      }
     >
-      {sameJudge && (
+      {impact && (
+        <div className="notice">
+          Измерение эффекта не меняет статус обращения и ничего не решает: оно собирает числа «до» и «после». Бонус за эффект по-прежнему подтверждает ответственный за решение.
+        </div>
+      )}
+      {sameJudge && !impact && (
         <div className="notice warn">
           Для проверки на практике нужен отдельный ответственный за решение: тот, кто проводит проверку, не принимает по ней решение. Сначала назначьте его через «Передать другому».
         </div>
       )}
       <div className="field">
-        <label htmlFor="ck-plan">Что и как проверяем</label>
+        <label htmlFor="ck-plan">{impact ? 'Что и как измеряем' : 'Что и как проверяем'}</label>
         <textarea id="ck-plan" className="textarea" value={plan} onChange={(e) => setPlan(e.target.value)} placeholder="Например: обновить прошивку на трёх терминалах из восьми и неделю считать зависания" />
       </div>
       <div className="field">
@@ -552,7 +579,7 @@ function CheckForm({ ctx }: { ctx: ComposerCtx }) {
       <div className="field">
         <label htmlFor="ck-owner">Кто проводит</label>
         <MemberSelect id="ck-owner" value={owner} onChange={setOwner} exclude={[ctx.item.author.membershipId, ctx.item.decisionOwner?.membershipId]} />
-        <span className="hint">Не автор и не тот, кто будет принимать решение.</span>
+        <span className="hint">{impact ? 'Не автор и не тот, кто подтверждает эффект.' : 'Не автор и не тот, кто будет принимать решение.'}</span>
       </div>
     </FormShell>
   );
@@ -564,6 +591,17 @@ function EvidenceForm({ ctx, verificationId }: { ctx: ComposerCtx; verificationI
   const [metric, setMetric] = useState('');
   const [value, setValue] = useState('');
   const [unit, setUnit] = useState('');
+  const [period, setPeriod] = useState('');
+  const [source, setSource] = useState('');
+  const [goal, setGoal] = useState<'' | 'decrease' | 'increase'>('');
+  const [comparable, setComparable] = useState(false);
+  // Metrics already measured in this item: the «after» is recorded against the same metric and unit as the «before».
+  const baselines = ctx.item.verifications.flatMap((v) => v.evidence).filter((e) => e.kind === 'baseline' && e.metric && e.value !== null);
+  const pickMetric = (m: string) => {
+    setMetric(m);
+    const b = baselines.find((x) => x.metric!.trim().toLowerCase() === m.trim().toLowerCase());
+    if (b && kind === 'result' && !unit) setUnit(b.unit ?? '');
+  };
   const num = value.trim() === '' ? undefined : Number(value.replace(',', '.'));
   const ok = body.trim().length >= 1 && (num === undefined || (Number.isFinite(num) && metric.trim().length > 0));
   return (
@@ -574,7 +612,17 @@ function EvidenceForm({ ctx, verificationId }: { ctx: ComposerCtx; verificationI
       onSubmit={() =>
         void ctx.run(
           `/verifications/${verificationId}/evidence`,
-          { kind, body: body.trim(), ...(metric.trim() ? { metric: metric.trim() } : {}), ...(num !== undefined ? { value: num } : {}), ...(unit.trim() ? { unit: unit.trim() } : {}) },
+          {
+            kind,
+            body: body.trim(),
+            ...(metric.trim() ? { metric: metric.trim() } : {}),
+            ...(num !== undefined ? { value: num } : {}),
+            ...(unit.trim() ? { unit: unit.trim() } : {}),
+            ...(period.trim() ? { period: period.trim() } : {}),
+            ...(source.trim() ? { source: source.trim() } : {}),
+            ...(kind === 'baseline' && goal ? { goal } : {}),
+            ...(kind === 'result' && num !== undefined ? { comparable } : {}),
+          },
           'Результат записан',
         )
       }
@@ -597,7 +645,12 @@ function EvidenceForm({ ctx, verificationId }: { ctx: ComposerCtx; verificationI
       <div className="grid-3">
         <div className="field">
           <label htmlFor="ev-metric">Показатель</label>
-          <input id="ev-metric" className="input" value={metric} onChange={(e) => setMetric(e.target.value)} placeholder="зависаний за смену" />
+          <input id="ev-metric" className="input" list="ev-metrics" value={metric} onChange={(e) => pickMetric(e.target.value)} placeholder="время подготовки к сдаче" />
+          <datalist id="ev-metrics">
+            {[...new Set(baselines.map((b) => b.metric!))].map((m) => (
+              <option key={m} value={m} />
+            ))}
+          </datalist>
         </div>
         <div className="field">
           <label htmlFor="ev-value">Значение</label>
@@ -605,9 +658,39 @@ function EvidenceForm({ ctx, verificationId }: { ctx: ComposerCtx; verificationI
         </div>
         <div className="field">
           <label htmlFor="ev-unit">Единица</label>
-          <input id="ev-unit" className="input" value={unit} onChange={(e) => setUnit(e.target.value)} placeholder="шт" />
+          <input id="ev-unit" className="input" value={unit} onChange={(e) => setUnit(e.target.value)} placeholder="мин" />
         </div>
       </div>
+      {(kind === 'baseline' || kind === 'result') && (
+        <>
+          <div className="grid-2">
+            <div className="field">
+              <label htmlFor="ev-period">Период или условия измерения</label>
+              <input id="ev-period" className="input" value={period} maxLength={200} onChange={(e) => setPeriod(e.target.value)} placeholder="три сдачи в октябре" />
+            </div>
+            <div className="field">
+              <label htmlFor="ev-source">Источник данных</label>
+              <input id="ev-source" className="input" value={source} maxLength={300} onChange={(e) => setSource(e.target.value)} placeholder="журнал пусконаладки" />
+            </div>
+          </div>
+          {kind === 'baseline' ? (
+            <div className="field">
+              <label htmlFor="ev-goal">Что считать улучшением</label>
+              <select id="ev-goal" className="select" value={goal} onChange={(e) => setGoal(e.target.value as typeof goal)}>
+                <option value="">Не указывать</option>
+                <option value="decrease">Значение должно снизиться</option>
+                <option value="increase">Значение должно вырасти</option>
+              </select>
+              <span className="hint">Это исходное измерение «до». Измерение «после» запишите тем же показателем и в тех же единицах.</span>
+            </div>
+          ) : (
+            <label className="check-line">
+              <input type="checkbox" checked={comparable} onChange={(e) => setComparable(e.target.checked)} />
+              <span>Период и условия сопоставимы с исходным измерением. Без этой отметки разница и процент не считаются.</span>
+            </label>
+          )}
+        </>
+      )}
     </FormShell>
   );
 }
@@ -682,6 +765,8 @@ function EvidenceList({ evidence }: { evidence: Verification['evidence'] }) {
                 <br />
                 {x.metric}
                 {x.value !== null ? `: ${String(x.value).replace('.', ',')}${x.unit ? ` ${x.unit}` : ''}` : ''}
+                {x.period ? ` · ${x.period}` : ''}
+                {x.source ? ` · источник: ${x.source}` : ''}
               </span>
             )}
           </span>

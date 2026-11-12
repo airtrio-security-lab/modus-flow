@@ -6,6 +6,8 @@ import { audit } from './audit.ts';
 import { orgTx } from './context.ts';
 import { hashRequest, idempotent, type IdempotentResult } from './idempotency.ts';
 import { membersWithRoles, notify } from './notifications.ts';
+import { ContextFields, type ContextInputT } from '../domain/project-context.ts';
+import { saveContext } from './project-context.ts';
 
 /**
  * Intake: the single way an item enters the organization — quick submission,
@@ -27,6 +29,8 @@ export const SubmitInput = z
     sourceChannel: z.enum(SOURCE_CHANNELS).default('app'),
     sourceNote: text(1, 300).optional(),
     raisedBy: z.uuid().optional(),
+    // «Где возникла проблема?» (ADR-0031): optional, never required for an ordinary idea.
+    context: z.object(ContextFields).strict().optional(),
   })
   .strict()
   .refine((v) => v.kind === 'problem' || !!v.proposal, { message: 'Для идеи опишите предлагаемое решение', path: ['proposal'] })
@@ -47,6 +51,7 @@ export interface ItemContent {
   sourceChannel?: (typeof SOURCE_CHANNELS)[number];
   sourceNote?: string;
   raisedBy?: string;
+  context?: ContextInputT;
 }
 
 export interface CreatedItem {
@@ -126,6 +131,12 @@ export async function createItem(c: Client, actor: OrgActor, item: ItemContent):
     },
   });
 
+  if (item.context && (item.context.project || item.context.workStage || item.context.affectedDepartmentIds?.length)) {
+    // The department responsible for routing is whatever the routing rules chose, not what the form says.
+    const dep = await c.query<{ department_id: string | null }>('SELECT department_id FROM ideas WHERE id = $1', [idea.id]);
+    await saveContext(c, actor, { id: idea.id, department_id: dep.rows[0]?.department_id ?? null }, item.context);
+  }
+
   const routed = idea.maintainer_membership_id !== null;
   const recipients = routed
     ? [idea.maintainer_membership_id, idea.decision_owner_membership_id]
@@ -175,6 +186,7 @@ export async function submitItem(
           sourceChannel: input.sourceChannel,
           sourceNote: input.sourceNote,
           raisedBy: input.raisedBy,
+          context: input.context,
         }),
       },
     })),

@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { isRemote, modelFetch, modelLabel, type ModelConfig } from './advisor-model.ts';
 import { AppError, forbidden, notFound } from '../domain/errors.ts';
+import { effectLines, effectSentences, type Measurement } from '../domain/effect.ts';
 import {
   ACTIONS,
   ACTION_TITLE,
@@ -737,6 +738,14 @@ export async function draftFromItem(db: Database, actor: OrgActor, number: numbe
     const decision = (await c.query<{ outcome: string; rationale: string }>('SELECT outcome, rationale FROM decisions WHERE idea_id = $1 ORDER BY created_at DESC LIMIT 1', [i.id])).rows[0];
     const report = (await c.query<{ body: string }>(`SELECT body FROM reviews WHERE idea_id = $1 AND kind = 'progress' ORDER BY created_at DESC LIMIT 1`, [i.id])).rows[0];
     const effect = (await c.query<{ rationale: string }>('SELECT rationale FROM effect_approvals WHERE idea_id = $1', [i.id])).rows[0];
+    const evidence = (
+      await c.query<Measurement>(
+        `SELECT x.id, x.kind, x.metric, x.value, x.unit, x.period, x.source, x.goal, x.comparable, x.created_at AS "createdAt"
+           FROM verification_evidence x JOIN verifications v ON v.id = x.verification_id WHERE v.idea_id = $1`,
+        [i.id],
+      )
+    ).rows;
+    const measured = effectSentences(effectLines(evidence));
     const pro = council.filter((x) => x.kind === 'argument_for' || (x.kind === 'recommendation' && (x.recommendation === 'implement' || x.recommendation === 'pilot'))).map((x) => x.body);
     const con = council.filter((x) => x.kind === 'argument_against' || x.kind === 'dissent' || (x.kind === 'recommendation' && (x.recommendation === 'reject' || x.recommendation === 'rework'))).map((x) => x.body);
     const card: CardT = cleanCard({
@@ -748,7 +757,8 @@ export async function draftFromItem(db: Database, actor: OrgActor, number: numbe
       reasons: decision?.rationale,
       initiator: i.author_membership_id,
       responsible: [i.decision_owner_membership_id, i.implementer_membership_id].filter((x): x is string => !!x),
-      results: [report?.body, effect?.rationale].filter(Boolean).join('\n') || undefined,
+      // Only comparable «before/after» pairs are carried over, as plain sentences; unmeasured lines are not written.
+      results: [report?.body, effect?.rationale, ...measured].filter(Boolean).join('\n') || undefined,
     });
     return {
       kind: decision ? 'decision' : 'problem',
