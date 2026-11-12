@@ -66,6 +66,7 @@ export function Emblem({ kind }: { kind: Civ | 'realm' | 'library' | 'archive' |
         <circle cx="12" cy="12" r="2" fill="currentColor" />
       </>
     );
+  else if (kind === 'russia') body = <path {...p} d="M8 20v-8h8v8M6.5 12L12 5l5.5 7M12 5V3M10.8 3.6h2.4M10.5 20v-4h3v4" />;
   else if (kind === 'mongolia') body = <path {...p} d="M6 18V6h12v8.500H10V10h4" />;
   else if (kind === 'library') body = <path {...p} d="M4 6.500c2.5-1 5.5-1 8 .5 2.5-1.5 5.5-1.5 8-.5v11c-2.5-1-5.5-1-8 .5-2.5-1.5-5.5-1.5-8-.5zM12 7v11" />;
   else if (kind === 'archive') body = <path {...p} d="M5 9l7-4.500L19 9M6.5 9v8M10 9v8M14 9v8M17.5 9v8M4.5 19.500h15" />;

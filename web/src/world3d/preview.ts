@@ -10,7 +10,7 @@ import type { CivId } from './kits';
  */
 const q = new URLSearchParams(location.search);
 const COLORS = ['#a2412f', '#2f4f7a', '#9a6d12', '#4d7448', '#73466a', '#2b6f6a', '#8a5a2b', '#55606e'];
-const CIVS: CivId[] = ['camelot', 'japan', 'kazakh', 'mongolia'];
+const CIVS: CivId[] = ['camelot', 'japan', 'kazakh', 'mongolia', 'russia'];
 const set = q.get('set') as CivId | null;
 const districts: DistrictIn[] = set
   ? [1, 2, 3, 4, 5].map((level, i) => ({ id: `d${i}`, name: `${set} ${level}`, civ: set, level, color: COLORS[i]! }))

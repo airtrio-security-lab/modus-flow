@@ -64,6 +64,8 @@ test('titles come from the civilization of the district and real functions; none
   assert.deepEqual(await Promise.all([f.head, w.colleague, master, w.author].map(async (p) => (await titleOf(p))?.title)), ['Хан', 'Султан', 'Шебер', 'Житель Орды']);
   await setCiv('mongolia');
   assert.deepEqual(await Promise.all([f.head, w.colleague, master, w.author].map(async (p) => (await titleOf(p))?.title)), ['Хан', 'Нойон', 'Дархан', 'Житель державы']);
+  await setCiv('russia');
+  assert.deepEqual(await Promise.all([f.head, w.colleague, master, w.author].map(async (p) => (await titleOf(p))?.title)), ['Воевода', 'Думный дьяк', 'Мастеровой', 'Житель царства']);
   await setCiv('camelot');
   assert.deepEqual(await Promise.all([f.head, w.colleague, master, w.author].map(async (p) => (await titleOf(p))?.title)), ['Лорд / Леди', 'Сенешаль', 'Мастер гильдии', 'Житель Камелота']);
   // Камелот's head title takes the form the person chose for it, never a guess; the private address form is not used.
@@ -129,6 +131,7 @@ test('small councils: the invitation speaks the words of the district, the facts
     kazakh: /^Шебер, в Орде созывается совет: Ханская юрта замка «Склад»/,
     camelot: /^Мастер гильдии, вас призывают в зал Камелота: Зал рыцарей замка «Склад»/,
     mongolia: /^Дархан, вас приглашают на совет: Совет нойонов замка «Склад»/,
+    russia: /^Мастеровой, вас приглашают в Боярскую думу: Боярская дума замка «Склад»/,
   };
   for (const [civ, re] of Object.entries(expected)) {
     await setCiv(civ);
@@ -201,7 +204,7 @@ test('Great Round Table: passed once, with a reason, by those with authority; hi
 test('changing the style keeps XP, tasks, history, meetings and rights', async () => {
   const before = await district.district(db, f.head.actor, f.departments.sklad);
   const meetingsBefore = await meetings.listMeetings(db, f.head.actor);
-  for (const civ of ['camelot', 'kazakh', 'mongolia', 'japan']) await setCiv(civ);
+  for (const civ of ['camelot', 'kazakh', 'mongolia', 'russia', 'japan']) await setCiv(civ);
   const afterD = await district.district(db, f.head.actor, f.departments.sklad);
   assert.deepEqual([afterD.xp, afterD.level, afterD.implemented, afterD.tasks.length, afterD.initiatives.length], [before.xp, before.level, before.implemented, before.tasks.length, before.initiatives.length]);
   assert.deepEqual(afterD.development.history, before.development.history);

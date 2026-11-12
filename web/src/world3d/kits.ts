@@ -1,5 +1,6 @@
 import * as THREE from 'three';
-import { Builder, archWall, banner, box, cone, conifer, curtain, cyl, foliage, gable, hall, hanging, lathe, palisade, roundTower, squareTower, sweptRoof, watchtower, yurt } from './geo';
+import { Builder, archWall, banner, box, cone, conifer, curtain, cyl, foliage, gable, hall, hanging, lathe, merlons, palisade, roundTower, squareTower, sweptRoof, watchtower, yurt } from './geo';
+import type { MatKey } from './tex';
 
 /**
  * Four civilizations × five levels (ADR-0026). Each kit is an original composition with its own
@@ -7,7 +8,7 @@ import { Builder, archWall, banner, box, cone, conifer, curtain, cyl, foliage, g
  * All kits face +Z (their gate looks at the centre of the commonwealth) and fit a 60 m radius.
  * `ban` is the material key of the district's banner cloth.
  */
-export type CivId = 'camelot' | 'japan' | 'kazakh' | 'mongolia';
+export type CivId = 'camelot' | 'japan' | 'kazakh' | 'mongolia' | 'russia';
 export type Kit = (b: Builder, level: number, ban: string) => void;
 
 const ring = (n: number, r: number, fn: (x: number, z: number, a: number, i: number) => void, start = 0, arc = Math.PI * 2) => {
@@ -499,7 +500,191 @@ const mongolia: Kit = (b, L, ban) => {
   }
 };
 
-export const KITS: Record<CivId, Kit> = { camelot, japan, kazakh, mongolia };
+// ---------------------------------------------------------------------------
+// Русское царство (Moscow of the XVI–XVII centuries): from a timber ostrog to a red-brick kremlin with
+// white cathedrals, tent-roofed towers, a boyar terem and trading rows. Original compositions: no
+// existing building is copied.
+// ---------------------------------------------------------------------------
+/** «Шатёр»: an eight-sided tent roof with a small gilded onion on top. */
+function shatyor(b: Builder, r: number, h: number, mat: MatKey = 'copper') {
+  b.add(mat, cyl(r * 1.04, r * 1.04, 0.3, 8));
+  b.add(mat, cone(r, h, 8), 0, 0.3, 0);
+  b.add('gold', lathe([[0.02, h + 0.1], [0.3, h + 0.5], [0.24, h + 0.9], [0.03, h + 1.5]], 8));
+}
+/** An onion dome on a drum with slit windows. */
+function onion(b: Builder, r: number, mat: MatKey, drum = r * 1.5) {
+  b.add('plaster', cyl(r * 0.72, r * 0.78, drum, 12));
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * Math.PI * 2;
+    b.add('dark', box(0.22 * r + 0.12, drum * 0.5, 0.1), Math.sin(a) * r * 0.76, drum * 0.28, Math.cos(a) * r * 0.76, a);
+  }
+  b.add(mat, lathe([[r * 0.76, drum], [r * 1.1, drum + r * 0.45], [r * 1.02, drum + r * 0.95], [r * 0.58, drum + r * 1.5], [r * 0.18, drum + r * 1.95], [0.03, drum + r * 2.4]], 14));
+  b.add('gold', cyl(0.05, 0.05, r * 0.9 + 0.4, 5), 0, drum + r * 2.35, 0);
+  b.add('gold', box(r * 0.5 + 0.2, 0.08, 0.08), 0, drum + r * 2.9 + 0.2, 0);
+}
+/** A wall tower: square, battlemented, with a lookout tier under a tent roof. */
+function rusTower(b: Builder, wall: MatKey, w: number, h: number, roofH: number, roof: MatKey = 'copper') {
+  squareTower(b, wall, w, w, h, { windows: 2, crenel: wall !== 'logs' });
+  b.at(0, h + 0.6, 0, 0, () => {
+    b.add(wall, box(w * 0.62, 2.2, w * 0.62));
+    b.add('dark', box(w * 0.3, 1.1, w * 0.64), 0, 0.6, 0);
+    b.add('dark', box(w * 0.64, 1.1, w * 0.3), 0, 0.6, 0);
+    b.at(0, 2.2, 0, Math.PI / 8, () => shatyor(b, w * 0.5, roofH, roof));
+  });
+}
+/** The gate tower: a taller, tiered tower with a passage. */
+function rusGate(b: Builder, ban: string, wall: MatKey, w: number, h: number, grand: boolean) {
+  b.add(wall, archWall(w, h, w, w * 0.42, Math.min(5, h * 0.5)), 0, 0, 0);
+  b.add(wall, box(w + 1, 0.6, w + 1), 0, h, 0);
+  if (wall !== 'logs') for (const s of [-1, 1]) b.at(0, 0, (s * (w + 1)) / 2 - s * 0.25, 0, () => merlons(b, wall, w + 1, h + 0.6, 0));
+  b.at(0, h + 0.6, 0, 0, () => {
+    b.add(wall, box(w * 0.66, grand ? 5 : 3, w * 0.66));
+    for (const s of [-1, 1]) b.add('window', box(0.6, 1.4, 0.12), 0, (grand ? 5 : 3) * 0.35, (s * w * 0.66) / 2 + s * 0.02);
+    b.at(0, grand ? 5 : 3, 0, 0, () => {
+      if (grand) {
+        b.add(wall, cyl(w * 0.26, w * 0.3, 3, 8));
+        b.at(0, 3, 0, 0, () => shatyor(b, w * 0.3, w * 1.1, 'copper'));
+      } else b.at(0, 0, 0, Math.PI / 8, () => shatyor(b, w * 0.42, w * 0.9, wall === 'logs' ? 'woodLight' : 'copper'));
+    });
+  });
+  b.at(0, h - 0.3, w / 2 + 0.62, 0, () => hanging(b, ban, 2.2, 4.4));
+}
+/** A white-stone cathedral: a cube with apses, a portal and one or five domes. */
+function cathedral(b: Builder, w: number, h: number, domes: 1 | 5, side: MatKey = 'gold') {
+  b.add('plaster', box(w + 1, 0.7, w + 1));
+  b.add('plaster', box(w, h, w), 0, 0.7, 0);
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) b.add('plaster', box(0.9, h + 0.4, 0.9), (sx * w) / 2, 0.7, (sz * w) / 2);
+  // Rounded gables along the top of every wall («закомары»).
+  for (let k = -1; k <= 1; k++)
+    for (const s of [-1, 1]) {
+      b.add('plaster', cyl(w / 6.4, w / 6.4, 0.5, 12), (k * w) / 3.1, h + 0.45, (s * w) / 2 - s * 0.25).add('plaster', cyl(w / 6.4, w / 6.4, 0.5, 12), (s * w) / 2 - s * 0.25, h + 0.45, (k * w) / 3.1);
+    }
+  for (const x of [-w * 0.3, 0, w * 0.3]) b.add('plaster', cyl(w * 0.15, w * 0.15, h * 0.72, 10), x, 0.7, -w / 2);
+  b.add('dark', box(w * 0.2, h * 0.42, 0.3), 0, 0.7, w / 2);
+  b.add('gold', box(w * 0.26, 0.3, 0.4), 0, 0.7 + h * 0.44, w / 2);
+  for (const s of [-1, 1]) for (const x of [-w * 0.3, w * 0.3]) b.add('window', box(0.5, h * 0.3, 0.12), x, h * 0.45, (s * w) / 2 + s * 0.02);
+  b.add('copper', box(w + 0.3, 0.5, w + 0.3), 0, h + 0.7, 0);
+  b.at(0, h + 1.2, 0, 0, () => onion(b, w * (domes === 5 ? 0.19 : 0.24), 'gold', w * (domes === 5 ? 0.42 : 0.36)));
+  if (domes === 5) for (const sx of [-1, 1]) for (const sz of [-1, 1]) b.at(sx * w * 0.3, h + 1.2, sz * w * 0.3, 0, () => onion(b, w * 0.115, side, w * 0.2));
+}
+/** A bell tower: an eight-sided pillar in three tiers with open arches for the bells. */
+function belfry(b: Builder, h: number) {
+  b.add('plaster', cyl(2.5, 2.9, h * 0.46, 8));
+  b.add('plaster', cyl(2.9, 2.9, 0.5, 8), 0, h * 0.46, 0);
+  b.add('plaster', cyl(2, 2.2, h * 0.3, 8), 0, h * 0.46 + 0.5, 0);
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2;
+    b.add('dark', box(0.9, h * 0.13, 0.14), Math.sin(a) * 2.02, h * 0.6, Math.cos(a) * 2.02, a);
+  }
+  b.add('plaster', cyl(2.3, 2.3, 0.4, 8), 0, h * 0.76 + 0.5, 0);
+  b.at(0, h * 0.76 + 0.9, 0, 0, () => onion(b, 1.5, 'gold', h * 0.14));
+}
+/** A boyar's terem: a white ground floor, a painted upper floor, steep roofs and a tent-roofed porch. */
+function terem(b: Builder, w: number, d: number, tower: boolean) {
+  b.add('plaster', box(w, 3.2, d));
+  for (let k = 0; k < Math.floor(w / 2.6); k++) b.add('dark', box(0.9, 1.5, 0.14), -w / 2 + 1.5 + k * 2.6, 0.7, d / 2);
+  b.at(0, 3.2, 0, 0, () => hall(b, 'brickRed', 'tileGreen', w * 0.96, d * 0.9, 3, 3.6));
+  if (tower)
+    b.at(-w * 0.32, 6.2, 0, 0, () => {
+      b.add('brickRed', box(d * 0.62, 3.4, d * 0.62));
+      for (const s of [-1, 1]) b.add('window', box(0.55, 1.3, 0.12), 0, 1, (s * d * 0.62) / 2 + s * 0.02);
+      b.at(0, 3.4, 0, Math.PI / 8, () => shatyor(b, d * 0.42, 5, 'tileGreen'));
+    });
+  // The red porch with a flight of steps.
+  b.at(w * 0.3, 0, d / 2 + 2.2, 0, () => {
+    for (let k = 0; k < 6; k++) b.add('plaster', box(2.6, 0.5, 0.7), 0, k * 0.5, 2.4 - k * 0.7);
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) b.add('plaster', cyl(0.22, 0.26, 2.6, 8), sx * 1.2, 3, -1.6 + sz * 0.9);
+    b.at(0, 5.6, -1.6, Math.PI / 4, () => shatyor(b, 2, 2.6, 'tileGreen'));
+  });
+}
+/** Trading rows: a long arcade under a plank roof. */
+function rows(b: Builder, len: number) {
+  b.add('plaster', box(len, 3, 4));
+  for (let k = 0; k < Math.floor(len / 2.6); k++) b.add('dark', box(1.5, 2, 0.2), -len / 2 + 1.5 + k * 2.6, 0, 2);
+  b.at(0, 3, 0, 0, () => b.add('wood', gable(len + 0.8, 5, 1.6, 0.5)));
+  // Market stalls under awnings in front of the arcade.
+  for (let k = 0; k < 3; k++)
+    b.at(-len / 3 + (k * len) / 3, 0, 6, 0, () => {
+      for (const sx of [-1, 1]) for (const sz of [-1, 1]) b.add('wood', cyl(0.08, 0.08, 2.2, 5), sx * 1.3, 0, sz * 0.9);
+      b.add(k % 2 ? 'red' : 'woodLight', box(3, 0.14, 2.2), 0, 2.2, 0);
+      b.add('wood', box(2.4, 0.9, 1), 0, 0, 0);
+    });
+}
+/** A timber church: a log body with a tall tent roof and a small onion. */
+function logChurch(b: Builder, w = 5) {
+  b.add('logs', box(w, 4.5, w));
+  b.add('logs', box(w * 0.6, 3.4, w * 0.6), 0, 0, w * 0.8);
+  b.add('dark', box(1, 2, 0.2), 0, 0, w * 1.1);
+  b.at(0, 4.5, 0, Math.PI / 8, () => {
+    b.add('logs', cyl(w * 0.5, w * 0.56, 1.6, 8));
+    b.at(0, 1.6, 0, 0, () => b.add('woodLight', cone(w * 0.56, w * 1.5, 8)));
+    b.at(0, 1.6 + w * 1.5 - 0.6, 0, 0, () => onion(b, 0.5, 'woodLight', 0.5));
+  });
+}
+function russia(b: Builder, L: number, ban: string) {
+  const izba = (x: number, z: number, r = 0) => b.at(x, 0, z, r, () => hall(b, 'logs', 'woodLight', 6.5, 5, 2.8, 2.4, { chimney: true }));
+  if (L === 1) {
+    // An ostrog on the frontier: a ring of sharpened logs, a watchtower, a chapel and two izbas.
+    const R = 14;
+    ring(9, R, (x, z, a) => {
+      const a2 = a + (Math.PI * 2) / 9;
+      palisade(b, x, z, Math.sin(a2) * R, Math.cos(a2) * R, 4.2);
+    }, -Math.PI / 9);
+    b.at(-6, 0, -5, 0, () => watchtower(b, 10, 'woodLight'));
+    b.at(4.5, 0, -4, 0, () => logChurch(b, 4.2));
+    izba(-4.5, 5, 0.2);
+    izba(5, 5.5, -0.3);
+    b.at(0, 0, 2, 0, () => campfire(b));
+    b.at(1.5, 0, R + 1, 0, () => banner(b, ban, 6.5));
+    return;
+  }
+  const W = [0, 0, 16, 21, 26, 30][L]!;
+  const D = [0, 0, 14, 18, 22, 25][L]!;
+  const wallH = [0, 0, 5.4, 7, 8.6, 9.6][L]!;
+  const front: MatKey = L >= 3 ? 'brickRed' : 'logs';
+  const rest: MatKey = L >= 4 ? 'brickRed' : 'logs';
+  const wall = (mat: MatKey, ax: number, az: number, bx: number, bz: number) => (mat === 'logs' ? palisade(b, ax, az, bx, bz, wallH) : curtain(b, mat, ax, az, bx, bz, wallH, 2));
+  b.add('sand', box(W * 2, 0.24, D * 2), 0, -0.1, 0);
+  if (L >= 4) b.add('cobble', box(W * 1.1, 0.3, D * 1.2), 0, -0.06, D * 0.15);
+  const gw = L >= 4 ? 8 : 6.5;
+  wall(rest, -W, -D, W, -D);
+  wall(rest, -W, -D, -W, D);
+  wall(rest, W, D, W, -D);
+  wall(front, -gw / 2 - 0.4, D, -W, D);
+  wall(front, W, D, gw / 2 + 0.4, D);
+  b.at(0, 0, D, 0, () => rusGate(b, ban, front, gw, wallH + (L >= 4 ? 5 : 3), L >= 4));
+  // Corner towers; brick ones first appear on the front, towards the road.
+  const tw = L >= 4 ? 5.4 : 4.4;
+  const th = wallH + (L >= 5 ? 6 : L >= 4 ? 5 : 3.4);
+  for (const [x, z] of [[-W, -D], [W, -D], [-W, D], [W, D]] as [number, number][]) {
+    const mat = z > 0 ? front : rest;
+    b.at(x, 0, z, 0, () => rusTower(b, mat, tw, th, mat === 'logs' ? 4.5 : L >= 5 ? 7.5 : 6, mat === 'logs' ? 'woodLight' : 'copper'));
+  }
+  if (L >= 4) for (const [x, z] of [[-W, 0], [W, 0], [0, -D]] as [number, number][]) b.at(x, 0, z, 0, () => rusTower(b, 'brickRed', 4.6, th - 2.5, 5, 'copper'));
+  if (L >= 5) for (const [x, z] of [[-W * 0.5, D], [W * 0.5, D], [-W * 0.5, -D], [W * 0.5, -D]] as [number, number][]) b.at(x, 0, z, 0, () => rusTower(b, 'brickRed', 4, th - 4, 4.4, 'tileGreen'));
+  // The heart of the town: the cathedral, the bell tower, the terem.
+  if (L === 2) b.at(-W * 0.3, 0, -D * 0.25, 0, () => logChurch(b, 5.4));
+  else b.at(-W * 0.22, 0, -D * 0.28, 0, () => cathedral(b, [0, 0, 0, 8.5, 11, 12.5][L]!, [0, 0, 0, 8, 10, 11.5][L]!, L >= 4 ? 5 : 1));
+  if (L >= 4) b.at(-W * 0.62, 0, -D * 0.5, 0, () => belfry(b, L >= 5 ? 30 : 23));
+  b.at(W * 0.4, 0, -D * 0.38, 0, () => terem(b, [0, 0, 9, 12, 15, 18][L]!, [0, 0, 6, 7, 8, 9][L]!, L >= 3));
+  if (L >= 5) {
+    // A second church with painted domes and the treasury chambers.
+    b.at(W * 0.5, 0, D * 0.42, -Math.PI / 2, () => cathedral(b, 7, 6.5, 5, 'tileBlue'));
+    b.at(-W * 0.55, 0, D * 0.25, Math.PI / 2, () => terem(b, 11, 6.5, false));
+  }
+  izba(-W * 0.6, D * 0.55, 0.1);
+  izba(W * 0.15, D * 0.5, -0.2);
+  if (L >= 3) izba(-W * 0.2, D * 0.55, 0.3);
+  if (L >= 4) b.at(W * 0.62, 0, D * 0.05, Math.PI / 2, () => hall(b, 'plaster', 'tileGreen', 12, 6, 4, 3.4, { chimney: true }));
+  for (const s of [-1, 1]) b.at(s * (gw / 2 + 2.4), 0, D - 4.5, 0, () => banner(b, ban, 7, 1.3, 3.2));
+  // The posad before the gate: trading rows and carts.
+  if (L >= 3) b.at(-W * 0.55, 0, D + 7, 0, () => rows(b, L >= 4 ? 16 : 11));
+  if (L >= 5) b.at(W * 0.55, 0, D + 7, 0, () => rows(b, 16));
+  if (L === 2) b.at(W * 0.6, 0, D + 5, 0.4, () => cart(b));
+  for (const [x, z] of [[-W - 6, -D * 0.4], [W + 6, D * 0.3], [-W - 5, D * 0.6]] as [number, number][]) tree(b, x, z, 'leaf', 1.1);
+}
+
+export const KITS: Record<CivId, Kit> = { camelot, japan, kazakh, mongolia, russia };
 
 // ---------------------------------------------------------------------------
 // The neutral centre of the commonwealth

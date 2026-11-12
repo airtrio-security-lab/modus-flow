@@ -386,7 +386,7 @@ const ornament =
 export type MatKey =
   | 'stone' | 'stoneDark' | 'rock' | 'plaster' | 'wood' | 'woodLight' | 'logs' | 'slate' | 'tileJ' | 'tileGreen' | 'thatch'
   | 'felt' | 'feltDark' | 'bandKz' | 'bandMn' | 'brick' | 'tileBlue' | 'cobble' | 'gold' | 'copper' | 'iron' | 'window' | 'dark'
-  | 'red' | 'marble' | 'sand';
+  | 'red' | 'marble' | 'sand' | 'brickRed';
 
 /** The shared material library. Created once per renderer, disposed with it. */
 export function createMaterials(): Record<MatKey, THREE.MeshStandardMaterial> {
@@ -410,6 +410,8 @@ export function createMaterials(): Record<MatKey, THREE.MeshStandardMaterial> {
     bandMn: make(25, ornament(0x26436b, 0xe58a2d, 0xc9c0a8, 1), { tile: 5, rough: 0.95, normal: 0.6 }),
     brick: make(26, ashlar(0xc19a6b, 0x8a6d4b, 24, 0.04), { tile: 5, rough: 0.92, normal: 2 }),
     tileBlue: make(27, shingles(0x2c7f8f, 16, 12), { tile: 4, rough: 0.35, normal: 1.6, env: 1 }),
+    // Fired red brick of the Russian kremlin walls.
+    brickRed: make(31, ashlar(0xb5604a, 0x8a4a3b, 26, 0.04), { tile: 5, rough: 0.9, normal: 1.6 }),
     cobble: make(28, cobble(0xb5ab97), { tile: 5, rough: 0.95, normal: 2.2 }),
     marble: make(29, plain(0xd8d2c4, 0.12), { tile: 10, rough: 0.55, normal: 0.6, env: 0.8 }),
     sand: make(30, plain(0xb49b6e, 0.2), { tile: 8, rough: 1, normal: 1.6 }),
@@ -423,7 +425,7 @@ export function createMaterials(): Record<MatKey, THREE.MeshStandardMaterial> {
 }
 
 /** A banner cloth with an original emblem of the district's style, tinted with the department's heraldic colour. */
-export function bannerTexture(color: string, emblem: 'camelot' | 'japan' | 'kazakh' | 'mongolia' | 'realm') {
+export function bannerTexture(color: string, emblem: 'camelot' | 'japan' | 'kazakh' | 'mongolia' | 'russia' | 'realm') {
   const S = 256;
   const el = document.createElement('canvas');
   el.width = S / 2;
@@ -482,6 +484,23 @@ export function bannerTexture(color: string, emblem: 'camelot' | 'japan' | 'kaza
     c.stroke();
     c.beginPath();
     c.arc(cx, cy, 9, 0, Math.PI * 2);
+    c.fill();
+  } else if (emblem === 'russia') {
+    // A tower under a tent roof with a small onion on top: an original mark, no state heraldry.
+    c.moveTo(cx - 18, cy + 34);
+    c.lineTo(cx - 18, cy - 2);
+    c.lineTo(cx + 18, cy - 2);
+    c.lineTo(cx + 18, cy + 34);
+    c.closePath();
+    c.fill();
+    c.beginPath();
+    c.moveTo(cx - 24, cy - 4);
+    c.lineTo(cx, cy - 40);
+    c.lineTo(cx + 24, cy - 4);
+    c.closePath();
+    c.fill();
+    c.beginPath();
+    c.ellipse(cx, cy - 46, 7, 9, 0, 0, Math.PI * 2);
     c.fill();
   } else if (emblem === 'mongolia') {
     c.moveTo(cx - 26, cy + 26);
