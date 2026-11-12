@@ -39,3 +39,17 @@
   .town-atmo-cloud,.town-atmo-haze,.town-atmo-smoke{animation:none!important}
   .town-atmo-cloud,.town-atmo-smoke{opacity:0!important}
 }
+
+/* Three subtle window glints and two long, infrequent bird flights. */
+.town-atmo-light{position:absolute;width:9px;height:9px;border-radius:50%;background:radial-gradient(circle,#ffdfa0,rgba(244,173,63,.48) 46%,transparent 72%);box-shadow:0 0 16px 6px rgba(250,189,83,.15);animation:town-flicker 3.8s ease-in-out infinite alternate;opacity:.62}
+.town-atmo-light-a{left:32%;top:43%}.town-atmo-light-b{left:68%;top:39%;animation-delay:-1.8s}.town-atmo-light-c{left:78%;top:56%;animation-delay:-2.6s}
+.town-atmo-birds{position:absolute;top:12%;left:-5%;width:15px;height:10px;opacity:.5;animation:town-bird-flight 32s linear infinite}
+.town-atmo-birds-b{top:18%;left:-9%;animation-delay:-16s;animation-duration:43s;opacity:.38}
+.town-atmo-birds::before,.town-atmo-birds::after{content:"";position:absolute;top:4px;width:9px;height:2px;border-radius:100%;background:rgba(42,47,52,.8)}
+.town-atmo-birds::before{left:0;transform:rotate(-24deg)}.town-atmo-birds::after{right:0;transform:rotate(24deg)}
+@keyframes town-flicker{0%{opacity:.36;scale:.86}100%{opacity:.85;scale:1.1}}
+@keyframes town-bird-flight{from{transform:translate(0,0) scale(.8)}to{transform:translate(1650px,-20px) scale(1)}}
+@media(prefers-reduced-motion:reduce){
+  .town-atmo-birds,.town-atmo-light{animation:none!important}
+  .town-atmo-birds{opacity:0!important}
+}
