@@ -45,7 +45,7 @@ export function Citadel3D({ civ, civName, level, levelNames, color, name, town }
         ro.observe(box.current);
         v.resize(box.current.clientWidth, box.current.clientHeight);
         v.onPins = placePins;
-        if (town) v.pad = 1.16;
+        if (town) v.pad = 1.24;
         v.set(civ, level, color);
         setState('ready');
       } catch {
@@ -71,22 +71,64 @@ export function Citadel3D({ civ, civName, level, levelNames, color, name, town }
   }, [townKey, state, civ, shown]);
 
   // Pins follow their buildings without re-rendering React: the viewer reports screen positions after each frame.
-  const placePins = (list: { id: string; x: number; y: number; depth: number; shown: boolean }[]) => {
-    const boxes: { l: number; r: number; t: number; b: number }[] = [];
-    // The citadel keeps its name first, then the nearer buildings.
-    for (const p of [...list].sort((a, b) => Number(b.id === 'growth') - Number(a.id === 'growth') || a.depth - b.depth)) {
+  // Every name stays readable: a name that would cover another name or mark is lifted above it on a thin stem.
+  const placePins = (list: { id: string; x: number; y: number; depth: number; shown: boolean; own: boolean }[]) => {
+    const stage = box.current;
+    const W = stage?.clientWidth ?? 0;
+    const MARK = 18; // the mark under the name
+    const H = 28; // the name plate
+    const shown = list.filter((p) => p.shown);
+    for (const p of list) {
+      const el = pins.current.get(p.id);
+      if (el) el.dataset.own = p.own ? 'yes' : 'no';
+      if (el && !p.shown) el.style.visibility = 'hidden';
+    }
+    // Marks are obstacles for every name but their own.
+    const marks = shown.map((p) => ({ id: p.id, l: p.x - 10, r: p.x + 10, t: p.y - MARK, b: p.y }));
+    const names: { l: number; r: number; t: number; b: number }[] = [];
+    const hits = (a: { l: number; r: number; t: number; b: number }, o: { l: number; r: number; t: number; b: number }) => a.l < o.r + 4 && a.r > o.l - 4 && a.t < o.b + 3 && a.b > o.t - 3;
+    // From the bottom of the picture upwards: the lower names keep their place, the upper ones rise.
+    for (const p of [...shown].sort((a, b) => b.y - a.y)) {
       const el = pins.current.get(p.id);
       if (!el) continue;
-      el.style.visibility = p.shown ? 'visible' : 'hidden';
-      if (!p.shown) continue;
+      const w = Number(el.dataset.w) || 150;
+      // A plate may stand over its stem or hang to either side of it (like a flag), and it stays inside the stage.
+      const clamp = (d: number) => (W ? Math.min(W - 6 - (p.x + w / 2), Math.max(6 - (p.x - w / 2), d)) : d);
+      const side = Math.max(0, w / 2 - 14);
+      const offsets = [...new Set([clamp(0), clamp(side), clamp(-side)])];
+      const at = (d: number, up: number) => ({ l: p.x - w / 2 + d, r: p.x + w / 2 + d, b: p.y - MARK - up, t: p.y - MARK - up - H });
+      const blocker = (q: { l: number; r: number; t: number; b: number }) => names.find((n) => hits(q, n)) ?? marks.find((m) => m.id !== p.id && hits(q, m));
+      let lift = 0;
+      let dx = offsets[0]!;
+      let plate = at(dx, 0);
+      for (let i = 0; i < 24; i++) {
+        // At this height: the first free place wins; otherwise rise just enough to clear the lowest obstacle.
+        let next = Infinity;
+        let free: number | null = null;
+        for (const d of offsets) {
+          const o = blocker(at(d, lift));
+          if (!o) {
+            free = d;
+            break;
+          }
+          next = Math.min(next, p.y - MARK - (o.t - 5));
+        }
+        if (free !== null) {
+          dx = free;
+          plate = at(dx, lift);
+          break;
+        }
+        lift = Math.max(lift + 1, next);
+        plate = at(dx, lift);
+      }
+      const fits = plate.t > 4;
+      el.style.visibility = 'visible';
       el.style.transform = `translate(${Math.round(p.x)}px, ${Math.round(p.y)}px) translate(-50%, -100%)`;
       el.style.zIndex = String(Math.round((1 - p.depth) * 10000));
-      // A name that would cover a nearer pin folds into its mark; the list below always has every name.
-      const w = Number(el.dataset.w) || 150;
-      const box = { l: p.x - w / 2 + 6, r: p.x + w / 2 - 6, t: p.y - 44, b: p.y - 2 };
-      const hit = boxes.some((o) => box.l < o.r && box.r > o.l && box.t < o.b && box.b > o.t);
-      el.dataset.compact = hit ? 'yes' : 'no';
-      boxes.push(hit ? { l: p.x - 22, r: p.x + 22, t: p.y - 46, b: p.y } : box);
+      el.dataset.compact = fits ? 'no' : 'yes';
+      el.style.setProperty('--lift', `${fits ? Math.round(lift) : 0}px`);
+      el.style.setProperty('--dx', `${Math.round(dx)}px`);
+      if (fits) names.push(plate);
     }
   };
 
@@ -135,13 +177,14 @@ export function Citadel3D({ civ, civName, level, levelNames, color, name, town }
                   if (el) {
                     pins.current.set(b.id, el);
                     // Measured once, while the name is still shown.
-                    if (!el.dataset.w) el.dataset.w = String(el.offsetWidth || 150);
+                    if (!el.dataset.w) el.dataset.w = String((el.firstElementChild as HTMLElement | null)?.offsetWidth || 150);
                   } else pins.current.delete(b.id);
                 }}
                 onMouseEnter={() => setActive(b.id)}
                 onMouseLeave={() => setActive(null)}
               >
                 <span className="town3d-pin-name">{b.name}</span>
+                <span className="town3d-pin-stem" aria-hidden="true" />
                 <span className="town3d-pin-mark" aria-hidden="true" />
               </a>
             ))}

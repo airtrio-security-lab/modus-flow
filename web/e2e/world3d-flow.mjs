@@ -353,6 +353,17 @@ try {
     must((await page.locator('.citadel3d').getAttribute('aria-label')).includes('Город отдела «Закупки» в 3D'), 'the 3D town is named');
     must((await page.locator('.town3d-pin').count()) === 8, 'eight pins stand over the 3D town');
     await page.waitForFunction(() => [...document.querySelectorAll('.town3d-pin')].filter((e) => e.style.visibility === 'visible').length >= 6, null, { timeout: 60000 });
+    // Every building keeps its name on the picture: a name that would cover another one rises on a stem instead of folding away.
+    await page.waitForFunction(() => {
+      const pins = [...document.querySelectorAll('.town3d-pin')];
+      return pins.length === 8 && pins.every((e) => e.style.visibility === 'visible' && e.dataset.compact === 'no');
+    }, null, { timeout: 60000 });
+    const plates = await page.locator('.town3d-pin-name').evaluateAll((els) => els.map((e) => e.getBoundingClientRect()).map((r) => [r.left, r.top, r.right, r.bottom]));
+    for (let i = 0; i < plates.length; i++)
+      for (let j = i + 1; j < plates.length; j++) {
+        const [a, b] = [plates[i], plates[j]];
+        must(!(a[0] < b[2] && a[2] > b[0] && a[1] < b[3] && a[3] > b[1]), 'two building names overlap');
+      }
     const names = await page.locator('.town3d-list a strong').allInnerTexts();
     must(['Московский Кремль', 'Боярская дума', 'Торговая площадь', 'Воинская палата'].every((n) => names.includes(n)), `the list names the Russian buildings: ${names.join(', ')}`);
     must((await page.locator('.citadel3d-cap').innerText()).includes('Русское царство'), 'the caption names the civilization');
@@ -360,6 +371,9 @@ try {
     await page.getByRole('button', { name: /Уровень 5/ }).click();
     await page.getByText('Предпросмотр уровня 5').waitFor();
     await page.waitForTimeout(1500);
+    // At the top level every section has a building of its own in the kit.
+    const own = (civ) => page.waitForFunction(() => [...document.querySelectorAll('.town3d-pin')].every((e) => e.dataset.own === 'yes'), null, { timeout: 30000 }).catch(() => must(false, `${civ}: a section has no building of its own at level 5`));
+    await own('russia');
     await shot(page, '08-town3d-russia');
     must((await page.evaluate(() => localStorage.getItem('modus.town.view'))) === '3d', 'the choice of 3D is remembered');
     // A pin and a list entry are the same ordinary link.
@@ -367,15 +381,27 @@ try {
     must((await pin.getAttribute('href')) === `#/castles/${rus.id}/council`, 'the pin of the Duma leads to the council of the district');
     await page.getByRole('navigation', { name: 'Все здания города «Закупки»' }).getByRole('link', { name: /Торговая площадь/ }).click();
     await page.waitForFunction((id) => location.hash === `#/castles/${id}/initiatives`, rus.id, { timeout: 20000 });
-    step('город отдела в 3D: Русское царство, восемь зданий-ссылок, предпросмотр уровня подписан, выбор вида запоминается');
+    step('город отдела в 3D: Русское царство, восемь зданий-ссылок, все названия читаются и не перекрываются, предпросмотр уровня подписан, выбор вида запоминается');
     // A civilization without a painted panorama gets the 3D town straight away, with the hall named by the server.
     const it = k.castles.find((c) => c.name === 'ИТ-разработка');
     await page.goto(`${BASE}/#/castles/${it.id}/city`);
     await page.locator('.town3d-pin').first().waitFor({ state: 'attached', timeout: 90000 });
     must((await page.getByRole('group', { name: 'Вид города' }).count()) === 0, 'no panorama switch where no panorama is painted');
     must((await page.locator('.town3d-list a strong').allInnerTexts()).includes('Зал даймё'), 'the council hall of the Japanese district keeps its name');
+    // The pin of the council stands on the lord's hall, not on a roof picked by height: the kit marks its buildings.
+    await page.waitForFunction(() => [...document.querySelectorAll('.town3d-pin')].every((e) => e.style.visibility === 'visible' && e.dataset.compact === 'no'), null, { timeout: 60000 });
+    // The same for every civilization: at level 5 each of the eight sections stands on its own building.
+    for (const [name, civ] of [['ИТ-разработка', 'japan'], ['Склад и логистика', 'kazakh'], ['Сервис', 'mongolia'], ['Продажи', 'camelot']]) {
+      const c = k.castles.find((x) => x.name === name);
+      await page.goto(`${BASE}/#/castles/${c.id}/city`);
+      await page.locator('.town3d-pin').first().waitFor({ state: 'attached', timeout: 90000 });
+      await page.getByRole('button', { name: /Уровень 5/ }).click();
+      await page.getByText(/Предпросмотр уровня 5|уровень 5 —/).first().waitFor();
+      await page.waitForTimeout(1200);
+      await own(civ);
+    }
     await page.evaluate(() => localStorage.removeItem('modus.town.view'));
-    step('город без нарисованной панорамы открывается сразу в 3D');
+    step('город без нарисованной панорамы открывается сразу в 3D; на пятом уровне у каждого раздела своё здание во всех пяти цивилизациях');
   });
   // 7c. Without WebGL the town is the list of its buildings, and it says so.
   await as(

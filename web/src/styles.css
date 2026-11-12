@@ -1548,21 +1548,24 @@ button.ts { cursor: pointer; min-height: 28px; }
 }
 
 /* 3D town of a district (ADR-0029): pins on the buildings and the same links as a list. */
-.citadel3d[data-town='yes'] .citadel3d-stage { height: clamp(320px, 56vh, 600px); }
+.citadel3d[data-town='yes'] .citadel3d-stage { height: clamp(340px, 62vh, 640px); }
 .town3d-pins { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
 .town3d-pin {
   position: absolute; left: 0; top: 0; visibility: hidden; pointer-events: auto; will-change: transform;
-  display: grid; justify-items: center; gap: 2px; padding: 4px 6px 0; min-width: 44px; min-height: 44px;
+  display: flex; flex-direction: column; align-items: center; min-width: 44px;
   color: #f4ecdc; text-decoration: none; white-space: nowrap;
 }
 .town3d-pin-name {
   padding: 5px 12px; border-radius: 999px; font-size: var(--fs-sm); font-weight: 600; line-height: 1.2;
   background: rgba(16, 19, 26, 0.86); border: 1px solid rgba(232, 207, 152, 0.45);
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45); backdrop-filter: blur(5px); -webkit-backdrop-filter: blur(5px);
+  translate: var(--dx, 0px) 0;
 }
-.town3d-pin-mark { width: 12px; height: 12px; rotate: 45deg; background: #e8cf98; border: 2px solid #14171d; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.6); }
+/* The stem ties a lifted name to its building. */
+.town3d-pin-stem { width: 1px; height: var(--lift, 0px); background: rgba(232, 207, 152, 0.75); transition: height 140ms ease-out; }
+.town3d-pin-mark { width: 12px; height: 12px; margin: 3px 0; rotate: 45deg; background: #e8cf98; border: 2px solid #14171d; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.6); }
 .town3d-pin[data-compact='yes'] .town3d-pin-name { display: none; }
-.town3d-pin[data-compact='yes'] { align-content: end; }
+.town3d-pin[data-compact='yes'] { min-height: 44px; justify-content: flex-end; }
 .town3d-pin[data-on='yes'] .town3d-pin-name { display: block; border-color: #e8cf98; background: #3a2e1e; }
 @media (hover: hover) { .town3d-pin:hover .town3d-pin-name { display: block; border-color: #e8cf98; background: #3a2e1e; } }
 .town3d-pin[data-on='yes'] { z-index: 20000 !important; }
@@ -1580,7 +1583,7 @@ button.ts { cursor: pointer; min-height: 28px; }
 .town-switch p { margin: 0; color: var(--ink-2); font-size: var(--fs-sm); }
 @media (max-width: 900px) { .town3d-list { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 700px) { .town3d-pin-name { font-size: var(--fs-xs); padding: 4px 9px; } }
-@media (prefers-reduced-motion: reduce) { .town3d-pin-mark { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .town3d-pin-mark, .town3d-pin-stem { transition: none; } }
 
 /* Response layer and diagnostics of the 3D city (ADR-0030) */
 .w3d-tick { display: inline-block; transform-origin: left center; }
