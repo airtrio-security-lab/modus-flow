@@ -2,9 +2,8 @@ import { useState } from 'react';
 import type { District } from '../lib/types';
 import './city-panorama.css';
 
-/** Coordinates correspond to the licensed, original Camelot panorama at 1448×1086.
- * The image is presentation only; every click is a normal link into the existing,
- * server-authorization-checked module, with no simulated business success.
+/** Landmarks overlay original Camelot and Russian Tsardom artwork.
+ * Every click uses existing, server-authorized routes, never a simulated business outcome.
  */
 export const CAMELOT_BUILDINGS = [
   { id: 'library', name: 'Великая библиотека', detail: 'Наследие отдела', x: 19, y: 29, tab: 'legacy' },
