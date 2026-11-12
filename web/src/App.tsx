@@ -28,6 +28,7 @@ import { MeetingPage, MeetingsList, NewMeeting } from './screens/Meetings';
 import { TitleChip, useTitles } from './components/Titles';
 import { Board } from './screens/Board';
 import { KnowledgePage, Library, NewKnowledge } from './screens/Library';
+import { CinematicHost } from './components/CinematicNotification';
 
 export function App() {
   const [me, setMe] = useState<Me | null>(null);
@@ -274,6 +275,7 @@ function Shell() {
           {page}
         </div>
       </main>
+      <CinematicHost />
 
       <nav className="tabbar" aria-label="Разделы" style={{ gridTemplateColumns: `repeat(${left.length + right.length + 1}, 1fr)` }}>
         {left.map((n) => (

@@ -1,0 +1,411 @@
+{
+ "schema": "modus-flow-cinematics-verified-v1",
+ "checkedAt": "2026-11-13",
+ "source": "MODUS_FLOW_cinematics_for_Claude.zip (owner upload)",
+ "method": {
+  "speech": "faster-whisper 1.2.1, language ru, models small and large-v3 (int8, CPU); web versions re-checked with small",
+  "visual": "four frames per file",
+  "technical": "ffprobe; SHA-256 of every original matched the archive manifest"
+ },
+ "web_encoding": "720x1280 H.264 High@4.0 yuv420p CRF 25 maxrate 2 Mbit/s +faststart; AAC-LC 96 kbit/s 48 kHz stereo; poster = frame 0.35 s before the end, 540x960 JPEG",
+ "sources": [
+  {
+   "file": "01_knowledge_archived.mp4",
+   "original_filename": "Archive_doors_opening_with_volume_851ff8b3_1080p.mp4",
+   "sha256": "2196472a9ee65c624c4660ea4ab31e5766569c0417d3ce84e27502c9f5ac9a16",
+   "seconds": 3.92,
+   "archive_guess": "knowledge_archived",
+   "voice_large_v3": "Этот принят в высший архив.",
+   "voice_small": "Метод принят в высший архив.",
+   "speech_ends_at": 2.54,
+   "decision": "connected as knowledge-archived",
+   "reason": null
+  },
+  {
+   "file": "02_envoy_accepted.mp4",
+   "original_filename": "Armored_hands_sealing_royal_docuΓÇª_40e5bbf0_1080p.mp4",
+   "sha256": "43fe57f75f9a0e6c5827aa7a8d8eff818ff16bf9ddc5f93268d3ba4b119585d9",
+   "seconds": 4.96,
+   "archive_guess": "royal_audience_accepted",
+   "voice_large_v3": "Внедрение одобрено.",
+   "voice_small": "Внедрение одобрено.",
+   "speech_ends_at": 1.54,
+   "decision": "connected as implementation-approved",
+   "reason": null
+  },
+  {
+   "file": "03_implementation_completed.mp4",
+   "original_filename": "Bronze_emblem_on_stone_pedestal_89ffa306_1080p.mp4",
+   "sha256": "5521536ec660fbc6aedbbdfd86d99da4259c6b8cb42b7c89c405bd86806a4984",
+   "seconds": 4.96,
+   "archive_guess": "implemented_confirmed",
+   "voice_large_v3": "Внедрение успешно завершено.",
+   "voice_small": "Внедрение успешно завершено.",
+   "speech_ends_at": 4.1,
+   "decision": "connected as implementation-completed",
+   "reason": null
+  },
+  {
+   "file": "04_contribution_recognized.mp4",
+   "original_filename": "Bronze_medallion_in_wooden_case_ffc35a53_1080p.mp4",
+   "sha256": "d09e107478b8412140bc716d3c2af4e256cf06a0263e781a7ee873a06f85a3a1",
+   "seconds": 3.92,
+   "archive_guess": "contribution_confirmed",
+   "voice_large_v3": "Ваш вклад признан.",
+   "voice_small": "Ваш вклад признан.",
+   "speech_ends_at": 2.54,
+   "decision": "not connected",
+   "reason": "Событие contribution_confirmed объявлено, но сервер его нигде не создаёт"
+  },
+  {
+   "file": "05_castle_level_up.mp4",
+   "original_filename": "Castle_reaching_new_level_db85f323_1080p.mp4",
+   "sha256": "4fedfae33cf4453cc8c6bd55e47056ce4e72de6e103437bd688a4d74477838ea",
+   "seconds": 3.92,
+   "archive_guess": "castle_level_up",
+   "voice_large_v3": "Замок достиг нового уровня!",
+   "voice_small": "Замок достиг нового уровня!",
+   "speech_ends_at": 2.56,
+   "decision": "connected as castle-level-up",
+   "reason": null
+  },
+  {
+   "file": "06_proposal_under_review.mp4",
+   "original_filename": "Document_holder_moving_on_table_8fbd49c3_1080p.mp4",
+   "sha256": "7f0c7b2f8dd5826dcf80b66c2fa70abb9b565c71aed2ce90232014f0b788aca7",
+   "seconds": 4.96,
+   "archive_guess": "idea_review_started",
+   "voice_large_v3": "Предложение на рассмотрение.",
+   "voice_small": "Предложение на рассмотрение.",
+   "speech_ends_at": 2.06,
+   "decision": "not connected",
+   "reason": "Автору не приходит отдельное событие «обращение взято на рассмотрение»"
+  },
+  {
+   "file": "07_assignment_created.mp4",
+   "original_filename": "Document_placed_on_work_stand_ba1ed1fe_1080p.mp4",
+   "sha256": "0c04c262485b3318eb31c72913af4a256f60b17b79b742c2a3e59a69ef51e184",
+   "seconds": 3.92,
+   "archive_guess": "assigned",
+   "voice_large_v3": "Вам поручено дело!",
+   "voice_small": "Вам поручено дело.",
+   "speech_ends_at": 2.06,
+   "decision": "connected as assignment",
+   "reason": null
+  },
+  {
+   "file": "08_implementation_approved.mp4",
+   "original_filename": "Gloved_hand_sealing_royal_document_b3bd260e_1080p.mp4",
+   "sha256": "a7fae23dd31593c077d10b2a4af4e10983edf50e5fcbb38c59c2141ecb02e041",
+   "seconds": 4.96,
+   "archive_guess": "authorized_implementation_decision",
+   "voice_large_v3": "Король принял вашего посла.",
+   "voice_small": "Король принял вашего посла!",
+   "speech_ends_at": 2.68,
+   "decision": "connected as envoy-accepted",
+   "reason": null
+  },
+  {
+   "file": "09_knowledge_library_alt.mp4",
+   "original_filename": "Manuscript_moves_on_library_lift_416741b5_1080p.mp4",
+   "sha256": "c116cfb43e7906c380a65609ff8fd818c6dd5e02ad1b877fb6d8af123a1ec429",
+   "seconds": 3.92,
+   "archive_guess": "knowledge_in_library",
+   "voice_large_v3": "Решение внесено в библиотеку.",
+   "voice_small": "Решение внесено в библиотеку.",
+   "speech_ends_at": 2.28,
+   "decision": "not connected",
+   "reason": "Второй вариант для knowledge_in_library; одно событие — одна сцена"
+  },
+  {
+   "file": "10_knowledge_in_library.mp4",
+   "original_filename": "New_book_added_to_library_1c758091_1080p.mp4",
+   "sha256": "0bddc7750e0c3e1c9282eb4b1a107456322087e855fc67405c068c4987dc7ccd",
+   "seconds": 3.92,
+   "archive_guess": "knowledge_in_library",
+   "voice_large_v3": "Новое знание пополнило библиотеку.",
+   "voice_small": "Новое знание пополнило библиотеку.",
+   "speech_ends_at": 2.78,
+   "decision": "connected as knowledge-in-library",
+   "reason": null
+  },
+  {
+   "file": "11_envoy_arrived.mp4",
+   "original_filename": "Palace_doors_open_for_envoy_cd71e4ed_1080p.mp4",
+   "sha256": "0d4fe63db0553664dbe3a3da54190bdec85063b3b346caf8372e0fe771169a4b",
+   "seconds": 4.96,
+   "archive_guess": "royal_audience_received",
+   "voice_large_v3": "Милорд, к вам прибыл посол!",
+   "voice_small": "Милорд! К вам прибыл посол!",
+   "speech_ends_at": 3.94,
+   "decision": "connected as envoy-arrived",
+   "reason": null
+  },
+  {
+   "file": "12_changes_requested.mp4",
+   "original_filename": "Parchment_returned_in_council_liΓÇª_ccdb0aea_1080p.mp4",
+   "sha256": "0ac98ed98363ae9a74cab9a0058e17b8700a8c6a922eda026cbf1ed62f710f61",
+   "seconds": 3.92,
+   "archive_guess": "changes_requested",
+   "voice_large_v3": "Совет просит уточнений.",
+   "voice_small": "Совет просит уточнений.",
+   "speech_ends_at": 3.4,
+   "decision": "connected as changes-requested",
+   "reason": null
+  },
+  {
+   "file": "13_envoy_sent.mp4",
+   "original_filename": "Parchment_sliding_into_dispatch_ΓÇª_9b3f9a3f_1080p.mp4",
+   "sha256": "73216e5ce2456a64e6de41661bcc6d63f521c6b24f953e58e28467d0910cd8ce",
+   "seconds": 4.96,
+   "archive_guess": "royal_audience_requested",
+   "voice_large_v3": "Ваш посол отправлен!",
+   "voice_small": "Ваш посол отправлен!",
+   "speech_ends_at": 2.06,
+   "decision": "connected as envoy-sent",
+   "reason": null
+  },
+  {
+   "file": "14_council_invitation.mp4",
+   "original_filename": "Parchment_unrolling_on_table_638eb223_1080p.mp4",
+   "sha256": "88d7dae6fffe64f43842b8fa9d485b0535d2c79f263b37596c3da0bd0442f0ee",
+   "seconds": 4.96,
+   "archive_guess": "meeting_called",
+   "voice_large_v3": "Вас приглашают обсудить вопрос на совете.",
+   "voice_small": "Вас приглашают обсудить вопрос на Совете.",
+   "speech_ends_at": 3.78,
+   "decision": "connected as council-invitation",
+   "reason": null
+  },
+  {
+   "file": "15_great_council_gathered.mp4",
+   "original_filename": "Representatives_place_objects_onΓÇª_22c9182e_1080p.mp4",
+   "sha256": "4ded4f416c94cc9c19c8ca8dc9de18b3d64b0d3eb56fa3ce1b5805d68fb8ab79",
+   "seconds": 4.96,
+   "archive_guess": "meeting_started_verified",
+   "voice_large_v3": "Великий Совет собран!",
+   "voice_small": "Великий Совет Собран",
+   "speech_ends_at": 2.24,
+   "decision": "not connected",
+   "reason": "Нет проверенного серверного факта «заседание началось»; приглашение им не является"
+  },
+  {
+   "file": "16_notification_variant_a.mp4",
+   "original_filename": "Royal_envelope_arriving_on_table_3566ac73_1080p.mp4",
+   "sha256": "fd126bbd16632835a229d2168f18cc441500342ae14660acf4ea28c0232e41e8",
+   "seconds": 4.96,
+   "archive_guess": "notification_unread",
+   "voice_large_v3": "К вам пришло уведомление. Хотите посмотреть сейчас?",
+   "voice_small": "К вам пришло уведомление. Хотите посмотреть сейчас?",
+   "speech_ends_at": 4.08,
+   "decision": "connected as notification",
+   "reason": null
+  },
+  {
+   "file": "17_notification_variant_b.mp4",
+   "original_filename": "Royal_envelope_on_dark_pedestal_efade653_1080p.mp4",
+   "sha256": "87126a6043d2f0c1fd70c9f8946547a86262204bf59bb503dd0a319a8f46c483",
+   "seconds": 4.96,
+   "archive_guess": "notification_unread",
+   "voice_large_v3": "К вам пришло уведомление. Хотите посмотреть сейчас?",
+   "voice_small": "К вам пришло уведомление. Хотите посмотреть сейчас?",
+   "speech_ends_at": 4.18,
+   "decision": "not connected",
+   "reason": "Второй вариант общего уведомления; выбран вариант A"
+  }
+ ],
+ "scenes": [
+  {
+   "id": "council-invitation",
+   "trigger": "notification:meeting_called",
+   "source": "14_council_invitation.mp4",
+   "voice": "Вас приглашают обсудить вопрос на совете.",
+   "voice_web_check": "Вас приглашают обсудить вопрос на Совете.",
+   "web": {
+    "file": "cinematics/council-invitation.mp4",
+    "poster": "cinematics/council-invitation.jpg",
+    "bytes": 953071,
+    "sha256": "3cbbeab665559eedacec602bf3b6ba199fbbfe7e44377d8c32faa07d77421638",
+    "width": 720,
+    "height": 1280,
+    "seconds": 4.96
+   }
+  },
+  {
+   "id": "changes-requested",
+   "trigger": "notification:changes_requested",
+   "source": "12_changes_requested.mp4",
+   "voice": "Совет просит уточнений.",
+   "voice_web_check": "Совет просит уточнений.",
+   "web": {
+    "file": "cinematics/changes-requested.mp4",
+    "poster": "cinematics/changes-requested.jpg",
+    "bytes": 459179,
+    "sha256": "502b4d51dce91bb07b4db8da1bd9c87cd53d0f330b2f914c81c82ed0d706850e",
+    "width": 720,
+    "height": 1280,
+    "seconds": 3.92
+   }
+  },
+  {
+   "id": "assignment",
+   "trigger": "notification:assigned",
+   "source": "07_assignment_created.mp4",
+   "voice": "Вам поручено дело!",
+   "voice_web_check": "Вам поручено дело.",
+   "web": {
+    "file": "cinematics/assignment.mp4",
+    "poster": "cinematics/assignment.jpg",
+    "bytes": 537492,
+    "sha256": "426cc5e0dd1610950b177cc97916de81be58961130520988785fffde96c890e8",
+    "width": 720,
+    "height": 1280,
+    "seconds": 3.92
+   }
+  },
+  {
+   "id": "castle-level-up",
+   "trigger": "notification:castle_level_up",
+   "source": "05_castle_level_up.mp4",
+   "voice": "Замок достиг нового уровня!",
+   "voice_web_check": "Замок достиг нового уровня!",
+   "web": {
+    "file": "cinematics/castle-level-up.mp4",
+    "poster": "cinematics/castle-level-up.jpg",
+    "bytes": 878655,
+    "sha256": "428eb06635b01c0735c12666f2187c5393e7b4e156f97170dd0b882d5edf73a7",
+    "width": 720,
+    "height": 1280,
+    "seconds": 3.92
+   }
+  },
+  {
+   "id": "implementation-approved",
+   "trigger": "notification:idea_merged",
+   "source": "02_envoy_accepted.mp4",
+   "voice": "Внедрение одобрено.",
+   "voice_web_check": "Внедрение одобрено!",
+   "web": {
+    "file": "cinematics/implementation-approved.mp4",
+    "poster": "cinematics/implementation-approved.jpg",
+    "bytes": 829522,
+    "sha256": "9427e1828cb2e40bc2743dab27f82f0b98870d4f2224e88f6456ad76c7711deb",
+    "width": 720,
+    "height": 1280,
+    "seconds": 4.96
+   }
+  },
+  {
+   "id": "implementation-completed",
+   "trigger": "notification:implemented",
+   "source": "03_implementation_completed.mp4",
+   "voice": "Внедрение успешно завершено.",
+   "voice_web_check": "Внедрение успешно завершено.",
+   "web": {
+    "file": "cinematics/implementation-completed.mp4",
+    "poster": "cinematics/implementation-completed.jpg",
+    "bytes": 859569,
+    "sha256": "597c29fa152c7df57efe20f463b6a7ff2373214f1f5ebd021432f585585bfb58",
+    "width": 720,
+    "height": 1280,
+    "seconds": 4.96
+   }
+  },
+  {
+   "id": "knowledge-in-library",
+   "trigger": "notification:knowledge_in_library",
+   "source": "10_knowledge_in_library.mp4",
+   "voice": "Новое знание пополнило библиотеку.",
+   "voice_web_check": "Новое знание пополнило библиотеку.",
+   "web": {
+    "file": "cinematics/knowledge-in-library.mp4",
+    "poster": "cinematics/knowledge-in-library.jpg",
+    "bytes": 694808,
+    "sha256": "756cedf441b23c144825e4f78d1ffd05164d66d8523e4206c1b1dc7762454130",
+    "width": 720,
+    "height": 1280,
+    "seconds": 3.92
+   }
+  },
+  {
+   "id": "knowledge-archived",
+   "trigger": "notification:knowledge_archived",
+   "source": "01_knowledge_archived.mp4",
+   "voice": "Этот принят в высший архив.",
+   "voice_web_check": "Метод принят в высший архив.",
+   "web": {
+    "file": "cinematics/knowledge-archived.mp4",
+    "poster": "cinematics/knowledge-archived.jpg",
+    "bytes": 676812,
+    "sha256": "a30f86f64e45980bfb7f652b47b87daa243b8e9e79288cfb92125efd29ba0ef8",
+    "width": 720,
+    "height": 1280,
+    "seconds": 3.92
+   }
+  },
+  {
+   "id": "envoy-sent",
+   "trigger": "audience:sender/requested",
+   "source": "13_envoy_sent.mp4",
+   "voice": "Ваш посол отправлен!",
+   "voice_web_check": "Ваш посол отправлен!",
+   "web": {
+    "file": "cinematics/envoy-sent.mp4",
+    "poster": "cinematics/envoy-sent.jpg",
+    "bytes": 1081533,
+    "sha256": "4b97cd9c24855ec22751242c17e1acb19c825af791e5608342c0067e354a1fff",
+    "width": 720,
+    "height": 1280,
+    "seconds": 4.96
+   }
+  },
+  {
+   "id": "envoy-arrived",
+   "trigger": "audience:king/requested",
+   "source": "11_envoy_arrived.mp4",
+   "voice": "Милорд, к вам прибыл посол!",
+   "voice_web_check": "Милорд, к вам прибыл посол!",
+   "web": {
+    "file": "cinematics/envoy-arrived.mp4",
+    "poster": "cinematics/envoy-arrived.jpg",
+    "bytes": 946184,
+    "sha256": "4e5193b9b89a55984f64d3dd6d7dd1cd1639330f4e066b0af2638b0263ccb94f",
+    "width": 720,
+    "height": 1280,
+    "seconds": 4.96
+   }
+  },
+  {
+   "id": "envoy-accepted",
+   "trigger": "audience:sender/accepted",
+   "source": "08_implementation_approved.mp4",
+   "voice": "Король принял вашего посла.",
+   "voice_web_check": "Король принял вашего посла!",
+   "web": {
+    "file": "cinematics/envoy-accepted.mp4",
+    "poster": "cinematics/envoy-accepted.jpg",
+    "bytes": 840506,
+    "sha256": "494a5b3cdf59a314e6dd23227a93218aee19ab9d2e0332799ec12da4b59692fc",
+    "width": 720,
+    "height": 1280,
+    "seconds": 4.96
+   }
+  },
+  {
+   "id": "notification",
+   "trigger": "notification:urgent without own scene",
+   "source": "16_notification_variant_a.mp4",
+   "voice": "К вам пришло уведомление. Хотите посмотреть сейчас?",
+   "voice_web_check": "К вам пришло уведомление. Хотите посмотреть сейчас?",
+   "web": {
+    "file": "cinematics/notification.mp4",
+    "poster": "cinematics/notification.jpg",
+    "bytes": 620821,
+    "sha256": "911c66c9de361e54949658b20f7924b78a28f20665644744f1ccc19a15fc47fe",
+    "width": 720,
+    "height": 1280,
+    "seconds": 4.96
+   }
+  }
+ ]
+}

@@ -42,6 +42,8 @@ export function NotePrefs() {
       await api(`/orgs/${s.org}/me/notification-preferences`, { method: 'PUT', json: { style: p.style, addressForm: p.addressForm, groupRepeats: p.groupRepeats, muted: p.muted } });
       s.toast('Настройки посланий сохранены');
       await reload();
+      // Cinematic notifications follow the wording and the form of address (ADR-0031).
+      window.dispatchEvent(new Event('modus:note-prefs'));
     } catch (x) {
       setErr(errorText(x));
     } finally {

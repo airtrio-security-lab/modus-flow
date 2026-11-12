@@ -42,7 +42,8 @@
     "demo:world3d": "node web/e2e/world3d-flow.mjs",
     "demo:town:camelot": "node web/e2e/camelot-city.mjs",
     "demo:town:russia": "node web/e2e/russian-city.mjs",
-    "demo:feel": "node web/e2e/feel-flow.mjs"
+    "demo:feel": "node web/e2e/feel-flow.mjs",
+    "demo:cinematics": "node web/e2e/cinematics-flow.mjs"
   },
   "engines": {
     "node": ">=22"
