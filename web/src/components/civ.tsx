@@ -9,11 +9,12 @@ import { Banner, Box, IsoCastle, P, Plate, Roof, STONE, STONE_DARK, TIMBER, shad
  * nothing about the people who work there. Names and titles come from the server registry
  * (platform/domain/civilizations.ts); the copy below is only for drawing labels.
  */
-export type Civ = 'camelot' | 'japan' | 'mongolia' | 'kazakh';
+export type Civ = 'camelot' | 'japan' | 'mongolia' | 'kazakh' | 'russia';
 export const CIVS: { id: Civ; name: string; motto: string; hall: string }[] = [
   { id: 'camelot', name: 'Камелот', motto: 'Рыцарская цивилизация: замок, башни и стены, рыцарский двор, оружейная и мастерские', hall: 'Зал рыцарей' },
   { id: 'japan', name: 'Японский сёгунат', motto: 'Замок, сады и мосты, многоярусные крыши', hall: 'Зал даймё' },
   { id: 'kazakh', name: 'Казахское ханство', motto: 'Большая ханская юрта, ставка и поселение, орнаменты', hall: 'Ханская юрта' },
+  { id: 'russia', name: 'Русское царство', motto: 'Москва XVI–XVII веков: Кремль, соборы, боярские палаты и торг', hall: 'Боярская дума' },
   { id: 'mongolia', name: 'Монгольская держава', motto: 'Ставка правителя, юрты, туги и степные сооружения', hall: 'Совет нойонов' },
 ];
 export const civOf = (id: string | null | undefined): Civ => (CIVS.some((c) => c.id === id) ? (id as Civ) : 'camelot');
@@ -28,6 +29,7 @@ export const CIV_HEIGHT: Record<Civ, number[]> = {
   japan: [3.6, 4.6, 5.8, 7, 8.6],
   mongolia: [3, 3.2, 3.6, 4.4, 5.6],
   kazakh: [3, 3.2, 4, 5.4, 7],
+  russia: [5.2, 5.7, 6.5, 7.6, 9.2],
 };
 
 const WHITE: Shade = { top: '#f6f3ea', left: '#ece6d8', right: '#d7cfbd' };
@@ -239,9 +241,40 @@ function KazakhOrda({ level, color, u }: { level: number; color: string; u: numb
   );
 }
 
+/** Red-brick Kremlin with white-stone cathedral and gilded domes. Grows with real level. */
+function RussianKremlin({ level, color, u }: { level: number; color: string; u: number }) {
+  const plate = PLATE[level - 1]!;
+  const brick: Shade = { top: '#d66c53', left: '#aa4333', right: '#843228' };
+  const green = shadeOf('#3e5949');
+  const turret = (x: number, y: number, h: number) => (
+    <g key={x + '-' + y}>
+      <Box x0={x} y0={y} w={0.65} d={0.65} h={h} s={brick} u={u} />
+      <Roof x0={x - 0.12} y0={y - 0.12} w={0.89} d={0.89} z={h} h={0.9} s={green} u={u} />
+      <Banner x={x + 0.34} y={y + 0.32} z={h + 0.9} color={color} u={u} len={0.9} />
+    </g>
+  );
+  return (
+    <g>
+      <Plate r={plate} u={u} s={{ top: '#cbb992', left: '#8c7654', right: '#746242' }} />
+      <Box x0={-plate + 0.45} y0={plate - 0.85} w={plate * 2 - 0.9} d={0.45} h={1.5} s={brick} u={u} />
+      <Box x0={plate - 0.85} y0={-plate + 0.45} w={0.45} d={plate * 2 - 0.9} h={1.5} s={brick} u={u} />
+      {turret(plate - 1.15, plate - 1.15, level >= 4 ? 4.6 : 3.0)}
+      {level >= 2 ? turret(-plate + 0.5, plate - 1.15, 2.2) : null}
+      {level >= 3 ? turret(plate - 1.15, -plate + 0.5, 2.8) : null}
+      {level >= 5 ? turret(-plate + 0.5, -plate + 0.5, 3.5) : null}
+      <Box x0={-1.2} y0={-1} w={2.5} d={2.2} h={level >= 4 ? 2.6 : 1.8} s={WHITE} u={u} />
+      <Dome x={0.1} y={0.0} z={level >= 4 ? 2.6 : 1.8} r={0.75} color="#daa331" u={u} />
+      {level >= 3 ? <Dome x={-0.7} y={-0.3} z={level >= 4 ? 2.6 : 1.8} r={0.35} color="#e5bd4c" u={u} /> : null}
+      {level >= 4 ? <Dome x={0.8} y={0.6} z={2.6} r={0.38} color="#e5bd4c" u={u} /> : null}
+      {level >= 5 ? <g><Box x0={-2.5} y0={-2.6} w={1.25} d={1.6} h={2.7} s={WHITE} u={u} /><Roof x0={-2.65} y0={-2.75} w={1.55} d={1.9} z={2.7} h={0.9} s={green} u={u} /></g> : null}
+    </g>
+  );
+}
+
 /** The main building of a district in its style. `rising` replays the construction for a new level. */
 export function CivCastle({ civ, level, color, u, rising = false }: { civ: string; level: number; color: string; u: number; rising?: boolean }) {
   const lv = Math.min(5, Math.max(1, level));
+  if (civ === 'russia') return <g className={rising ? 'iso-rise' : undefined}><RussianKremlin level={lv} color={color} u={u} /></g>;
   if (civ === 'japan') return <g className={rising ? 'iso-rise' : undefined}><JapaneseCastle level={lv} color={color} u={u} /></g>;
   if (civ === 'mongolia') return <g className={rising ? 'iso-rise' : undefined}><MongolCamp level={lv} color={color} u={u} /></g>;
   if (civ === 'kazakh') return <g className={rising ? 'iso-rise' : undefined}><KazakhOrda level={lv} color={color} u={u} /></g>;
@@ -258,6 +291,12 @@ export function DistrictHouses({ civ, level, u, color }: { civ: string; level: n
         <g key={`${x}${y}`}>
           {civ === 'mongolia' || civ === 'kazakh' ? (
             <Yurt x={x} y={y} r={0.6} h={0.7} u={u} band={civ === 'kazakh' ? '#a2412f' : undefined} />
+          ) : civ === 'russia' ? (
+            <g>
+              <Box x0={x - 0.65} y0={y - 0.55} w={1.3} d={1.1} h={1.2} s={WHITE} u={u} />
+              <Roof x0={x - 0.75} y0={y - 0.65} w={1.5} d={1.3} z={1.2} h={0.7} s={shadeOf('#4d6550')} u={u} />
+              {i === 3 ? <Dome x={x} y={y} z={1.9} r={0.38} color="#d9a532" u={u} /> : null}
+            </g>
           ) : civ === 'japan' ? (
             <g>
               <Box x0={x - 0.6} y0={y - 0.5} w={1.2} d={1} h={0.8} s={WHITE} u={u} />
@@ -326,6 +365,16 @@ export function IsoPlaza({ u, count }: { u: number; count: number }) {
  */
 export function CouncilHall({ civ, u, color }: { civ: string; u: number; color: string }) {
   const c = civOf(civ);
+  if (c === 'russia')
+    return (
+      <g>
+        <Plate r={1.7} u={u} s={{ top: '#dec5a5', left: '#9b775a', right: '#87664b' }} />
+        <Box x0={-1.3} y0={-0.9} w={2.6} d={1.8} h={1.4} s={WHITE} u={u} />
+        <Roof x0={-1.45} y0={-1.05} w={2.9} d={2.1} z={1.4} h={0.95} s={shadeOf('#4e694f')} u={u} />
+        <Dome x={0} y={0} z={2.35} r={0.35} color="#d9a532" u={u} />
+        <Banner x={1.25} y={0.95} z={0} color={color} u={u} len={2.3} />
+      </g>
+    );
   if (c === 'japan')
     return (
       <g>
