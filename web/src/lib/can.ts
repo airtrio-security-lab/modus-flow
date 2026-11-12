@@ -40,6 +40,8 @@ export function facts(v: Viewer, i: IdeaDetail) {
     evidence: (vOwner: string) => open && !author && (vOwner === me || maintainer || decider),
     conclude: open && !originator && maintainer,
     decide: open && decider && !originator && ['review', 'decision'].includes(i.stage),
+    // Postponing belongs to whoever decides the item (0018); a game title gives no right.
+    defer: open && decider && !originator && ['published', 'review', 'development', 'verification', 'decision'].includes(i.stage),
     progress: open && (maintainer || decider || implementer) && ['review', 'development', 'verification', 'decision', 'adoption'].includes(i.stage),
     setImplementer: i.stage === 'adoption' && (maintainer || decider),
     complete: i.stage === 'adoption' && !originator && (implementer || maintainer || decider),

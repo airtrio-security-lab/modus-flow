@@ -42,6 +42,10 @@ export interface Castle {
 export interface Envoy {
   number: number;
   title: string;
+  /** Who sent the envoy: the author's name, as on the item card. */
+  author: string | null;
+  /** The decision is postponed until this date (0018), or null. */
+  deferredUntil: string | null;
   status: string;
   departmentId: string | null;
   responded: boolean;
@@ -76,7 +80,8 @@ export async function kingdom(
               (o.first_response_at IS NOT NULL) AS responded,
               o.overdue_first_response AS "overdueFirstResponse", o.overdue_resolution AS "overdueResolution", o.stale,
               coalesce(app_membership_id() IN (o.author_membership_id, o.raised_by_membership_id), false) AS mine,
-              o.published_at AS "publishedAt"
+              o.published_at AS "publishedAt", o.author,
+              to_char(app_idea_deferred_until(o.id), 'YYYY-MM-DD') AS "deferredUntil"
          FROM idea_overview o
         WHERE o.organization_id = app_org_id() AND o.status NOT IN ('implemented','rejected','closed')
         ORDER BY o.published_at

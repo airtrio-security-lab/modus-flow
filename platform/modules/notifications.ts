@@ -77,6 +77,7 @@ const TEMPLATES: Record<NotificationEvent, (actor: string, title: string) => str
   knowledge_archived: (a, t) => `${a} утверждает включение «${t}» в Высший Архив`,
   knowledge_reverify: (a, t) => `${a} запрашивает повторную проверку знания «${t}»`,
   council_escalated: (a, t) => `${a} передаёт «${t}» из малого совета подразделения в Большой совет компании`,
+  idea_deferred: (a, t) => `${a} откладывает решение по «${t}»: срок и причина — в карточке обращения`,
 };
 
 /**
@@ -119,6 +120,7 @@ export const HEADLINES: Record<NotificationEvent, string> = {
   knowledge_archived: 'Том занял место в Высшем Архиве',
   knowledge_reverify: 'Знание требует проверки',
   council_escalated: 'Вопрос передан к Большому Круглому столу',
+  idea_deferred: 'Решение отложено',
 };
 
 /** Plain business headlines for people who switched the game wording off. */
@@ -156,6 +158,7 @@ export const BUSINESS_HEADLINES: Record<NotificationEvent, string> = {
   knowledge_archived: 'Утверждено в Высший Архив',
   knowledge_reverify: 'Требуется повторная проверка',
   council_escalated: 'Вопрос передан в Большой совет',
+  idea_deferred: 'Решение отложено',
 };
 
 /** Groups for the inbox filter and for switching optional messages off. */
@@ -170,6 +173,7 @@ export const CATEGORY: Record<NotificationEvent, 'council' | 'items' | 'decision
   castle_xp: 'castle', castle_level_up: 'castle', contribution_confirmed: 'castle', honor_board_recognition: 'castle',
   knowledge_submitted: 'legacy', knowledge_in_library: 'legacy', knowledge_archived: 'legacy', knowledge_reverify: 'legacy',
   council_escalated: 'council',
+  idea_deferred: 'decisions',
 };
 /** Never switched off (also enforced by app_notification_enabled in the database). */
 export const MANDATORY: readonly NotificationEvent[] = [

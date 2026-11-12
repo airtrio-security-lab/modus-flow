@@ -2,6 +2,7 @@ import { useMemo, useRef, useState, type ReactNode } from 'react';
 import { ItemKingdom } from '../components/ItemKingdom';
 import { ItemOrigin } from '../components/ItemOrigin';
 import { DatasetNote } from '../components/DatasetNote';
+import { AiAssessment, DeferControl } from '../components/ItemQuick';
 import { api, errorText } from '../lib/api';
 import { facts, type Facts } from '../lib/can';
 import { ago, bytes, dateTime, due } from '../lib/format';
@@ -88,6 +89,12 @@ export function ItemPage({ number }: { number: number }) {
         <ItemKingdom item={item} />
         <ItemOrigin number={item.number} />
         <DatasetNote number={item.number} />
+        {item.deferral || f.defer || item.status !== 'unrouted' ? (
+          <section className="panel stack quick-panel" aria-label="Срок решения и оценка ИИ">
+            <DeferControl item={item} f={f} onChanged={() => void reload()} />
+            <AiAssessment number={item.number} />
+          </section>
+        ) : null}
         {s.isLead || s.isAdmin || s.isArchivist ? (
           <div className="row">
             <a className="btn small" href={`#/library/new?idea=${item.number}`}>

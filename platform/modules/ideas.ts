@@ -1,4 +1,5 @@
 import { notFound } from '../domain/errors.ts';
+import { activeDeferral } from './deferral.ts';
 import { runChecks, type CheckResult } from '../domain/checks.ts';
 import type { IdeaAccessFacts, IdeaStage, OrgActor } from '../domain/model.ts';
 import { withTx, type Client, type Database } from '../db/pool.ts';
@@ -200,6 +201,7 @@ export async function getIdea(db: Database, actor: OrgActor, number: number) {
       ...(overview.rows[0] as Record<string, unknown>),
       attachments: attachments.rows,
       escalations: escalations.rows,
+      deferral: await activeDeferral(c, idea.id),
       id: idea.id,
       number: idea.number,
       kind: idea.kind,

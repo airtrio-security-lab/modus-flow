@@ -3,7 +3,11 @@ import { api } from '../lib/api';
 import { plural } from '../lib/format';
 import { useLite } from '../lib/lite';
 import { useSession } from '../lib/session';
-import type { Castle, Envoy, Kingdom as KingdomData, ListItem } from '../lib/types';
+import { facts } from '../lib/can';
+import { due } from '../lib/format';
+import { useLoad } from '../lib/session';
+import type { Castle, Envoy, IdeaDetail, Kingdom as KingdomData, ListItem } from '../lib/types';
+import { AiAssessment, DeferControl, ItemTrack } from '../components/ItemQuick';
 import { CIVS, civOf, type Civ } from '../components/civ';
 import { World, webglSupported, type Anchor, type AnchorKind, type Quality, type View } from '../world3d/world';
 import { HERALDRY, envoyState } from './Kingdom';
@@ -91,7 +95,7 @@ const PLACES: { id: string; kind: Exclude<AnchorKind, 'district' | 'envoy'>; tit
   { id: 'camp', kind: 'camp', title: 'Без подразделения', sub: 'Ждут распределения', href: '#/all' },
 ];
 
-export function City3D({ k, onMode, onUnavailable }: { k: KingdomData; onMode: (m: Mode) => void; onUnavailable: (why: string) => void }) {
+export function City3D({ k, onMode, onUnavailable, onReload }: { k: KingdomData; onMode: (m: Mode) => void; onUnavailable: (why: string) => void; onReload: () => void }) {
   const s = useSession();
   const [lite] = useLite();
   const host = useRef<HTMLDivElement>(null);
@@ -101,6 +105,9 @@ export function City3D({ k, onMode, onUnavailable }: { k: KingdomData; onMode: (
   const [ready, setReady] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
   const [hoverEnvoy, setHoverEnvoy] = useState<string | null>(null);
+  const [envoyOpen, setEnvoyOpen] = useState<number | null>(null);
+  const envoyOpenRef = useRef<number | null>(null);
+  envoyOpenRef.current = envoyOpen;
   const [flying, setFlying] = useState(false);
   const [listOpen, setListOpen] = useState(false);
   const [hint, setHint] = useState(() => {
@@ -167,10 +174,22 @@ export function City3D({ k, onMode, onUnavailable }: { k: KingdomData; onMode: (
   /** Put every label where its building is on the screen; far labels shrink to an emblem. */
   const place = (list: Anchor[]) => {
     const narrow = (host.current?.clientWidth ?? 1200) < 760;
-    for (const a of list) {
+    const height = host.current?.clientHeight ?? 800;
+    const taken: { x: number; y: number }[] = [];
+    // Nearest first, so the card of the envoy in front wins the place; the opened one is always shown.
+    const order = [...list].sort((p, q) => (p.kind === 'envoy' ? 1 : 0) - (q.kind === 'envoy' ? 1 : 0) || p.dist - q.dist);
+    for (const a of order) {
       const el = labels.current.get(a.id);
       if (!el) continue;
-      if (!a.visible) {
+      let show = a.visible;
+      if (a.kind === 'envoy' && show) {
+        const mine = `e${envoyOpenRef.current}` === a.id;
+        // Not under the top bar or the bottom bar, where a card could not be read anyway.
+        const clear = a.y > 96 && a.y < height - (narrow ? 150 : 84);
+        show = mine || (clear && a.dist < (narrow ? 560 : 820) && !taken.some((t) => Math.abs(t.x - a.x) < 132 && Math.abs(t.y - a.y) < 34));
+        if (show) taken.push({ x: a.x, y: a.y });
+      }
+      if (!show) {
         el.style.visibility = 'hidden';
         continue;
       }
@@ -207,10 +226,10 @@ export function City3D({ k, onMode, onUnavailable }: { k: KingdomData; onMode: (
   }, [sig, achievements, lite]);
 
   // Envoys stand where their real status puts them.
-  const envoySig = k.envoys.map((e) => `${e.number}:${e.status}:${e.departmentId}:${e.responded}:${e.overdueFirstResponse}:${e.mine}`).join('|');
+  const envoySig = k.envoys.map((e) => `${e.number}:${e.status}:${e.departmentId}:${e.responded}:${e.overdueFirstResponse}:${e.mine}:${e.deferredUntil}`).join('|');
   useEffect(() => {
     world.current?.setEnvoys(
-      k.envoys.map((e) => ({ id: `e${e.number}`, districtId: e.departmentId, t: envoyState(e).t, tone: e.overdueFirstResponse || e.overdueResolution ? 'late' : e.mine ? 'mine' : 'normal' })),
+      k.envoys.map((e) => ({ id: `e${e.number}`, districtId: e.departmentId, t: envoyState(e).t, tone: e.deferredUntil ? 'paused' : e.overdueFirstResponse || e.overdueResolution ? 'late' : e.mine ? 'mine' : 'normal' })),
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [envoySig, sig, lite]);
@@ -221,12 +240,12 @@ export function City3D({ k, onMode, onUnavailable }: { k: KingdomData; onMode: (
     if (!w || !el) return;
     w.select(selected);
     // The card covers the right side on a desktop and the lower half on a phone.
-    const open = Boolean(selected) || listOpen;
+    const open = Boolean(selected) || listOpen || envoyOpen !== null;
     // Even with no card open the bottom bar (and the tab bar on a phone) hides the lower edge of the city.
     if (!open) w.setCovered(0, el.clientWidth < 900 ? 150 : 84);
     else if (el.clientWidth < 900) w.setCovered(0, el.clientHeight * 0.46);
     else w.setCovered(360, 0);
-  }, [selected, listOpen, ready]);
+  }, [selected, listOpen, envoyOpen, ready]);
 
   const fly = useCallback(async (id: string, then?: string) => {
     const w = world.current;
@@ -244,7 +263,19 @@ export function City3D({ k, onMode, onUnavailable }: { k: KingdomData; onMode: (
     (id: string) => {
       setSelected(id);
       setListOpen(false);
+      setEnvoyOpen(null);
       void fly(id);
+    },
+    [fly],
+  );
+
+  const openEnvoy = useCallback(
+    (number: number) => {
+      setEnvoyOpen(number);
+      setSelected(null);
+      setListOpen(false);
+      // The camera comes to the envoy, so its card stays in view next to the sheet.
+      void fly(`e${number}`);
     },
     [fly],
   );
@@ -256,16 +287,17 @@ export function City3D({ k, onMode, onUnavailable }: { k: KingdomData; onMode: (
     w.onPick = (id, kind) => {
       if (!id) {
         setSelected(null);
+        setEnvoyOpen(null);
         return;
       }
       if (kind === 'district') openDistrict(id);
-      else if (kind === 'envoy') location.hash = `#/items/${id.slice(1)}`;
+      else if (kind === 'envoy') openEnvoy(Number(id.slice(1)));
       else {
         const p = PLACES.find((x) => x.id === id);
         if (p) void fly(id, p.href);
       }
     };
-  }, [openDistrict, fly, ready]);
+  }, [openDistrict, openEnvoy, fly, ready]);
 
   const dismissHint = () => {
     setHint(false);
@@ -286,6 +318,7 @@ export function City3D({ k, onMode, onUnavailable }: { k: KingdomData; onMode: (
         pending.current = null;
         w.skip();
       } else if (listOpen) setListOpen(false);
+      else if (envoyOpen !== null) setEnvoyOpen(null);
       else setSelected(null);
     } else if (key && !(e.target as HTMLElement).closest('a, button')) {
       e.preventDefault();
@@ -296,14 +329,13 @@ export function City3D({ k, onMode, onUnavailable }: { k: KingdomData; onMode: (
     if (el) labels.current.set(id, el);
     else labels.current.delete(id);
   };
-  const envoy = hoverEnvoy ? k.envoys.find((e) => `e${e.number}` === hoverEnvoy) : undefined;
   const inWork = k.envoys.filter((e) => e.status === 'in_progress').length;
   const waiting = k.envoys.filter((e) => !e.responded && e.status !== 'in_progress').length;
   const late = k.envoys.filter((e) => e.overdueFirstResponse || e.overdueResolution).length;
   const xp = k.castles.reduce((n, c) => n + c.xp, 0);
 
   return (
-    <div className="w3d" data-sheet={selected || listOpen ? 'yes' : 'no'} ref={host} tabIndex={0} onKeyDown={onKey} role="application" aria-label={`${s.realmName}: трёхмерный город подразделений. Стрелки двигают камеру, плюс и минус приближают, Q и E поворачивают. Все здания доступны кнопками ниже.`}>
+    <div className="w3d" data-sheet={selected || listOpen || envoyOpen !== null ? 'yes' : 'no'} ref={host} tabIndex={0} onKeyDown={onKey} role="application" aria-label={`${s.realmName}: трёхмерный город подразделений. Стрелки двигают камеру, плюс и минус приближают, Q и E поворачивают. Все здания доступны кнопками ниже.`}>
       <canvas ref={canvas} className="w3d-canvas" aria-hidden="true" />
       {!ready ? (
         <div className="w3d-loading" role="status">
@@ -363,12 +395,35 @@ export function City3D({ k, onMode, onUnavailable }: { k: KingdomData; onMode: (
             </span>
           </a>
         ))}
-        {envoy ? (
-          <div className="w3d-tip" ref={ref(`e${envoy.number}`)} role="status">
-            <b>№{envoy.number}</b> {envoy.title}
-            <span>{envoyState(envoy).label}</span>
-          </div>
-        ) : null}
+        {k.envoys.map((e) => {
+          const st = envoyState(e);
+          const late = e.overdueFirstResponse || e.overdueResolution;
+          const from = e.author ? shortName(e.author) : (k.castles.find((c) => c.id === e.departmentId)?.name ?? 'Без подразделения');
+          return (
+            <button
+              key={e.number}
+              type="button"
+              data-world-ui=""
+              ref={ref(`e${e.number}`)}
+              className="w3d-envoy"
+              data-tone={e.deferredUntil ? 'paused' : late ? 'late' : e.mine ? 'mine' : 'normal'}
+              data-on={envoyOpen === e.number || hoverEnvoy === `e${e.number}` ? 'yes' : 'no'}
+              style={{ ['--plate' as string]: (e.departmentId && colors.get(e.departmentId)) || '#7d8798' }}
+              aria-label={`Обращение №${e.number} от ${e.author ?? 'сотрудника'}: ${e.title}. ${st.label}`}
+              onClick={() => openEnvoy(e.number)}
+            >
+              <span className="w3d-envoy-head">
+                <i aria-hidden="true" />
+                <b>№{e.number}</b>
+                <span>{from}</span>
+              </span>
+              <span className="w3d-envoy-more">
+                <em>{e.title}</em>
+                <small>{st.label}</small>
+              </span>
+            </button>
+          );
+        })}
       </div>
 
       <Hud k={k} onMode={onMode} onPick={openDistrict} onItem={(n) => (location.hash = `#/items/${n}`)} onPerson={(p) => (location.hash = `#/people/${p.id}`)} />
@@ -477,8 +532,96 @@ export function City3D({ k, onMode, onUnavailable }: { k: KingdomData; onMode: (
         </div>
       ) : null}
 
-      {current && !listOpen ? <DistrictSheet c={current} color={colors.get(current.id)!} envoys={k.envoys.filter((e) => e.departmentId === current.id)} onClose={() => setSelected(null)} onEnter={(href) => void fly(current.id, href)} /> : null}
+      {envoyOpen !== null && !listOpen ? <EnvoySheet key={envoyOpen} number={envoyOpen} envoy={k.envoys.find((e) => e.number === envoyOpen)} onClose={() => setEnvoyOpen(null)} onChanged={onReload} /> : null}
+
+      {current && !listOpen && envoyOpen === null ? <DistrictSheet c={current} color={colors.get(current.id)!} envoys={k.envoys.filter((e) => e.departmentId === current.id)} onClose={() => setSelected(null)} onEnter={(href) => void fly(current.id, href)} /> : null}
     </div>
+  );
+}
+
+const shortName = (full: string) => {
+  const [first, ...rest] = full.trim().split(/\s+/);
+  return rest.length ? `${first![0]}. ${rest[rest.length - 1]}` : full;
+};
+
+/**
+ * The envoy's card: who it is from, what it says, where it stands — and the two things a reader may do
+ * right here: ask the AI for an assessment and, for the person who decides, postpone the decision.
+ */
+function EnvoySheet({ number, envoy, onClose, onChanged }: { number: number; envoy: Envoy | undefined; onClose: () => void; onChanged: () => void }) {
+  const s = useSession();
+  const { data: item, error, reload } = useLoad(() => api<IdeaDetail>(`/orgs/${s.org}/ideas/${number}`), [s.org, number]);
+  const [full, setFull] = useState(false);
+  const rev = item ? (item.revisions.find((r) => r.status === 'current') ?? item.revisions[item.revisions.length - 1]) : undefined;
+  const f = item ? facts({ membershipId: s.membershipId, roles: s.roles }, item) : null;
+  const deadline = item && !item.deferral ? due(item.resolutionDueAt) : null;
+  const long = (rev?.problem.length ?? 0) > 260;
+  return (
+    <section className="w3d-sheet w3d-item" data-world-ui="" data-world-scroll="" aria-label={`Обращение №${number}`}>
+      <header>
+        <span>
+          <small>Обращение №{number}</small>
+          <b>{rev?.title ?? envoy?.title ?? '…'}</b>
+        </span>
+        <button type="button" onClick={onClose} aria-label="Закрыть карточку обращения">
+          ×
+        </button>
+      </header>
+      {error ? <p className="quick-note" data-kind="warn">Не удалось открыть обращение. Возможно, оно вам недоступно.</p> : null}
+      {!item && !error ? <p className="w3d-more">Читаем обращение…</p> : null}
+      {item && rev && f ? (
+        <>
+          <dl className="w3d-who">
+            <div>
+              <dt>От кого</dt>
+              <dd>
+                {item.author.name}
+                {item.department ? <small>{item.department}</small> : null}
+              </dd>
+            </div>
+            <div>
+              <dt>Кто отвечает</dt>
+              <dd>
+                {item.maintainer?.name ?? 'ищем ответственного'}
+                {item.decisionOwner && item.decisionOwner.membershipId !== item.maintainer?.membershipId ? <small>решает {item.decisionOwner.name}</small> : null}
+              </dd>
+            </div>
+          </dl>
+          <ItemTrack status={item.status} paused={Boolean(item.deferral)} />
+          <p className="w3d-state">
+            {envoy ? envoyState(envoy).label : ''}
+            {deadline ? <span data-late={deadline.late ? 'yes' : 'no'}> · срок решения {deadline.text}</span> : null}
+          </p>
+          <div className="w3d-text" data-full={full || !long ? 'yes' : 'no'}>
+            <p>{rev.problem}</p>
+            {rev.proposal && rev.proposal !== rev.problem ? (
+              <p>
+                <b>Предложение.</b> {rev.proposal}
+              </p>
+            ) : null}
+          </div>
+          {long ? (
+            <button type="button" className="w3d-link" onClick={() => setFull((v) => !v)}>
+              {full ? 'Свернуть' : 'Читать полностью'}
+            </button>
+          ) : null}
+          <div className="w3d-actions">
+            <a className="w3d-cta" href={`#/items/${number}`}>
+              Открыть обращение
+            </a>
+          </div>
+          <DeferControl
+            item={item}
+            f={f}
+            onChanged={() => {
+              void reload();
+              onChanged();
+            }}
+          />
+          <AiAssessment number={number} />
+        </>
+      ) : null}
+    </section>
   );
 }
 

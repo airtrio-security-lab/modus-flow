@@ -39,6 +39,8 @@ import { downloadAttachment, MAX_ATTACHMENT_BYTES, uploadAttachment } from '../m
 import { SubmitInput, submitItem } from '../modules/intake.ts';
 import { SearchQuery, searchItems, SimilarQuery, similarItems } from '../modules/search.ts';
 import * as datasetMod from '../modules/dataset.ts';
+import * as deferral from '../modules/deferral.ts';
+import * as assessment from '../modules/assessment.ts';
 import type { IdempotentResult } from '../modules/idempotency.ts';
 import { DevTokenAuthenticator, type Authenticator } from './authn.ts';
 import { createStaticHandler } from './static.ts';
@@ -317,6 +319,17 @@ export function createApp(config: AppConfig) {
   route('GET', `${ORG}/castles/(?<id>${UUID})/district`, async (ctx) => ({ status: 200, body: await district.district(db, await org(ctx), ctx.params.id!) }));
   json('PUT', `/castles/(?<id>${UUID})/civilization`, district.CivilizationInput, (a, i, p) => district.setCivilization(db, a, p.id!, i.civilization));
   route('GET', `${ORG}/people/(?<id>${UUID})`, async (ctx) => ({ status: 200, body: await district.person(db, await org(ctx), ctx.params.id!) }));
+  // ---- «Оценка ИИ»: only a connected local model answers; otherwise «не подключено» (ADR-0013) ----
+  route('POST', `${ORG}/ideas/(?<number>\\d+)/assessment`, async (ctx) => ({
+    status: 200,
+    body: await assessment.assessItem(db, await org(ctx), Number(ctx.params.number), config.advisorModel ?? null, config.advisorFetch),
+  }));
+  // ---- «Отложить решение» (0018): the decision owner pauses an item until a date, with a reason ----
+  route('POST', `${ORG}/ideas/(?<number>\\d+)/defer`, async (ctx) => {
+    const actor = await org(ctx);
+    return replied(await deferral.defer(db, actor, Number(ctx.params.number), deferral.DeferInput.parse(await ctx.body()), idemKey(ctx.req)));
+  });
+  route('POST', `${ORG}/ideas/(?<number>\\d+)/resume`, async (ctx) => replied(await deferral.resume(db, await org(ctx), Number(ctx.params.number), idemKey(ctx.req))));
   // ---- imported data sets (0017, ADR-0022): the organizer's official synthetic set in its own namespace ----
   route('GET', `${ORG}/datasets/(?<dataset>[a-z0-9-]{2,60})`, async (ctx) => ({ status: 200, body: await datasetMod.listDataset(db, await org(ctx), ctx.params.dataset!) }));
   route('GET', `${ORG}/ideas/(?<number>\\d+)/dataset`, async (ctx) => ({ status: 200, body: await datasetMod.datasetOfItem(db, await org(ctx), Number(ctx.params.number)) }));

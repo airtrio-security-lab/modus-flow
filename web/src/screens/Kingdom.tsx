@@ -51,6 +51,11 @@ const reducedMotion = () => {
 
 /** Where an envoy stands on its road (0 = home castle, 1 = council gates) and what it means. */
 export function envoyState(e: Envoy): { t: number; label: string; home?: boolean } {
+  const base = envoyPlace(e);
+  // A postponed decision keeps the envoy where it stands; only the wording changes (0018).
+  return e.deferredUntil ? { ...base, label: `решение отложено до ${shortDate(`${e.deferredUntil}T12:00:00`)}: срок на паузе` } : base;
+}
+function envoyPlace(e: Envoy): { t: number; label: string; home?: boolean } {
   if (e.status === 'in_progress') return { t: 0.16, label: 'вернулся с решением — идёт внедрение', home: true };
   if (e.status === 'needs_info') return { t: 0.35, label: 'вернулся за уточнением к автору', home: true };
   if (e.overdueFirstResponse) return { t: 0.9, label: 'ждёт у ворот: срок первого ответа прошёл' };
@@ -156,7 +161,7 @@ export function Kingdom() {
   if (mode === '3d' && data && !enter)
     return (
       <Suspense fallback={<Loading label="Строим город…" rows={3} />}>
-        <City3D k={data} onMode={setMode} onUnavailable={unavailable} />
+        <City3D k={data} onMode={setMode} onUnavailable={unavailable} onReload={() => void reload()} />
         <div className="realm-toast-slot w3d-toast" aria-live="polite">
           {celebrate ? (
             <div className="realm-toast" role="status">

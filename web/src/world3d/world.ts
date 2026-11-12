@@ -25,7 +25,7 @@ export interface EnvoyIn {
   districtId: string | null;
   /** 0 = at the district gate, 1 = at the palace of the Great Round Table. */
   t: number;
-  tone: 'normal' | 'late' | 'mine';
+  tone: 'normal' | 'late' | 'mine' | 'paused';
 }
 export interface WorldInput {
   districts: DistrictIn[];
@@ -482,7 +482,7 @@ export class World {
         p.set(this.campAt.x + Math.sin(a) * (5 + k * 0.5), GEO.centerY + 0.2, this.campAt.z + Math.cos(a) * (5 + k * 0.5));
         rot = a + Math.PI;
       }
-      const pennant = e.tone === 'late' ? '#c8392b' : e.tone === 'mine' ? '#e3b54a' : (e.districtId && colorOf.get(e.districtId)) || '#7d8798';
+      const pennant = e.tone === 'paused' ? '#8fa3ba' : e.tone === 'late' ? '#c8392b' : e.tone === 'mine' ? '#e3b54a' : (e.districtId && colorOf.get(e.districtId)) || '#7d8798';
       const m = new THREE.Mesh(this.figure(pennant), this.figureMat);
       m.position.copy(p);
       m.rotation.y = rot;
@@ -513,6 +513,9 @@ export class World {
       const portrait = this.w / this.h < 1;
       return { x: site.x - site.x * 0.03, z: site.z - site.z * 0.03, dist: portrait ? 300 : 205, az, pol: 1.08 };
     }
+    // An envoy: come close enough to read the card over its head, keeping the direction of view.
+    const envoy = this.spots.find((s) => s.id === id && s.kind === 'envoy');
+    if (envoy) return { x: envoy.center.x, z: envoy.center.z, dist: 170, az: this.view.az, pol: 1.02 };
     const spot = this.centreSpots.find((s) => s.id === id);
     if (!spot) return null;
     const az = spot.kind === 'palace' ? this.view.az : Math.atan2(-spot.center.x, -spot.center.z) + Math.PI + 0.3;

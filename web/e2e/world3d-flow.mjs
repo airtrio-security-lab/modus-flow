@@ -18,6 +18,7 @@ const people = JSON.parse(readFileSync(process.env.PERSONAS ?? '.demo/personas.j
 const by = (title) => people.find((p) => p.title === title) ?? (() => { throw new Error(`persona ${title}`); })();
 const storekeeper = by('Кладовщик');
 const whHead = by('Начальник склада');
+const ops = by('Операционный директор');
 const SHOTS = process.env.SHOTS;
 const CIV = { camelot: 'Камелот', japan: 'Японский сёгунат', kazakh: 'Казахское ханство', mongolia: 'Монгольская держава' };
 
@@ -228,6 +229,71 @@ try {
     await page.waitForTimeout(6000);
     perf = await world(page, (w) => w.stats());
     step('переключение 3D ↔ схема');
+  });
+
+  // 6a. Cards over the envoys' heads, the envoy's card, «Оценка ИИ» without a model, postponing by the person who decides.
+  let paused = null;
+  await as(ops, async (page) => {
+    await openCity(page);
+    const k = await api(page, '/kingdom');
+    must((await page.locator('button.w3d-envoy').count()) === k.envoys.length, 'every envoy has a card');
+    // An item this person decides and did not raise: only there «Отложить решение» is offered.
+    for (const e of k.envoys) {
+      const it = await api(page, `/ideas/${e.number}`);
+      if (it.decisionOwner?.name === ops.name && it.author.name !== ops.name && ['published', 'review', 'decision'].includes(it.stage) && !it.deferral && e.departmentId) {
+        paused = { number: e.number, author: it.author.name, departmentId: e.departmentId, due: it.resolutionDueAt };
+        break;
+      }
+    }
+    must(paused, 'the demo has an open item decided by the operations director');
+    const chip = page.locator(`button.w3d-envoy[aria-label^="Обращение №${paused.number} от ${paused.author}"]`);
+    must((await chip.locator('.w3d-envoy-head').textContent()).includes(`№${paused.number}`), 'the card names the item and the sender');
+    await chip.dispatchEvent('click');
+    await page.waitForFunction(() => !window.__world.flying, null, { timeout: 20000 });
+    await world(page, (w) => w.renderNow());
+    const shown = await page.evaluate((n) => ({
+      all: [...document.querySelectorAll('button.w3d-envoy')].filter((b) => b.style.visibility === 'visible').length,
+      mine: document.querySelector(`button.w3d-envoy[aria-label^="Обращение №${n} "]`).style.visibility,
+    }), paused.number);
+    must(shown.all > 0 && shown.mine === 'visible', `the camera came to the envoy and its card is over its head: ${JSON.stringify(shown)}`);
+    await page.locator('.w3d-item .track').waitFor({ timeout: 20000 });
+    const card = await page.locator('.w3d-item').innerText();
+    must(card.includes('От кого') && card.includes(paused.author) && card.includes('Кто отвечает') && card.includes('Открыть обращение'), 'the envoy card says who it is from, who answers, and opens the item');
+    must((await page.locator('.w3d-item .track li').count()) === 4, 'the route is four plain steps');
+    await page.locator('.w3d-item').getByRole('button', { name: 'Оценка ИИ' }).click();
+    await page.locator('.w3d-item .quick-note[data-kind="off"]').waitFor();
+    must((await page.locator('.w3d-item .quick-note[data-kind="off"]').innerText()).includes('ИИ не подключён'), 'without a model the AI assessment says so');
+    must((await page.locator('.w3d-item .ai-result').count()) === 0, 'and shows no made-up assessment');
+    await shot(page, '05-envoy-card');
+    step('карточки над гонцами; карточка обращения: от кого, кто отвечает, четыре шага; «Оценка ИИ» честно пишет «не подключён»');
+
+    await page.locator('.w3d-item').getByRole('button', { name: 'Отложить решение' }).click();
+    await page.locator('.w3d-item textarea').fill('Ждём поставку терминалов, вернёмся после приёмки');
+    await page.locator('.w3d-item').getByRole('button', { name: /^Отложить до / }).click();
+    await page.locator('.w3d-item .quick-note[data-kind="paused"]').waitFor({ timeout: 20000 });
+    const after = await api(page, `/ideas/${paused.number}`);
+    must(after.deferral && new Date(after.resolutionDueAt) - new Date(paused.due) > 7 * 86400000, 'the decision is postponed and the deadline is paused');
+    must(after.stage && after.status !== 'closed', 'the item itself is untouched');
+    await page.waitForFunction((n) => document.querySelector(`button.w3d-envoy[aria-label^="Обращение №${n} "]`)?.dataset.tone === 'paused', paused.number, { timeout: 20000 });
+    await shot(page, '06-postponed');
+    step('ответственный за решение откладывает: дата, причина, срок на паузе, гонец помечен');
+  });
+  await as(storekeeper, async (page) => {
+    await openCity(page);
+    await page.locator(`button.w3d-envoy[aria-label^="Обращение №${paused.number} "]`).dispatchEvent('click');
+    await page.locator('.w3d-item .quick-note[data-kind="paused"]').waitFor({ timeout: 20000 });
+    const text = await page.locator('.w3d-item').innerText();
+    must(text.includes('Решение отложено до') && text.includes('Ждём поставку терминалов'), 'everyone reads the date and the reason');
+    must((await page.locator('.w3d-item').getByRole('button', { name: /Вернуть в работу|Отложить решение/ }).count()) === 0, 'who does not decide gets no postpone buttons');
+    step('остальные видят «отложено до …» и причину, но кнопок отложить и вернуть у них нет');
+  });
+  await as(ops, async (page) => {
+    await page.goto(`${BASE}/#/items/${paused.number}`);
+    await page.getByRole('button', { name: 'Вернуть в работу сейчас' }).click();
+    await page.getByRole('button', { name: 'Отложить решение' }).waitFor({ timeout: 20000 });
+    const back = await api(page, `/ideas/${paused.number}`);
+    must(!back.deferral && Math.abs(new Date(back.resolutionDueAt) - new Date(paused.due)) < 120000, 'returned to work: the deadline is back where it was');
+    step('на странице обращения: «Вернуть в работу» возвращает срок на место');
   });
 
   // 7. No WebGL: the schematic city with an explanation; reduced motion: the schematic city by default.

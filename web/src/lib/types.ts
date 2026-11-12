@@ -142,6 +142,13 @@ export interface Escalation {
   escalatedTo: string | null;
 }
 
+export interface Deferral {
+  id: string;
+  until: string;
+  reason: string;
+  by: string | null;
+  at: string;
+}
 export interface IdeaDetail {
   id: string;
   number: number;
@@ -170,6 +177,8 @@ export interface IdeaDetail {
   overdueFirstResponse: boolean;
   overdueResolution: boolean;
   stale: boolean;
+  /** The running postponement of the decision (0018), or null. */
+  deferral: Deferral | null;
   revisions: Revision[];
   reviews: Review[];
   verifications: Verification[];
@@ -304,6 +313,10 @@ export interface Envoy {
   stale: boolean;
   mine: boolean;
   publishedAt: string;
+  /** Who sent the envoy: the author's name, as on the item card. */
+  author: string | null;
+  /** The decision is postponed until this date (0018), or null. */
+  deferredUntil: string | null;
 }
 export interface Kingdom {
   castles: Castle[];
