@@ -1589,3 +1589,48 @@ button.ts:hover { border-color: var(--accent); color: var(--accent-ink); }
 @media (max-width: 900px) { .town3d-list { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 700px) { .town3d-pin-name { font-size: var(--fs-xs); padding: 4px 9px; } }
 @media (prefers-reduced-motion: reduce) { .town3d-pin-mark { transition: none; } }
+
+/* Response layer and diagnostics of the 3D city (ADR-0030) */
+.w3d-tick { display: inline-block; transform-origin: left center; }
+.w3d-diag {
+  position: absolute; left: calc(18px + env(safe-area-inset-left)); top: calc(78px + env(safe-area-inset-top)); width: 330px; max-width: calc(100% - 36px); max-height: calc(100% - 190px); overflow: auto;
+  padding: 14px; background: var(--w-panel-solid); border: 1px dashed var(--w-line); border-radius: 14px; box-shadow: 0 20px 50px rgba(0, 0, 0, 0.55);
+  z-index: 200002; font-size: var(--fs-sm); touch-action: pan-y; user-select: text; -webkit-user-select: text;
+}
+.w3d-diag header { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.w3d-diag header b { font-weight: 600; }
+.w3d-diag header small { color: var(--w-ink-2); font-size: var(--fs-xs); flex: 1; }
+.w3d-diag header button { flex: none; width: 44px; height: 44px; margin: -8px -6px -8px 0; background: none; border: 0; font-size: 1.3rem; line-height: 1; }
+.w3d-diag-verdict { margin: 10px 0 0; padding: 8px 10px; border-radius: var(--r-sm); border-left: 3px solid var(--w-line); background: rgba(255, 255, 255, 0.05); line-height: 1.35; }
+.w3d-diag-verdict[data-level='ok'] { border-left-color: #7fc08a; }
+.w3d-diag-verdict[data-level='warn'] { border-left-color: var(--w-gold); }
+.w3d-diag-verdict[data-level='bad'] { border-left-color: var(--w-red); }
+.w3d-diag-notes { margin: 6px 0 0; padding-left: 18px; color: var(--w-ink-2); font-size: var(--fs-xs); line-height: 1.4; }
+.w3d-diag dl { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin: 12px 0; }
+.w3d-diag dl div { padding: 6px 8px; border: 1px solid var(--w-line); border-radius: var(--r-sm); min-width: 0; }
+.w3d-diag dl div[data-over='yes'] { border-color: var(--w-red); }
+.w3d-diag dl div[data-over='yes'] dd { color: var(--w-red); }
+.w3d-diag-wide { grid-column: 1 / -1; }
+.w3d-diag dt { font-size: var(--fs-xs); color: var(--w-ink-2); }
+.w3d-diag dd { margin: 0; font-weight: 600; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.w3d-diag-wide dd { font-weight: 400; font-size: var(--fs-xs); }
+.w3d-diag-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.w3d-diag-row button { min-height: 44px; padding: 0 12px; background: none; border: 1px solid var(--w-line); border-radius: 999px; font-size: var(--fs-sm); }
+.w3d-diag-row button:hover:not(:disabled) { border-color: var(--w-gold); }
+.w3d-diag-row button[aria-pressed='true'] { background: rgba(217, 186, 124, 0.18); border-color: var(--w-gold); }
+.w3d-diag-row button:disabled { opacity: 0.5; cursor: default; }
+.w3d-diag-row .w3d-diag-main { background: var(--w-gold); border-color: var(--w-gold); color: #1c1710; font-weight: 600; }
+.w3d-diag-row .w3d-diag-main:hover:not(:disabled) { background: #e6cb91; }
+.w3d-diag-hint { margin: 8px 0 0; font-size: var(--fs-xs); color: var(--w-ink-2); line-height: 1.4; }
+.w3d-diag-report { width: 100%; margin-top: 8px; padding: 8px; background: #0e1014; color: var(--w-ink); border: 1px solid var(--w-line); border-radius: var(--r-sm); font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; }
+.w3d-diag-chip {
+  position: absolute; left: calc(18px + env(safe-area-inset-left)); top: calc(78px + env(safe-area-inset-top)); min-width: 64px; min-height: 44px; padding: 0 14px;
+  background: var(--w-panel-solid); border: 1px dashed var(--w-line); border-radius: 999px; font-size: var(--fs-sm); font-variant-numeric: tabular-nums; z-index: 200002;
+}
+.w3d-diag-chip[data-level='ok'] { border-color: #7fc08a; }
+.w3d-diag-chip[data-level='warn'] { border-color: var(--w-gold); }
+.w3d-diag-chip[data-level='bad'] { border-color: var(--w-red); }
+@media (max-width: 900px) {
+  .w3d-diag { left: 10px; right: 10px; width: auto; max-width: none; max-height: 52%; }
+  .w3d-diag-chip { left: 10px; }
+}

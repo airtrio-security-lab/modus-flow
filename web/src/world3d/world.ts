@@ -4,6 +4,7 @@ import { Builder, banner, box, cone, cyl } from './geo';
 import { KITS, greatPalace, library, plaza, type CivId } from './kits';
 import { GEO, buildForest, buildRoads, buildSky, buildTerrain, configure, layoutSites, makeHeight, type Road, type Site } from './terrain';
 import { bannerTexture, createMaterials, createWorldMaterials, setAnisotropy } from './tex';
+import { FEEL, Feel, easeInOutCubic, easeInQuad, easeOutBack, easeOutCubic } from './feel';
 
 /**
  * The 3D commonwealth (ADR-0026): one real-time scene for desktop and mobile. The engine only
@@ -30,6 +31,16 @@ export interface EnvoyIn {
 export interface WorldInput {
   districts: DistrictIn[];
   achievements: number;
+}
+/**
+ * What the person saw last time (ADR-0030). The screen keeps it, the engine only compares: a castle
+ * whose server level is higher than the remembered one rises, an envoy whose stage changed walks there.
+ */
+export interface Seen {
+  /** District id → the level seen last time. */
+  levels: Record<string, number>;
+  /** Envoy id → its district and place on the road seen last time. */
+  envoys: Record<string, { d: string | null; t: number }>;
 }
 export type Quality = 'high' | 'medium' | 'low';
 export type AnchorKind = 'district' | 'palace' | 'library' | 'archive' | 'plaza' | 'camp' | 'envoy';
@@ -71,6 +82,20 @@ const KIT_SCALE = 1.4;
 const CENTRE_SCALE = 1.35;
 const clamp = (v: number, a: number, b: number) => Math.min(b, Math.max(a, v));
 const ease = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+const ENVOY_SCALE = 2.3;
+/** A point of the road at share `t` (0 = district gate, 1 = palace steps); `dir` gets the direction towards the palace. */
+function roadAt(road: Road, t: number, out: THREE.Vector3, dir?: { x: number; z: number }) {
+  const f = clamp(t, 0, 1) * (road.points.length - 1);
+  const i = Math.min(road.points.length - 2, Math.floor(f));
+  const a = road.points[i]!;
+  const c = road.points[i + 1]!;
+  out.lerpVectors(a, c, f - i);
+  if (dir) {
+    dir.x = c.x - a.x;
+    dir.z = c.z - a.z;
+  }
+  return out;
+}
 
 export function webglSupported() {
   try {
@@ -107,7 +132,16 @@ export class World {
   private centreSpots: Spot[] = [];
   private plazaAt = new THREE.Vector3();
   private campAt = new THREE.Vector3();
-  private envoyItems: { id: string; obj: THREE.Object3D; baseY: number; phase: number }[] = [];
+  private envoyItems: { id: string; obj: THREE.Object3D; baseY: number; phase: number; districtId: string | null; t: number; walking: boolean }[] = [];
+  /** Responses to real data events (ADR-0030); runs only while `live`. */
+  private feel = new Feel();
+  private seen: Seen | null = null;
+  private levelNow = new Map<string, number>();
+  private dataSet = false;
+  private envoysSet = false;
+  private pulseGeo: THREE.BufferGeometry | null = null;
+  private pulses = new Set<THREE.Mesh>();
+  readonly quality: Quality;
   private bannerTex = new Map<string, THREE.Texture>();
   private figureGeo = new Map<string, THREE.BufferGeometry>();
   private figureMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85, envMapIntensity: 0.4 });
@@ -149,6 +183,7 @@ export class World {
     private host: HTMLElement,
     quality: Quality,
   ) {
+    this.quality = quality;
     this.tier = TIERS[quality];
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: this.tier.aa, powerPreference: 'high-performance' });
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -206,6 +241,11 @@ export class World {
   // -------------------------------------------------------------------------
   // Data
   // -------------------------------------------------------------------------
+  /** What the person saw last time; call before the first `setData` / `setEnvoys`. */
+  remember(seen: Seen | null) {
+    this.seen = seen;
+  }
+
   setData(input: WorldInput) {
     this.input = input;
     const key = input.districts.map((d) => d.id).join(',');
@@ -215,8 +255,13 @@ export class World {
     }
     let changed = false;
     const seen = new Set<string>();
+    const grown: string[] = [];
     for (const d of input.districts) {
       seen.add(d.id);
+      // A castle rises only when the server reports a higher level than the one shown before.
+      const before = this.levelNow.get(d.id) ?? this.seen?.levels[d.id];
+      this.levelNow.set(d.id, d.level);
+      if (before !== undefined && d.level > before) grown.push(d.id);
       const k = `${d.civ}:${d.level}:${d.color}`;
       if (this.districtKey.get(d.id) === k) continue;
       this.districtKey.set(d.id, k);
@@ -238,6 +283,62 @@ export class World {
     if (changed) this.refreshSpots();
     this.shadowFrames = 3;
     this.dirty = true;
+    const first = !this.dataSet;
+    this.dataSet = true;
+    grown.forEach((id, i) => this.grow(id, (first ? FEEL.sinceDelay : 0) + i * 0.25));
+  }
+
+  /**
+   * A castle grew (the server said so): the new building rises with a small spring and a ring spreads
+   * over its plateau. Nothing but the picture changes; the camera and clicks keep working.
+   */
+  private grow(id: string, delay: number) {
+    const g = this.districtMesh.get(id);
+    const site = this.sites.find((s) => s.id === id);
+    if (!g || !site || !this.live) return;
+    const squash = FEEL.grow.squash;
+    this.feel.play({
+      key: `grow:${id}`,
+      delay,
+      duration: FEEL.grow.duration,
+      easing: easeOutBack,
+      step: (v) => {
+        // Volume is kept: lower means wider, and the overshoot makes it settle like a real weight.
+        const y = squash + (1 - squash) * v;
+        const xz = 1 / Math.sqrt(y);
+        g.scale.set(KIT_SCALE * xz, KIT_SCALE * y, KIT_SCALE * xz);
+      },
+      done: () => {
+        g.scale.setScalar(KIT_SCALE);
+        g.updateMatrixWorld(true);
+        this.shadowFrames = 2;
+        this.refreshSpots();
+      },
+    });
+    this.pulseGeo ??= new THREE.RingGeometry(0.93, 1, 96).rotateX(-Math.PI / 2);
+    const mat = new THREE.MeshBasicMaterial({ color: 0xd9ba7c, transparent: true, opacity: 0, depthWrite: false, fog: false });
+    const ring = new THREE.Mesh(this.pulseGeo, mat);
+    ring.position.set(site.x, site.y + 0.6, site.z);
+    ring.renderOrder = 2;
+    ring.visible = false;
+    this.scene.add(ring);
+    this.pulses.add(ring);
+    this.feel.play({
+      key: `pulse:${id}`,
+      delay,
+      duration: FEEL.grow.pulse,
+      easing: easeOutCubic,
+      step: (v, t) => {
+        ring.visible = t > 0 && t < 1;
+        ring.scale.setScalar((GEO.siteR - 2) * (0.3 + 0.7 * v));
+        mat.opacity = 0.85 * (1 - t);
+      },
+      done: () => {
+        ring.removeFromParent();
+        mat.dispose();
+        this.pulses.delete(ring);
+      },
+    });
   }
 
   private bannerMat(color: string, emblem: Parameters<typeof bannerTexture>[1]) {
@@ -382,6 +483,7 @@ export class World {
 
   private buildDistrict(d: DistrictIn) {
     const old = this.districtMesh.get(d.id);
+    this.feel.drop(`grow:${d.id}`);
     if (old) this.drop(old);
     const site = this.sites.find((s) => s.id === d.id);
     if (!site) return;
@@ -450,8 +552,21 @@ export class World {
   }
 
   setEnvoys(list: EnvoyIn[]) {
-    for (const e of this.envoyItems) e.obj.removeFromParent();
+    // Where every envoy stood a moment ago (or at the last visit): the start of its walk to the new stage.
+    const first = !this.envoysSet;
+    this.envoysSet = true;
+    const animate = this.live && (!first || this.seen !== null);
+    const before = new Map<string, { d: string | null; t: number; pos: THREE.Vector3 | null }>();
+    if (first) for (const [id, s] of Object.entries(this.seen?.envoys ?? {})) before.set(id, { d: s.d, t: s.t, pos: null });
+    else for (const e of this.envoyItems) before.set(e.id, { d: e.districtId, t: e.t, pos: e.obj.position.clone().setY(e.baseY) });
+    const staying = new Set(list.map((e) => e.id));
+    for (const e of this.envoyItems) {
+      this.feel.drop(`envoy:${e.id}`);
+      if (animate && !staying.has(e.id)) this.leave(e.obj);
+      else e.obj.removeFromParent();
+    }
     this.envoyItems = [];
+    let moved = 0;
     const slots = new Map<string, number>();
     const colorOf = new Map(this.input.districts.map((d) => [d.id, d.color]));
     for (const e of list) {
@@ -486,13 +601,84 @@ export class World {
       const m = new THREE.Mesh(this.figure(pennant), this.figureMat);
       m.position.copy(p);
       m.rotation.y = rot;
-      m.scale.setScalar(2.3);
+      m.scale.setScalar(ENVOY_SCALE);
       m.castShadow = false;
       this.envoysGroup.add(m);
-      this.envoyItems.push({ id: e.id, obj: m, baseY: p.y, phase: this.envoyItems.length * 1.7 });
+      const item = { id: e.id, obj: m, baseY: p.y, phase: this.envoyItems.length * 1.7, districtId: e.districtId, t: e.t, walking: false };
+      this.envoyItems.push(item);
+      if (!animate) continue;
+      const was = before.get(e.id);
+      const delay = (first ? FEEL.sinceDelay : 0) + Math.min(moved, 12) * FEEL.stagger;
+      if (was && was.d === e.districtId && road && road.points.length > 1 && Math.abs(was.t - e.t) > 0.01) {
+        // The stage changed: the envoy walks along its road instead of jumping.
+        this.walk(item, road, was.t, e.t, was.pos, p, rot, delay);
+        moved++;
+      } else if (!was || was.d !== e.districtId) {
+        // A new item, or one handed to another department: the envoy appears at its place.
+        this.feel.play({ key: `envoy:${e.id}`, delay, hold: true, duration: FEEL.arrive.duration, easing: easeOutBack, step: (v) => m.scale.setScalar(ENVOY_SCALE * Math.max(0.001, v)) });
+        moved++;
+      }
     }
     this.refreshSpots();
     this.dirty = true;
+  }
+
+  private walk(item: World['envoyItems'][number], road: Road, fromT: number, toT: number, startPos: THREE.Vector3 | null, end: THREE.Vector3, rot: number, delay: number) {
+    const obj = item.obj;
+    const endOff = end.clone().sub(roadAt(road, toT, new THREE.Vector3()));
+    // Keep the place in the file across the road; a start far from the road (the land was rebuilt) is ignored.
+    let startOff = startPos ? startPos.clone().sub(roadAt(road, fromT, new THREE.Vector3())) : endOff.clone();
+    if (startOff.length() > 14) startOff = endOff.clone();
+    const at = new THREE.Vector3();
+    const off = new THREE.Vector3();
+    const dir = { x: 0, z: 1 };
+    const back = toT < fromT;
+    this.feel.play({
+      key: `envoy:${item.id}`,
+      delay,
+      hold: true,
+      duration: FEEL.walk.base + FEEL.walk.perRoad * Math.abs(toT - fromT),
+      easing: easeInOutCubic,
+      step: (v, t) => {
+        if (t >= 1) {
+          obj.position.copy(end);
+          obj.rotation.y = rot;
+          item.baseY = end.y;
+          item.t = toT;
+          item.walking = false;
+        } else {
+          const u = fromT + (toT - fromT) * v;
+          roadAt(road, u, at, dir);
+          off.lerpVectors(startOff, endOff, v);
+          obj.position.set(at.x + off.x, at.y + off.y, at.z + off.z);
+          // Facing where it goes: to the palace, or back home with the decision.
+          obj.rotation.y = Math.atan2(back ? -dir.x : dir.x, back ? -dir.z : dir.z);
+          item.baseY = obj.position.y;
+          item.t = u;
+          item.walking = t > 0;
+        }
+        // The card over the envoy's head and the click target follow it.
+        const s = this.spots.find((x) => x.id === item.id && x.kind === 'envoy');
+        if (s) {
+          s.pos.set(obj.position.x, item.baseY + 8, obj.position.z);
+          s.center.set(obj.position.x, item.baseY + 2.5, obj.position.z);
+        }
+      },
+    });
+  }
+
+  /** The item is closed: its envoy leaves the road. */
+  private leave(obj: THREE.Object3D) {
+    const y = obj.position.y;
+    this.feel.play({
+      duration: FEEL.leave.duration,
+      easing: easeInQuad,
+      step: (v) => {
+        obj.scale.setScalar(ENVOY_SCALE * Math.max(0.001, 1 - v));
+        obj.position.y = y + v * 1.6;
+      },
+      done: () => obj.removeFromParent(),
+    });
   }
 
   // -------------------------------------------------------------------------
@@ -808,8 +994,23 @@ export class World {
     this.updateRing();
   }
   select(id: string | null) {
+    const changed = id !== this.selected;
     this.selected = id;
     this.updateRing();
+    // The ring settles onto the chosen district: a quiet answer to the click.
+    if (changed && id && this.live && this.ring.visible) {
+      const base = GEO.siteR - 4;
+      const mat = this.ring.material as THREE.MeshBasicMaterial;
+      this.feel.play({
+        key: 'select',
+        duration: FEEL.select.duration,
+        easing: easeOutBack,
+        step: (v, t) => {
+          this.ring.scale.setScalar(base * (1.12 - 0.12 * v));
+          mat.opacity = 1 - 0.3 * t;
+        },
+      });
+    }
   }
   private updateRing() {
     const id = this.hover && this.sites.some((s) => s.id === this.hover) ? this.hover : this.selected;
@@ -868,12 +1069,19 @@ export class World {
         } else this.view[key] = this.goal[key];
       }
     }
+    // Motion was switched off while a response was playing: everything goes straight to rest.
+    if (!this.live && this.feel.size) {
+      this.feel.settle();
+      this.dirty = true;
+    }
     if (!moving && !this.dirty && !this.live) return;
     if (this.live) {
       this.clock += dt;
       const n = this.wm.water.normalMap;
       if (n) n.offset.set(this.clock * 0.012, this.clock * 0.007);
-      for (const e of this.envoyItems) e.obj.position.y = e.baseY + Math.abs(Math.sin(this.clock * 1.6 + e.phase)) * 0.12;
+      this.feel.update(dt);
+      // A walking envoy steps faster and higher than one that waits.
+      for (const e of this.envoyItems) e.obj.position.y = e.baseY + Math.abs(Math.sin(this.clock * (e.walking ? 7 : 1.6) + e.phase)) * (e.walking ? 0.3 : 0.12);
     }
     this.dirty = false;
     const t0 = performance.now();
@@ -908,6 +1116,7 @@ export class World {
   }
   /** One frame right now (screenshots, tests, reduced motion). */
   renderNow() {
+    if (!this.live) this.feel.settle();
     this.renderer.shadowMap.needsUpdate = true;
     this.applyCamera();
     this.renderer.render(this.scene, this.camera);
@@ -927,9 +1136,25 @@ export class World {
     return { districts: this.districtMesh.size, envoys: this.envoyItems.length, calls: i.render.calls, triangles: i.render.triangles, geometries: i.memory.geometries, textures: i.memory.textures, dpr: this.dprNow, medianMs: f[Math.floor(f.length / 2)] ?? 0, p90Ms: f[Math.floor(f.length * 0.9)] ?? 0 };
   }
 
+  /** Measurements for the diagnostics panel (`?diag=1`): the same numbers as `stats()` plus the device's side. */
+  diagnostics() {
+    const gl = this.renderer.getContext();
+    let gpu = '';
+    try {
+      const ext = gl.getExtension('WEBGL_debug_renderer_info');
+      gpu = String(gl.getParameter(ext ? ext.UNMASKED_RENDERER_WEBGL : gl.RENDERER) ?? '');
+    } catch {
+      /* the browser hides it */
+    }
+    return { ...this.stats(), quality: this.quality, width: this.w, height: this.h, deviceDpr: window.devicePixelRatio || 1, live: this.live, responses: this.feel.size, gpu };
+  }
+
   dispose() {
     this.disposed = true;
     this.stop();
+    for (const p of this.pulses) (p.material as THREE.Material).dispose();
+    this.pulses.clear();
+    this.pulseGeo?.dispose();
     const h = this.host;
     h.removeEventListener('pointerdown', this.onDown);
     h.removeEventListener('pointermove', this.onMove);

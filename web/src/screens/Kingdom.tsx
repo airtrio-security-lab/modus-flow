@@ -10,6 +10,7 @@ import { HowItWorks } from '../components/HowItWorks';
 import { IsoCastle, IsoCouncil, IsoLibrary, P, Scaffold, Tree } from '../components/iso';
 import { CIV_HEIGHT, CivCastle, CouncilHall, DistrictHouses, IsoArchive, IsoPlaza, civName, civOf, hallName } from '../components/civ';
 import { useCamera } from '../lib/camera';
+import { readCitySeen, writeCitySeen } from '../lib/citySeen';
 
 // three.js is loaded only when the 3D city is opened.
 const City3D = lazy(() => import('./City3D').then((m) => ({ default: m.City3D })));
@@ -109,6 +110,8 @@ export function Kingdom() {
   const [selected, setSelected] = useState<string | null>(null);
   const [celebrate, setCelebrate] = useState<{ id: string; text: string } | null>(null);
   const seen = useRef<Map<string, number> | null>(null);
+  // What this person saw here last time (ADR-0030): read once, before the first answer of the server.
+  const [since] = useState(() => readCitySeen(s.org, s.membershipId));
   const [enter] = useState(enterTarget);
   const [mode, setModeRaw] = useState<Mode>(initialMode);
   const [notice, setNotice] = useState<string | null>(null);
@@ -147,21 +150,27 @@ export function Kingdom() {
   // A level-up is shown only when the backend reports a higher level than before.
   useEffect(() => {
     if (!data) return;
-    const prev = seen.current;
+    // The first answer is compared with the last visit, the following ones — with the previous answer.
+    const prev = seen.current ?? (since ? new Map(Object.entries(since.levels)) : null);
     seen.current = new Map(data.castles.map((c) => [c.id, c.level]));
+    writeCitySeen(s.org, s.membershipId, data, (e) => envoyState(e).t);
     if (!prev) return;
     const grown = data.castles.find((c) => c.level > (prev.get(c.id) ?? c.level));
     if (!grown) return;
     setCelebrate({ id: grown.id, text: `${grown.name}: новый уровень — ${grown.levelName}` });
     setSelected(grown.id);
+  }, [data]);
+  // The message leaves by its own clock: a refresh of the data in between does not keep it on the screen.
+  useEffect(() => {
+    if (!celebrate) return;
     const t = window.setTimeout(() => setCelebrate(null), 7000);
     return () => window.clearTimeout(t);
-  }, [data]);
+  }, [celebrate]);
 
   if (mode === '3d' && data && !enter)
     return (
       <Suspense fallback={<Loading label="Строим город…" rows={3} />}>
-        <City3D k={data} onMode={setMode} onUnavailable={unavailable} onReload={() => void reload()} />
+        <City3D k={data} since={since} onMode={setMode} onUnavailable={unavailable} onReload={() => void reload()} />
         <div className="realm-toast-slot w3d-toast" aria-live="polite">
           {celebrate ? (
             <div className="realm-toast" role="status">

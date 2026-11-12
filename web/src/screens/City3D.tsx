@@ -10,6 +10,8 @@ import type { Castle, Envoy, IdeaDetail, Kingdom as KingdomData, ListItem } from
 import { AiAssessment, DeferControl, ItemTrack } from '../components/ItemQuick';
 import { CIVS, civOf, type Civ } from '../components/civ';
 import { World, webglSupported, type Anchor, type AnchorKind, type Quality, type View } from '../world3d/world';
+import { seenFor, type CitySeen } from '../lib/citySeen';
+import { W3dDiag, diagWanted } from '../components/W3dDiag';
 import { HERALDRY, envoyState } from './Kingdom';
 
 /**
@@ -96,9 +98,33 @@ const PLACES: { id: string; kind: Exclude<AnchorKind, 'district' | 'envoy'>; tit
   { id: 'camp', kind: 'camp', title: 'Без подразделения', sub: 'Ждут распределения', href: '#/all' },
 ];
 
-export function City3D({ k, onMode, onUnavailable, onReload }: { k: KingdomData; onMode: (m: Mode) => void; onUnavailable: (why: string) => void; onReload: () => void }) {
+/**
+ * A HUD counter that answers when its value really changes (ADR-0030): a short pulse, no layout shift.
+ * Still with reduced motion or «облегчённая графика»; the number itself is always the server's.
+ */
+function Tick({ value, children }: { value: number; children?: ReactNode }) {
+  const el = useRef<HTMLSpanElement>(null);
+  const prev = useRef(value);
+  const [lite] = useLite();
+  useEffect(() => {
+    if (prev.current === value) return;
+    prev.current = value;
+    if (lite || reducedMotion()) return;
+    el.current?.animate?.([{ transform: 'scale(1.24)', color: '#d9ba7c' }, { transform: 'scale(1)' }], { duration: 320, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)' });
+  }, [value, lite]);
+  return (
+    <span ref={el} className="w3d-tick">
+      {children ?? value}
+    </span>
+  );
+}
+
+export function City3D({ k, since, onMode, onUnavailable, onReload }: { k: KingdomData; since?: CitySeen | null; onMode: (m: Mode) => void; onUnavailable: (why: string) => void; onReload: () => void }) {
   const s = useSession();
   const [lite] = useLite();
+  const [diag] = useState(diagWanted);
+  // The memory of the last visit is shown once, by the first engine of this screen.
+  const sinceUsed = useRef(false);
   const host = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
   const world = useRef<World | null>(null);
@@ -146,6 +172,11 @@ export function City3D({ k, onMode, onUnavailable, onReload }: { k: KingdomData;
     }
     world.current = w;
     w.live = !lite && !reducedMotion();
+    if (!sinceUsed.current) {
+      w.remember(seenFor(since ?? null, k));
+      // Consumed on the next task: the development double-run of effects must not swallow it.
+      window.setTimeout(() => (sinceUsed.current = true), 0);
+    }
     w.onLost = () => onUnavailable('Графический контекст потерян — показана схема города.');
     w.onFlight = setFlying;
     w.onHover = (id, kind) => setHoverEnvoy(kind === 'envoy' ? id : null);
@@ -433,23 +464,33 @@ export function City3D({ k, onMode, onUnavailable, onReload }: { k: KingdomData;
         <dl className="w3d-stats">
           <div>
             <dt>Обращения в пути</dt>
-            <dd>{k.envoys.length}</dd>
+            <dd>
+              <Tick value={k.envoys.length} />
+            </dd>
           </div>
           <div>
             <dt>Ждут ответа</dt>
-            <dd>{waiting}</dd>
+            <dd>
+              <Tick value={waiting} />
+            </dd>
           </div>
           <div>
             <dt>Внедряется</dt>
-            <dd>{inWork}</dd>
+            <dd>
+              <Tick value={inWork} />
+            </dd>
           </div>
           <div data-alert={late ? 'yes' : 'no'}>
             <dt>Срок прошёл</dt>
-            <dd>{late}</dd>
+            <dd>
+              <Tick value={late} />
+            </dd>
           </div>
           <div>
             <dt>Подтверждённый опыт</dt>
-            <dd>{xp.toLocaleString('ru-RU')} XP</dd>
+            <dd>
+              <Tick value={xp}>{xp.toLocaleString('ru-RU')} XP</Tick>
+            </dd>
           </div>
         </dl>
         <a className="w3d-cta" href="#/new">
@@ -496,6 +537,8 @@ export function City3D({ k, onMode, onUnavailable, onReload }: { k: KingdomData;
           ⌂
         </button>
       </div>
+
+      {diag && ready ? <W3dDiag world={world} /> : null}
 
       {hint && ready ? (
         <div className="w3d-hint" data-world-ui="" role="note">
