@@ -45,7 +45,7 @@ try {
   ];
   for (const [name, tab] of routes) {
     await page.goto(BASE + '/#' + entry + '/city');
-    await page.locator('.town-hotspot').getByRole('link', { name: new RegExp(name) }).click();
+    await page.locator('.town-hotspot').filter({ hasText: name }).click();
     await page.waitForURL(new RegExp('#/castles/' + districtId + '/' + tab + '$'));
     await page.locator('.district-tabs').waitFor();
   }
