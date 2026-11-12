@@ -259,6 +259,17 @@ try {
     { ...DESK, reducedMotion: 'reduce' },
   );
 
+  // 7a. A choice of «the map» saved before the 3D city existed does not hide the 3D city; «the table» stays.
+  await as(storekeeper, async (page) => {
+    await page.evaluate(() => localStorage.setItem('modus.kingdom.mode', 'city'));
+    await page.goto(`${BASE}/#/kingdom`);
+    await page.locator('.w3d').waitFor({ timeout: 60000 });
+    await page.evaluate(() => localStorage.setItem('modus.kingdom.mode', 'work'));
+    await page.reload();
+    await page.locator('table.work-table').waitFor({ timeout: 30000 });
+    step('старый сохранённый выбор «карта» не скрывает 3D; выбор «таблица» сохранён');
+  });
+
   // 8. Phone: the same world, a bottom tab bar, a bottom sheet, the list as an alternative to the map.
   await as(
     whHead,

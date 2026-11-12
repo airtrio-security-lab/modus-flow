@@ -214,13 +214,17 @@ function initialMode(): Mode {
   try {
     const v = localStorage.getItem(MODE_KEY);
     if (v === '3d' || v === 'city' || v === 'work') return v;
+    // Before the 3D city existed the choice was «map or table» under another key. «Table» is still a
+    // choice; «map» was simply the only map, so it must not hide the 3D city from that person.
+    if (localStorage.getItem(LEGACY_MODE_KEY) === 'work') return 'work';
     if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return 'city';
     return localStorage.getItem('modus.lite') === '1' ? 'city' : '3d';
   } catch {
     return 'city';
   }
 }
-const MODE_KEY = 'modus.kingdom.mode';
+const MODE_KEY = 'modus.kingdom.view';
+const LEGACY_MODE_KEY = 'modus.kingdom.mode';
 /** Where «Войти в Совет» leads after the flight: only the council and meeting pages. */
 function enterTarget(): string | null {
   const t = new URLSearchParams(location.hash.split('?')[1] ?? '').get('enter');

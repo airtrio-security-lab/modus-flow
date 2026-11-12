@@ -10,7 +10,7 @@ export function schematic(browser) {
     const ctx = await make(options);
     await ctx.addInitScript(() => {
       try {
-        if (!localStorage.getItem('modus.kingdom.mode')) localStorage.setItem('modus.kingdom.mode', 'city');
+        if (!localStorage.getItem('modus.kingdom.view')) localStorage.setItem('modus.kingdom.view', 'city');
       } catch {
         /* storage unavailable */
       }
