@@ -366,6 +366,12 @@ export interface Envoy {
   author: string | null;
   /** The decision is postponed until this date (0018), or null. */
   deferredUntil: string | null;
+  /** «Путь Посла» (ADR-0032): whose envoy it is (raised_by, else the author). */
+  sender: string | null;
+  /** Rank I..VII of the sender's envoy — from confirmed results only, grants nothing. */
+  envoyRank: number;
+  /** Style of the sender's own department: the clothes, not the castle the item goes to. */
+  envoyCivilization: string;
 }
 export interface Kingdom {
   castles: Castle[];
@@ -815,6 +821,39 @@ export interface PersonCard {
   initiatives: PersonListItem[];
   results: { number: number; title: string; role: string; xp: number }[];
   achievements: StaffCard['achievements'];
+  /** «Мой посол» / «Посол» (ADR-0032). */
+  envoy: EnvoyCard;
+}
+
+/** «Путь Посла» (ADR-0032): the envoy of one person, computed by the server from confirmed events. */
+export type EnvoyEventKind = 'resolution' | 'implementation' | 'effect';
+export interface EnvoyCard {
+  rank: number;
+  /** Name of the rank. */
+  name: string;
+  genitive: string;
+  attire: string;
+  floor: number;
+  next: number | null;
+  nextName: string | null;
+  progress: number;
+  membershipId: string;
+  personName: string;
+  self: boolean;
+  civilization: string;
+  civilizationName: string;
+  department: string | null;
+  xp: number;
+  thresholds: number[];
+  ranks: { rank: number; name: string; xp: number; attire: string; reachedAt: string | null; number: number | null }[];
+  history: { id: string; kind: EnvoyEventKind; xp: number; at: string; number: number | null; title: string | null; text: string }[];
+  items: { number: number; title: string; status: Status; xp: number }[];
+  results: { implemented: number; effects: number };
+  rules: { kind: EnvoyEventKind; label: string; xp: number; enabled: boolean }[];
+  noXp: string[];
+}
+export interface MyEnvoy extends EnvoyCard {
+  pending: { notificationId: string; rank: number; name: string; text: string; number: number | null; at: string } | null;
 }
 
 /** Civilization registry (ADR-0020): words only, no rights. */

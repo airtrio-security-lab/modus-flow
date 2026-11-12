@@ -381,7 +381,7 @@ async function main() {
                 ${f('first_response_at')}, ${f('responsible_activity_at')} WHERE id = $1`,
         args,
       );
-      for (const t of ['idea_revisions', 'reviews', 'decisions', 'contributions', 'notifications', 'attachments', 'xp_awards', 'effect_approvals', 'council_entries']) {
+      for (const t of ['idea_revisions', 'reviews', 'decisions', 'contributions', 'notifications', 'attachments', 'xp_awards', 'effect_approvals', 'council_entries', 'envoy_xp_awards', 'envoy_rank_ups']) {
         await c.query(`UPDATE ${t} SET ${f('created_at')} WHERE idea_id = $1`, args);
       }
       await c.query(`UPDATE reviews SET ${f('resolved_at')} WHERE idea_id = $1 AND resolved_at IS NOT NULL`, args);

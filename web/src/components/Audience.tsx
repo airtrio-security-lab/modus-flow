@@ -3,7 +3,8 @@ import { api, errorText } from '../lib/api';
 import { ago } from '../lib/format';
 import { useLite } from '../lib/lite';
 import { useSession, useLoad } from '../lib/session';
-import type { IdeaDetail, NotePreferences } from '../lib/types';
+import type { IdeaDetail, MyEnvoy, NotePreferences } from '../lib/types';
+import { EnvoyPortrait } from './EnvoyFigure';
 
 /** An audience is ceremonial. Decisions and meetings remain separate, authorized workflows. */
 export interface Audience {
@@ -30,6 +31,8 @@ export function EnvoyShortcut({ item }: { item: IdeaDetail }) {
   const [busy, setBusy] = useState(false);
   const [errorTextLocal, setErrorTextLocal] = useState('');
   const { data, reload } = useLoad(() => api<AudienceInboxData>('/orgs/' + s.org + '/audiences'), [s.org]);
+  // «Путь Посла» (ADR-0032): the sender's own envoy in its current attire; the audience itself awards nothing.
+  const mine = useLoad(() => api<MyEnvoy>('/orgs/' + s.org + '/me/envoy'), [s.org]).data;
   const owned = item.author.membershipId === s.membershipId || item.raisedByMembershipId === s.membershipId;
   if (!owned) return null;
   const record = data?.items.find((a) => a.role === 'sender' && a.ideaNumber === item.number);
@@ -52,7 +55,13 @@ export function EnvoyShortcut({ item }: { item: IdeaDetail }) {
 
   return (
     <section className="audience-shortcut" aria-label="Посольство">
-      <span className="audience-symbol" aria-hidden="true">♜</span>
+      {mine ? (
+        <span className="audience-symbol audience-envoy">
+          <EnvoyPortrait civ={mine.civilization} rank={mine.rank} size={64} label={`Ваш посол: ${mine.name}`} />
+        </span>
+      ) : (
+        <span className="audience-symbol" aria-hidden="true">♜</span>
+      )}
       <div className="audience-shortcut-copy">
         <strong>Королевская аудиенция</strong>
         <p className="small">
@@ -62,6 +71,7 @@ export function EnvoyShortcut({ item }: { item: IdeaDetail }) {
               : 'Ваш посол ожидает аудиенции. Приём ещё не означает, что решение принято.'
             : 'Отправьте посла Королю, чтобы он ознакомился с обращением. Это не меняет его статус и не заменяет обычную маршрутизацию.'}
         </p>
+        <p className="small muted">Аудиенция опыта послу не даёт: ранг растёт только от подтверждённого внедрения и измеренного эффекта.</p>
         {errorTextLocal && <p role="alert" className="notice error">{errorTextLocal}</p>}
         {record ? (
           <a className="btn small" href="#/inbox">Королевские послания</a>

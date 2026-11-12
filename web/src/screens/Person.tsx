@@ -5,6 +5,7 @@ import { useLoad, useSession } from '../lib/session';
 import type { PersonCard, PersonListItem } from '../lib/types';
 import { ErrorBox, Loading, StatusChip } from '../components/ui';
 import { Section } from './District';
+import { EnvoySection } from '../components/EnvoySection';
 
 /**
  * The working card of a person (ADR-0019): job, department, game title, questionnaire, tasks,
@@ -93,6 +94,10 @@ export function PersonPage({ id }: { id: string }) {
             <a href="#/me">Изменить анкету</a>
           </div>
         ) : null}
+      </Section>
+
+      <Section id="person-envoy" title={p.self ? 'Мой посол' : 'Посол'}>
+        <EnvoySection e={p.envoy} />
       </Section>
 
       <Section id="person-tasks" title="Задачи">

@@ -10,6 +10,10 @@ import { HowItWorks } from '../components/HowItWorks';
 import { IsoCastle, IsoCouncil, IsoLibrary, P, Scaffold, Tree } from '../components/iso';
 import { CIV_HEIGHT, CivCastle, CouncilHall, DistrictHouses, IsoArchive, IsoPlaza, civName, civOf, hallName } from '../components/civ';
 import { useCamera } from '../lib/camera';
+import { EnvoyFigure } from '../components/EnvoyFigure';
+import { roman } from '../components/EnvoyRankUp';
+import { STATUS } from '../lib/status';
+import { envoyRankName } from '../lib/envoy-outfits';
 import { readCitySeen, writeCitySeen } from '../lib/citySeen';
 
 // three.js is loaded only when the 3D city is opened.
@@ -406,7 +410,7 @@ function Realm({
         crowd.set('camp', k2 + 1);
         p = { x: L.camp.x + (52 + (k2 % 4) * 18) * L.s, y: L.camp.y + 12 + Math.floor(k2 / 4) * 24 * L.s };
       }
-      return { e, st, p, color };
+      return { e, st, p, color, castle: home?.castle.name ?? null };
     });
     // Painter's order: farther (higher on screen) first.
     const drawables = [
@@ -435,7 +439,7 @@ function Realm({
           node: <HallMark key={`h-${p.castle.id}`} c={p.castle} at={at} L={L} color={p.color} onEnter={enter(`#/castles/${p.castle.id}/council`, at, 3)} />,
         };
       }),
-      ...figures.map((f) => ({ y: f.p.y, node: <EnvoyMark key={`e-${f.e.number}`} e={f.e} at={f.p} s={L.s} color={f.color} label={f.st.label} home={!!f.st.home} /> })),
+      ...figures.map((f) => ({ y: f.p.y, node: <EnvoyMark key={`e-${f.e.number}`} e={f.e} at={f.p} s={L.s} color={f.color} label={f.st.label} home={!!f.st.home} castle={f.castle} lite={lite} /> })),
     ].sort((a, b) => a.y - b.y);
     return (
       <>
@@ -749,13 +753,16 @@ function Legend({ levels }: { levels: string[] }) {
     { t: 'Обращение в пути к Совету', fig: <EnvoyBody color={HERALDRY[1]!} /> },
     { t: 'Срок первого ответа прошёл', fig: <EnvoyBody color={HERALDRY[1]!} pennant={RED} /> },
     { t: 'Ваше обращение', fig: <EnvoyBody color={HERALDRY[1]!} mine /> },
+    { t: 'Посол III–IV ранга: герб, печать, жезл и знамя', fig: <EnvoyBody color={HERALDRY[1]!} rank={4} /> },
+    { t: 'Посол V–VI ранга: золотая цепь, мантия, золотой жезл', fig: <EnvoyBody color={HERALDRY[1]!} rank={6} /> },
+    { t: 'Посол VII ранга: кольцо Великого Содружества', fig: <EnvoyBody color={HERALDRY[1]!} rank={7} /> },
   ];
   return (
     <div className="stack">
       <ul className="realm-legend">
         {rows.map((r) => (
           <li key={r.t}>
-            <svg viewBox="-14 -32 28 36" width="22" height="28" aria-hidden="true">
+            <svg viewBox="-16 -40 32 42" width="26" height="34" aria-hidden="true">
               {r.fig}
             </svg>
             {r.t}
@@ -960,32 +967,47 @@ function HallMark({ c, at, L, color, onEnter }: { c: Castle; at: Pt; L: Layout; 
   );
 }
 
-function EnvoyBody({ color, pennant, mine }: { color: string; pennant?: string; mine?: boolean }) {
+/**
+ * An envoy on the map (ADR-0032): dressed by the sender's rank and the style of the sender's own department;
+ * the castle colour is its coat of arms. A red pennant beside it: a deadline has passed. A gold halo: yours.
+ */
+function EnvoyBody({ color, pennant, mine, rank = 1, civ = 'camelot', walking = false }: { color: string; pennant?: string; mine?: boolean; rank?: number; civ?: string; walking?: boolean }) {
   return (
     <g>
-      {mine ? <circle cy="-12" r="14" fill="#fff4cf" fillOpacity="0.85" stroke="#b8860b" strokeWidth="2" /> : null}
-      <ellipse cy="1" rx="7" ry="2.4" fill="#2d3a22" opacity="0.3" />
-      <path d="M-6,0 L0,-15 L6,0 Z" fill={color} stroke="#2d2a24" strokeWidth="1" />
-      <circle cy="-18" r="4" fill="#f2dfc2" stroke="#2d2a24" strokeWidth="1" />
-      <line x1="7" y1="1" x2="7" y2="-25" stroke="#2d2a24" strokeWidth="1.3" />
-      <path d="M7,-25 L17,-22 L7,-19 Z" fill={pennant ?? color} stroke="#2d2a24" strokeWidth="0.8" />
+      {mine ? <circle cy="-14" r="15" fill="#fff4cf" fillOpacity="0.85" stroke="#b8860b" strokeWidth="2" /> : null}
+      <g transform="scale(0.8)">
+        <EnvoyFigure civ={civ} rank={rank} crest={color} detail="map" walking={walking} />
+      </g>
+      {pennant ? (
+        <g>
+          <line x1="-9" y1="1" x2="-9" y2="-22" stroke="#2d2a24" strokeWidth="1.2" />
+          <path d="M-9,-22 L-1.5,-19.5 L-9,-17 Z" fill={pennant} stroke="#2d2a24" strokeWidth="0.7" />
+        </g>
+      ) : null}
     </g>
   );
 }
 
-function EnvoyMark({ e, at, s, color, label, home }: { e: Envoy; at: Pt; s: number; color: string; label: string; home: boolean }) {
-  const text = `Обращение №${e.number} «${e.title}»: ${label}${e.mine ? ' (ваше)' : ''}`;
+function EnvoyMark({ e, at, s, color, label, home, castle, lite }: { e: Envoy; at: Pt; s: number; color: string; label: string; home: boolean; castle: string | null; lite: boolean }) {
+  const rank = e.envoyRank ?? 1;
+  // Hover: who sent it (as on the item card), the envoy's rank, department, number and status — nothing more.
+  const text = [
+    `Обращение №${e.number} «${e.title}»: ${label}${e.mine ? ' (ваше)' : ''}`,
+    `Посол: ${e.sender ?? e.author ?? 'автор не указан'} — ранг ${roman(rank)}, ${envoyRankName(rank)}`,
+    `Подразделение: ${castle ?? 'ждёт распределения'}`,
+    `Статус: ${STATUS[e.status]?.label ?? e.status}`,
+  ].join('. ');
   return (
-    <g className="realm-envoy" style={{ transform: `translate(${at.x}px, ${at.y}px) scale(${s})` }}>
+    <g className="realm-envoy" style={{ transform: `translate(${at.x}px, ${at.y}px) scale(${s})` }} data-envoy-rank={rank}>
       <a href={`#/items/${e.number}`} aria-label={text}>
         <title>{text}</title>
         <g className="realm-walk" transform={home ? 'scale(-1,1)' : undefined}>
-          <EnvoyBody color={color} pennant={e.overdueFirstResponse || e.overdueResolution ? RED : undefined} mine={e.mine} />
+          <EnvoyBody color={color} pennant={e.overdueFirstResponse || e.overdueResolution ? RED : undefined} mine={e.mine} rank={rank} civ={e.envoyCivilization} walking={!lite && !home} />
         </g>
         {e.mine ? (
           <g>
-            <rect x="-22" y="-50" width="44" height="18" rx="5" className="realm-plate" />
-            <text y="-36" textAnchor="middle" className="realm-tag">
+            <rect x="-22" y="-56" width="44" height="18" rx="5" className="realm-plate" />
+            <text y="-42" textAnchor="middle" className="realm-tag">
               №{e.number}
             </text>
           </g>

@@ -18,6 +18,7 @@ import {
 } from '../modules/lab.ts';
 import { listInbox, markRead } from '../modules/notifications.ts';
 import * as notificationsMod from '../modules/notifications.ts';
+import * as envoy from '../modules/envoy.ts';
 import * as royalAudience from '../modules/royal-audience.ts';
 import * as wf from '../modules/workflow.ts';
 import * as admin from '../modules/admin.ts';
@@ -348,6 +349,9 @@ export function createApp(config: AppConfig) {
   route('GET', `${ORG}/datasets/(?<dataset>[a-z0-9-]{2,60})`, async (ctx) => ({ status: 200, body: await datasetMod.listDataset(db, await org(ctx), ctx.params.dataset!) }));
   route('GET', `${ORG}/ideas/(?<number>\\d+)/dataset`, async (ctx) => ({ status: 200, body: await datasetMod.datasetOfItem(db, await org(ctx), Number(ctx.params.number)) }));
   route('GET', `${ORG}/people`, async (ctx) => ({ status: 200, body: await district.searchPeople(db, await org(ctx), district.PeopleQuery.parse(queryObject(ctx.query)).q) }));
+  // ---- «Путь Посла» (0020, ADR-0032): read only; XP is written by the database ----
+  route('GET', `${ORG}/me/envoy`, async (ctx) => ({ status: 200, body: await envoy.myEnvoy(db, await org(ctx)) }));
+  route('GET', `${ORG}/people/(?<id>${UUID})/envoy`, async (ctx) => ({ status: 200, body: await envoy.envoyOf(db, await org(ctx), ctx.params.id!) }));
   route('GET', `${ORG}/me/contribution`, async (ctx) => ({ status: 200, body: await progress.myContribution(db, await org(ctx)) }));
   json('PATCH', '/settings/progress', progress.ProgressSettingsInput, (a, i) => progress.updateProgressSettings(db, a, i));
   route('GET', `${ORG}/council`, async (ctx) => ({ status: 200, body: await council.listCouncil(db, await org(ctx)) }));

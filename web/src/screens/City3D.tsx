@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { roman } from '../components/EnvoyRankUp';
+import { envoyRankName } from '../lib/envoy-outfits';
 import { api } from '../lib/api';
 import { plural } from '../lib/format';
 import { useLite } from '../lib/lite';
@@ -430,7 +432,9 @@ export function City3D({ k, since, onMode, onUnavailable, onReload }: { k: Kingd
         {k.envoys.map((e) => {
           const st = envoyState(e);
           const late = e.overdueFirstResponse || e.overdueResolution;
-          const from = e.author ? shortName(e.author) : (k.castles.find((c) => c.id === e.departmentId)?.name ?? 'Без подразделения');
+          const sender = e.sender ?? e.author;
+          const from = sender ? shortName(sender) : (k.castles.find((c) => c.id === e.departmentId)?.name ?? 'Без подразделения');
+          const rank = e.envoyRank ?? 1;
           return (
             <button
               key={e.number}
@@ -441,17 +445,23 @@ export function City3D({ k, since, onMode, onUnavailable, onReload }: { k: Kingd
               data-tone={e.deferredUntil ? 'paused' : late ? 'late' : e.mine ? 'mine' : 'normal'}
               data-on={envoyOpen === e.number || hoverEnvoy === `e${e.number}` ? 'yes' : 'no'}
               style={{ ['--plate' as string]: (e.departmentId && colors.get(e.departmentId)) || '#7d8798' }}
-              aria-label={`Обращение №${e.number} от ${e.author ?? 'сотрудника'}: ${e.title}. ${st.label}`}
+              aria-label={`Обращение №${e.number} от ${sender ?? 'сотрудника'}: ${e.title}. ${st.label}. Посол ранга ${roman(rank)}, ${envoyRankName(rank)}`}
               onClick={() => openEnvoy(e.number)}
             >
               <span className="w3d-envoy-head">
                 <i aria-hidden="true" />
                 <b>№{e.number}</b>
                 <span>{from}</span>
+                <span className="w3d-envoy-rank" title={`Ранг посла: ${envoyRankName(rank)}`}>
+                  {roman(rank)}
+                </span>
               </span>
               <span className="w3d-envoy-more">
                 <em>{e.title}</em>
                 <small>{st.label}</small>
+                <small>
+                  Посол: {envoyRankName(rank)} · ранг {roman(rank)} из VII
+                </small>
               </span>
             </button>
           );

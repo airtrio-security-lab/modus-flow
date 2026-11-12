@@ -28,6 +28,7 @@ import { MeetingPage, MeetingsList, NewMeeting } from './screens/Meetings';
 import { TitleChip, useTitles } from './components/Titles';
 import { Board } from './screens/Board';
 import { KnowledgePage, Library, NewKnowledge } from './screens/Library';
+import { EnvoyRankUp } from './components/EnvoyRankUp';
 
 export function App() {
   const [me, setMe] = useState<Me | null>(null);
@@ -274,6 +275,8 @@ function Shell() {
           {page}
         </div>
       </main>
+      {/* «Ваш посол достиг ранга …!» — a card over the page, never blocking it (ADR-0032). */}
+      <EnvoyRankUp />
 
       <nav className="tabbar" aria-label="Разделы" style={{ gridTemplateColumns: `repeat(${left.length + right.length + 1}, 1fr)` }}>
         {left.map((n) => (

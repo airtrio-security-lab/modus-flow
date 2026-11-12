@@ -78,6 +78,7 @@ const TEMPLATES: Record<NotificationEvent, (actor: string, title: string) => str
   knowledge_reverify: (a, t) => `${a} запрашивает повторную проверку знания «${t}»`,
   council_escalated: (a, t) => `${a} передаёт «${t}» из малого совета подразделения в Большой совет компании`,
   idea_deferred: (a, t) => `${a} откладывает решение по «${t}»: срок и причина — в карточке обращения`,
+  envoy_rank_up: (_a, t) => `Подтверждённый результат обращения «${t}» повысил ранг вашего посла. Ранг — знак вклада, полномочий он не даёт`,
 };
 
 /**
@@ -121,6 +122,7 @@ export const HEADLINES: Record<NotificationEvent, string> = {
   knowledge_reverify: 'Знание требует проверки',
   council_escalated: 'Вопрос передан к Большому Круглому столу',
   idea_deferred: 'Решение отложено',
+  envoy_rank_up: 'Ваш посол получил новый ранг',
 };
 
 /** Plain business headlines for people who switched the game wording off. */
@@ -159,6 +161,7 @@ export const BUSINESS_HEADLINES: Record<NotificationEvent, string> = {
   knowledge_reverify: 'Требуется повторная проверка',
   council_escalated: 'Вопрос передан в Большой совет',
   idea_deferred: 'Решение отложено',
+  envoy_rank_up: 'Повышен ранг посла',
 };
 
 /** Groups for the inbox filter and for switching optional messages off. */
@@ -174,6 +177,7 @@ export const CATEGORY: Record<NotificationEvent, 'council' | 'items' | 'decision
   knowledge_submitted: 'legacy', knowledge_in_library: 'legacy', knowledge_archived: 'legacy', knowledge_reverify: 'legacy',
   council_escalated: 'council',
   idea_deferred: 'decisions',
+  envoy_rank_up: 'castle',
 };
 /** Never switched off (also enforced by app_notification_enabled in the database). */
 export const MANDATORY: readonly NotificationEvent[] = [

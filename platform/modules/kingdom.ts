@@ -4,6 +4,7 @@ import { withTx, type Database } from '../db/pool.ts';
 import { orgTx } from './context.ts';
 import { castleProgress, loadConfig } from './progress.ts';
 import { levelFor } from '../domain/progress.ts';
+import { envoyCivilizations, envoyRanks } from './envoy.ts';
 
 /**
  * «Королевство»: the same items drawn as a living map (owner decision,
@@ -54,6 +55,12 @@ export interface Envoy {
   stale: boolean;
   mine: boolean;
   publishedAt: string;
+  /** «Путь Посла» (ADR-0032): whose envoy it is — raised_by, else the author — as on the item card. */
+  sender: string | null;
+  /** Rank I..VII of that person's envoy, from confirmed results only; grants nothing. */
+  envoyRank: number;
+  /** The style the envoy is dressed in: the civilization of the sender's own department. */
+  envoyCivilization: string;
 }
 
 export async function kingdom(
@@ -75,18 +82,27 @@ export async function kingdom(
         GROUP BY d.id, d.name, d.civilization
         ORDER BY d.name`,
     );
-    const envoys = await c.query<Envoy>(
+    const envoys = await c.query<Omit<Envoy, 'envoyRank' | 'envoyCivilization'> & { ownerId: string }>(
       `SELECT o.number, o.title, o.status, o.department_id AS "departmentId",
               (o.first_response_at IS NOT NULL) AS responded,
               o.overdue_first_response AS "overdueFirstResponse", o.overdue_resolution AS "overdueResolution", o.stale,
               coalesce(app_membership_id() IN (o.author_membership_id, o.raised_by_membership_id), false) AS mine,
-              o.published_at AS "publishedAt", o.author,
+              o.published_at AS "publishedAt", o.author, coalesce(o.raised_by, o.author) AS sender,
+              coalesce(o.raised_by_membership_id, o.author_membership_id) AS "ownerId",
               to_char(app_idea_deferred_until(o.id), 'YYYY-MM-DD') AS "deferredUntil"
          FROM idea_overview o
         WHERE o.organization_id = app_org_id() AND o.status NOT IN ('implemented','rejected','closed')
         ORDER BY o.published_at
         LIMIT 300`,
     );
+    const owners = envoys.rows.map((e) => e.ownerId);
+    const ranks = await envoyRanks(c, owners);
+    const civs = await envoyCivilizations(c, owners);
+    const envoyList: Envoy[] = envoys.rows.map(({ ownerId, ...e }) => ({
+      ...e,
+      envoyRank: ranks.get(ownerId)?.rank ?? 1,
+      envoyCivilization: civs.get(ownerId) ?? 'camelot',
+    }));
     const known = new Set(castles.rows.map((r) => r.id));
     const wildlands = envoys.rows.filter((e) => !e.departmentId || !known.has(e.departmentId)).length;
     const cfg = await loadConfig(c);
@@ -109,6 +125,6 @@ export async function kingdom(
         achievements: Number((p?.implemented ?? 0) >= 1) + Number((p?.implemented ?? 0) >= 5) + Number((p?.effectXp ?? 0) > 0) + (lv.level - 1),
       };
     });
-    return { castles: withProgress, envoys: envoys.rows, wildlands, levels: { thresholds: cfg.thresholds, names: cfg.names } };
+    return { castles: withProgress, envoys: envoyList, wildlands, levels: { thresholds: cfg.thresholds, names: cfg.names } };
   });
 }
