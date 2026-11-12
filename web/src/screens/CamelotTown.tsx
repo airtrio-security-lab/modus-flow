@@ -1,4 +1,4 @@
-import { useState, type CSSProperties } from 'react';
+import { useEffect, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent } from 'react';
 import './camelot-town.css';
 
 type Building = {
@@ -85,6 +85,20 @@ export function CamelotTown({ districtId, districtName, level, xp }: {
   xp: number;
 }) {
   const [artUnavailable, setArtUnavailable] = useState(false);
+  const [entering, setEntering] = useState<Building | null>(null);
+  const flyTimer = useRef<number | null>(null);
+  useEffect(() => () => { if (flyTimer.current !== null) window.clearTimeout(flyTimer.current); }, []);
+
+  function enter(e: ReactMouseEvent<HTMLAnchorElement>, building: Building) {
+    if (e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey ||
+        window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    e.preventDefault();
+    if (entering) return;
+    setEntering(building);
+    flyTimer.current = window.setTimeout(() => {
+      window.location.hash = building.href(districtId);
+    }, 330);
+  }
   return (
     <section className="camelot-town" aria-labelledby="camelot-town-heading">
       <header className="camelot-town-header">
@@ -99,19 +113,20 @@ export function CamelotTown({ districtId, districtName, level, xp }: {
       </header>
       <p className="camelot-town-mobile-hint">Прокрутите панораму по горизонтали, чтобы исследовать город, или выберите здание из списка ниже.</p>
       <div className="camelot-town-viewport" tabIndex={0} aria-label="Город Камелот. На узком экране панораму можно прокручивать по горизонтали.">
-        <div className="camelot-town-stage">
+        <div className={entering ? "camelot-town-stage is-entering" : "camelot-town-stage"} aria-busy={!!entering}
+            style={entering ? { "--enter-x": entering.x + "%", "--enter-y": entering.y + "%" } as CSSProperties : undefined}>
           {artUnavailable ? <CamelotFallbackArt /> : (
             <img className="camelot-town-art" src="/towns/camelot.webp" alt="" width={1448} height={1086} decoding="async" onError={() => setArtUnavailable(true)} />
           )}
           <div className="camelot-town-shadow" aria-hidden="true" />
           {BUILDINGS.map((b) => (
             <a key={b.id} href={b.href(districtId)} className={'camelot-town-hotspot camelot-' + b.id}
-              style={{ '--x': b.x + '%', '--y': b.y + '%' } as CSSProperties} aria-label={b.label + ': ' + b.detail}>
+              style={{ '--x': b.x + '%', '--y': b.y + '%' } as CSSProperties} onClick={(e) => enter(e, b)} aria-label={b.label + ': ' + b.detail}>
               <span className="camelot-town-beacon" aria-hidden="true">✧</span>
               <span className="camelot-town-tooltip"><strong>{b.label}</strong><small>{b.detail}</small></span>
             </a>
           ))}
-          <span className="camelot-town-overlay-title" aria-hidden="true">КАМЕЛОТ</span>
+          {artUnavailable ? <span className="camelot-town-overlay-title" aria-hidden="true">КАМЕЛОТ</span> : null}
           <div className="camelot-town-level" aria-hidden="true">Владение · уровень {level}</div>
         </div>
       </div>
