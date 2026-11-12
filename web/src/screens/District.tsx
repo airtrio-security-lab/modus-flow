@@ -7,6 +7,7 @@ import type { District as DistrictData, DistrictItem, StaffCard, Status } from '
 import { ErrorBox, Loading, StatusChip } from '../components/ui';
 import { CIVS, CivCastle, DistrictHouses, civOf, type Civ } from '../components/civ';
 import { CouncilScene } from '../components/scenes';
+import { WarriorHall } from './WarriorHall';
 import { HERALDRY } from './Kingdom';
 
 /**
@@ -20,6 +21,7 @@ const TABS = [
   { id: 'tasks', name: 'Задачи' },
   { id: 'initiatives', name: 'Инициативы' },
   { id: 'council', name: 'Совет' },
+  { id: 'warriors', name: 'Зал воинов' },
   { id: 'legacy', name: 'Наследие' },
   { id: 'growth', name: 'Развитие' },
 ] as const;
@@ -75,6 +77,7 @@ export function DistrictPage({ id, tab }: { id: string; tab?: string }) {
         {current === 'tasks' ? <TasksTab d={data} /> : null}
         {current === 'initiatives' ? <InitiativesTab d={data} /> : null}
         {current === 'council' ? <CouncilTab d={data} /> : null}
+        {current === 'warriors' ? <WarriorHall departmentId={data.id} departmentName={data.name} discussions={data.council.open} /> : null}
         {current === 'legacy' ? <LegacyTab d={data} /> : null}
         {current === 'growth' ? <GrowthTab d={data} color={color} /> : null}
       </section>
@@ -117,6 +120,9 @@ function DistrictHeader({ d, color, onPick }: { d: DistrictData; color: string; 
             ) : null}
           </p>
         </div>
+        <p className="small">
+          <a href={"#/castles/" + d.id + "/warriors"}>Зал воинов · мысли и обсуждения</a>
+        </p>
         <p className="small">
           Место совета: <a href={`#/castles/${d.id}/council`}>{d.civilization.hall}</a>
         </p>
