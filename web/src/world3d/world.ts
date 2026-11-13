@@ -157,6 +157,8 @@ export class World {
   private dirty = true;
   private running = false;
   private disposed = false;
+  private parked = false;
+  private contextLost = false;
   private slow = 0;
   private shift = { x: 0, y: 0 };
   private shiftNow = { x: 0, y: 0 };
@@ -178,9 +180,10 @@ export class World {
   onFlight: (active: boolean) => void = () => {};
   onLost: () => void = () => {};
 
+  private host!: HTMLElement;
   constructor(
     private canvas: HTMLCanvasElement,
-    private host: HTMLElement,
+    host: HTMLElement,
     quality: Quality,
   ) {
     this.quality = quality;
@@ -226,6 +229,18 @@ export class World {
     this.ring.renderOrder = 2;
     this.scene.add(this.ring);
 
+    this.bind(host);
+    canvas.addEventListener('webglcontextlost', this.onContextLost);
+    document.addEventListener('visibilitychange', this.onVisibility);
+    this.start();
+  }
+
+  // -------------------------------------------------------------------------
+  // Leaving the city for a working screen and coming back (ADR-0039): the built city is kept for a
+  // short while instead of being built again. A parked world draws nothing and listens to nothing.
+  // -------------------------------------------------------------------------
+  private bind(host: HTMLElement) {
+    this.host = host;
     host.addEventListener('pointerdown', this.onDown);
     host.addEventListener('pointermove', this.onMove);
     host.addEventListener('pointerup', this.onUp);
@@ -233,8 +248,42 @@ export class World {
     host.addEventListener('pointerleave', this.onLeave);
     host.addEventListener('wheel', this.onWheel, { passive: false });
     host.addEventListener('contextmenu', this.onContext);
-    canvas.addEventListener('webglcontextlost', this.onContextLost);
-    document.addEventListener('visibilitychange', this.onVisibility);
+  }
+  private unbind() {
+    const h = this.host;
+    h.removeEventListener('pointerdown', this.onDown);
+    h.removeEventListener('pointermove', this.onMove);
+    h.removeEventListener('pointerup', this.onUp);
+    h.removeEventListener('pointercancel', this.onUp);
+    h.removeEventListener('pointerleave', this.onLeave);
+    h.removeEventListener('wheel', this.onWheel);
+    h.removeEventListener('contextmenu', this.onContext);
+    h.style.cursor = '';
+  }
+  /** True when the graphics context was lost: such a world cannot be shown again. */
+  get lost() {
+    return this.contextLost;
+  }
+  /** The screen is left: every movement settles, the loop stops, the screen's callbacks are released. */
+  park() {
+    if (this.parked || this.disposed) return;
+    this.finishFlight();
+    this.feel.settle();
+    this.stop();
+    this.unbind();
+    this.parked = true;
+    this.onAnchors = () => {};
+    this.onPick = () => {};
+    this.onHover = () => {};
+    this.onFlight = () => {};
+    this.onLost = () => {};
+  }
+  /** The screen is open again, in a new host element. */
+  resume(host: HTMLElement) {
+    if (!this.parked || this.disposed) return;
+    this.parked = false;
+    this.bind(host);
+    this.dirty = true;
     this.start();
   }
 
@@ -934,6 +983,7 @@ export class World {
   };
   private onContextLost = (e: Event) => {
     e.preventDefault();
+    this.contextLost = true;
     this.stop();
     this.onLost();
   };
@@ -1038,7 +1088,7 @@ export class World {
   // Loop
   // -------------------------------------------------------------------------
   start() {
-    if (this.running || this.disposed) return;
+    if (this.running || this.disposed || this.parked) return;
     this.running = true;
     this.last = performance.now();
     this.raf = requestAnimationFrame(this.frame);
@@ -1164,14 +1214,7 @@ export class World {
     for (const p of this.pulses) (p.material as THREE.Material).dispose();
     this.pulses.clear();
     this.pulseGeo?.dispose();
-    const h = this.host;
-    h.removeEventListener('pointerdown', this.onDown);
-    h.removeEventListener('pointermove', this.onMove);
-    h.removeEventListener('pointerup', this.onUp);
-    h.removeEventListener('pointercancel', this.onUp);
-    h.removeEventListener('pointerleave', this.onLeave);
-    h.removeEventListener('wheel', this.onWheel);
-    h.removeEventListener('contextmenu', this.onContext);
+    if (!this.parked) this.unbind();
     this.canvas.removeEventListener('webglcontextlost', this.onContextLost);
     document.removeEventListener('visibilitychange', this.onVisibility);
     this.scene.traverse((o) => {

@@ -1130,6 +1130,7 @@ button.ts { cursor: pointer; min-height: 28px; }
 }
 .w3d:focus-visible { box-shadow: inset 0 0 0 3px rgba(217, 186, 124, 0.7); }
 .w3d-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.w3d-canvas-slot { display: contents; }
 .w3d-loading { position: absolute; inset: 0; display: grid; place-items: center; font-size: var(--fs-lg); color: var(--w-ink-2); background: #0e1014; }
 .w3d a, .w3d button { font: inherit; color: inherit; }
 .w3d button { cursor: pointer; }

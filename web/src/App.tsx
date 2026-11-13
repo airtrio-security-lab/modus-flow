@@ -32,6 +32,7 @@ import { EnvoyRankUp } from './components/EnvoyRankUp';
 import { CinematicHost } from './components/CinematicNotification';
 import { clearWorldContext, worldRoute, writeWorldContext } from './lib/worldReturn';
 import { useWorldBack } from './lib/useWorldBack';
+import { dropWorld } from './world3d/keep';
 
 export function App() {
   const [me, setMe] = useState<Me | null>(null);
@@ -63,6 +64,7 @@ export function App() {
     setMe(null);
     // The next person on this device starts from the ordinary view of the world (ADR-0038).
     clearWorldContext();
+    dropWorld();
     location.hash = '';
     setState('signed-out');
   }, []);

@@ -11,6 +11,7 @@ import { useLoad } from '../lib/session';
 import type { Castle, Envoy, IdeaDetail, Kingdom as KingdomData, ListItem } from '../lib/types';
 import { AiAssessment, DeferControl, ItemTrack } from '../components/ItemQuick';
 import { CIVS, civOf, type Civ } from '../components/civ';
+import { keepWorld, takeWorld } from '../world3d/keep';
 import { readWorldContext, reconcile, writeWorldContext } from '../lib/worldReturn';
 import { World, webglSupported, type Anchor, type AnchorKind, type Quality, type View } from '../world3d/world';
 import { seenFor, type CitySeen } from '../lib/citySeen';
@@ -128,7 +129,8 @@ export function City3D({ k, since, onMode, onUnavailable, onReload }: { k: Kingd
   // The memory of the last visit is shown once, by the first engine of this screen.
   const sinceUsed = useRef(false);
   const host = useRef<HTMLDivElement>(null);
-  const canvas = useRef<HTMLCanvasElement>(null);
+  // The canvas belongs to the engine, not to React: a kept city comes back with its own canvas (ADR-0039).
+  const slot = useRef<HTMLDivElement>(null);
   const world = useRef<World | null>(null);
   const labels = useRef(new Map<string, HTMLElement>());
   const [ready, setReady] = useState(false);
@@ -159,7 +161,7 @@ export function City3D({ k, since, onMode, onUnavailable, onReload }: { k: Kingd
 
   // The engine lives as long as the screen: created once, fed with data, disposed on leave.
   useEffect(() => {
-    if (!host.current || !canvas.current) return;
+    if (!host.current || !slot.current) return;
     if (!webglSupported()) {
       onUnavailable('На этом устройстве нет WebGL — показана схема города.');
       return;
@@ -172,16 +174,32 @@ export function City3D({ k, since, onMode, onUnavailable, onReload }: { k: Kingd
       /* ignore */
     }
     const quality: Quality = stored === 'low' || stored === 'medium' || stored === 'high' ? stored : lite ? 'low' : coarse() ? 'medium' : 'high';
+    // The city built a moment ago for this person and this tier is shown again instead of being rebuilt.
+    const keepKey = `${s.org}:${s.membershipId}:${quality}`;
+    const had = takeWorld(keepKey);
     let w: World;
-    try {
-      w = new World(canvas.current, host.current, quality);
-    } catch {
-      onUnavailable('Не удалось запустить 3D на этом устройстве — показана схема города.');
-      return;
+    let cv: HTMLCanvasElement;
+    if (had) {
+      w = had.world;
+      cv = had.canvas;
+      slot.current.appendChild(cv);
+      w.resume(host.current);
+    } else {
+      cv = document.createElement('canvas');
+      cv.className = 'w3d-canvas';
+      cv.setAttribute('aria-hidden', 'true');
+      slot.current.appendChild(cv);
+      try {
+        w = new World(cv, host.current, quality);
+      } catch {
+        cv.remove();
+        onUnavailable('Не удалось запустить 3D на этом устройстве — показана схема города.');
+        return;
+      }
     }
     world.current = w;
     w.live = !lite && !reducedMotion();
-    if (!sinceUsed.current) {
+    if (!had && !sinceUsed.current) {
       w.remember(seenFor(since ?? null, k));
       // Consumed on the next task: the development double-run of effects must not swallow it.
       window.setTimeout(() => (sinceUsed.current = true), 0);
@@ -201,7 +219,11 @@ export function City3D({ k, since, onMode, onUnavailable, onReload }: { k: Kingd
       // Leaving through a building: the view from before the flight is already kept, the close-up is not.
       if (!entered.current) writeWorldContext(who, { mode: '3d', view: w.getView(), selected: selectedRef.current, place: null });
       ro.disconnect();
-      w.dispose();
+      // A world whose graphics context was lost cannot be shown again; any other is kept for the way back.
+      if (w.lost) {
+        w.dispose();
+        cv.remove();
+      } else keepWorld(keepKey, w, cv);
       world.current = null;
       delete (window as unknown as { __world?: World }).__world;
     };
@@ -389,7 +411,7 @@ export function City3D({ k, since, onMode, onUnavailable, onReload }: { k: Kingd
 
   return (
     <div className="w3d" data-sheet={selected || listOpen || envoyOpen !== null ? 'yes' : 'no'} ref={host} tabIndex={0} onKeyDown={onKey} role="application" aria-label={`${s.realmName}: трёхмерный город подразделений. Стрелки двигают камеру, плюс и минус приближают, Q и E поворачивают. Все здания доступны кнопками ниже.`}>
-      <canvas ref={canvas} className="w3d-canvas" aria-hidden="true" />
+      <div ref={slot} className="w3d-canvas-slot" />
       {!ready ? (
         <div className="w3d-loading" role="status">
           Строим город…
