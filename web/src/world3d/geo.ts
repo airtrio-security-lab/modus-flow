@@ -226,7 +226,8 @@ export function archWall(w: number, h: number, depth: number, openW: number, ope
   const g = new THREE.ExtrudeGeometry(s, { depth, bevelEnabled: false, curveSegments: 10 });
   g.translate(0, 0, -depth / 2);
   g.computeVertexNormals();
-  return planarUV(g.toNonIndexed());
+  // An extrusion is already non-indexed; asking again only prints a warning for every arch of the city.
+  return planarUV(g.index ? g.toNonIndexed() : g);
 }
 
 // ---------------------------------------------------------------------------

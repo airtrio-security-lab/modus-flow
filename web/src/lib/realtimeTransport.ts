@@ -1,5 +1,5 @@
 /**
- * WebRTC transport for a speech-to-speech model (ADR-0042). Generic on purpose: it knows the
+ * WebRTC transport for a speech-to-speech model (ADR-0043). Generic on purpose: it knows the
  * microphone, the peer connection, the remote audio and the Realtime event names — nothing about
  * MODUS FLOW, its server, its data or its tools. The company layer passes in:
  *   - negotiate(offer) → answer: how the SDP offer reaches the provider (our server relays it);

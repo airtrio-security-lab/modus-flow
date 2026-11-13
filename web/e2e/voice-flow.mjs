@@ -1,5 +1,5 @@
 /**
- * «Спросить советника» through the real UI (ADR-0042), in the configuration of the demo by default:
+ * «Спросить советника» through the real UI (ADR-0043), in the configuration of the demo by default:
  * the voice provider is NOT connected (no paid API without the owner's decision). Checked:
  *  - the floating button opens the panel; it honestly says «Голосовой AI не подключён» and offers text;
  *  - a typed question is answered from MODUS FLOW data (facts and links), labelled when no model is connected;
@@ -125,13 +125,34 @@ await as({ width: 1280, height: 860 }, async (page, micAsked) => {
 
 // ---- phone -----------------------------------------------------------------
 await as({ width: 375, height: 812 }, async (page) => {
-  const fab = page.getByRole('button', { name: 'Спросить советника' });
-  await fab.waitFor();
-  const tab = await page.locator('.tabbar').boundingBox();
-  const fb = await fab.boundingBox();
-  if (!tab || !fb || fb.y + fb.height > tab.y) fail(`кнопка перекрывает нижнюю панель: ${JSON.stringify({ fb, tab })}`);
-  if (fb.height < 44) fail('цель касания меньше 44 px');
-  await fab.click();
+  // In the header, on the right, next to the bell: the first thing seen on a phone.
+  const head = page.locator('.mobile-head .va-head-btn');
+  await head.waitFor();
+  const hb = await head.boundingBox();
+  const bell = await page.locator('.mobile-head .bell').boundingBox();
+  if (!hb || hb.height < 44) fail('кнопка в шапке меньше 44 px');
+  if (!bell || hb.x < bell.x || hb.x + hb.width > 375 - 8) fail(`кнопка советника не справа в шапке: ${JSON.stringify({ hb, bell })}`);
+  if (await page.locator('.va-fab').isVisible()) fail('пока шапка видна, вторая (плавающая) кнопка не нужна');
+  step('телефон: «Советник» в шапке справа, рядом с уведомлениями');
+  await page.screenshot({ path: `${OUT}/07-phone-header.png` });
+
+  // After scrolling the header away, the floating button takes over above the tab bar.
+  await page.goto(`${BASE}/#/all`);
+  await page.locator('.mobile-head .va-head-btn').waitFor();
+  await page.mouse.wheel(0, 2000);
+  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+  const fab = page.locator('.va-fab');
+  const scrolled = await page.evaluate(() => window.scrollY > 120);
+  if (scrolled) {
+    await fab.waitFor({ state: 'visible' });
+    const tab = await page.locator('.tabbar').boundingBox();
+    const fb = await fab.boundingBox();
+    if (!tab || !fb || fb.y + fb.height > tab.y) fail(`кнопка перекрывает нижнюю панель: ${JSON.stringify({ fb, tab })}`);
+    if (fb.height < 44) fail('цель касания меньше 44 px');
+    step('шапка уехала — плавающая кнопка над панелью разделов');
+    await page.evaluate(() => window.scrollTo(0, 0));
+  }
+  await page.locator('.mobile-head .va-head-btn').click();
   const panel = page.getByRole('dialog', { name: 'Советник' });
   await panel.waitFor();
   // The sheet may run under the tab bar, but every tab must stay on top and clickable.
@@ -144,7 +165,8 @@ await as({ width: 375, height: 812 }, async (page) => {
   );
   if (covered) fail(`нижний лист закрывает ${covered} кнопок панели разделов`);
   const input = await panel.getByLabel(/Вопрос о ваших задачах/).boundingBox();
-  if (!input || input.y + input.height > tab.y) fail('поле вопроса уходит под панель разделов');
+  const tabBox = await page.locator('.tabbar').boundingBox();
+  if (!input || !tabBox || input.y + input.height > tabBox.y) fail('поле вопроса уходит под панель разделов');
   const wide = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
   if (wide) fail('горизонтальная прокрутка на телефоне');
   await page.locator('.tabbar a').first().click();

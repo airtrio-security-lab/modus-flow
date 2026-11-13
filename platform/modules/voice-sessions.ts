@@ -3,7 +3,7 @@ import { AppError, notFound } from '../domain/errors.ts';
 import type { VoiceLimits } from './voice-realtime.ts';
 
 /**
- * Live voice sessions held by the server (ADR-0042). In memory on purpose: a conversation is not a
+ * Live voice sessions held by the server (ADR-0043). In memory on purpose: a conversation is not a
  * record. Nothing said is stored here — only who may use the session, until when, and counters.
  *
  * Every session belongs to one user in one organization. Any request about a session made by

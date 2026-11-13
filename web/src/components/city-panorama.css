@@ -53,3 +53,10 @@
   .town-atmo-birds,.town-atmo-light{animation:none!important}
   .town-atmo-birds{opacity:0!important}
 }
+/* The push towards the clicked building (from PR #16): the picture only, the hotspots stay where they are and stop taking clicks. */
+.town-canvas{overflow:hidden}
+.town-canvas>img{transition:transform .35s cubic-bezier(.2,.76,.18,1)}
+.town-canvas.is-entering>img{transform:scale(1.13);transform-origin:var(--enter-x) var(--enter-y)}
+.town-canvas.is-entering .town-atmosphere{opacity:0;transition:opacity .2s}
+@media(prefers-reduced-motion:reduce){.town-canvas>img{transition:none}}
+:root[data-lite='on'] .town-canvas>img{transition:none}

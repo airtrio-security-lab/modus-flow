@@ -261,7 +261,7 @@ export async function dismissCandidate(db: Database, actor: OrgActor, protocolId
 // ---------------------------------------------------------------------------
 // Executor suggestions
 // ---------------------------------------------------------------------------
-const norm = (s: string) => s.toLowerCase().replaceAll('ё', 'е');
+export const norm = (s: string) => s.toLowerCase().replaceAll('ё', 'е');
 /** A skill matches when every word of it (by its first 5 letters) occurs in the item text. */
 export function skillMatches(skill: string, haystack: string): boolean {
   const words = norm(skill).split(/[^\p{L}\p{N}]+/u).filter((w) => w.length >= 2);

@@ -20,7 +20,7 @@ export function Mine() {
         title="Мои обращения"
         sub="Что вы подали или что записали с ваших слов. У каждого обращения есть ответственный и срок ответа."
       >
-        <a className="btn primary" href="#/new">
+        <a className="btn" href="#/new">
           Подать обращение
         </a>
       </PageHead>

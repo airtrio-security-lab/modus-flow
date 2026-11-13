@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { roman } from '../components/EnvoyRankUp';
+import { envoyRankName } from '../lib/envoy-outfits';
 import { api } from '../lib/api';
 import { plural } from '../lib/format';
 import { useLite } from '../lib/lite';
@@ -9,7 +11,11 @@ import { useLoad } from '../lib/session';
 import type { Castle, Envoy, IdeaDetail, Kingdom as KingdomData, ListItem } from '../lib/types';
 import { AiAssessment, DeferControl, ItemTrack } from '../components/ItemQuick';
 import { CIVS, civOf, type Civ } from '../components/civ';
+import { keepWorld, takeWorld } from '../world3d/keep';
+import { readWorldContext, reconcile, writeWorldContext } from '../lib/worldReturn';
 import { World, webglSupported, type Anchor, type AnchorKind, type Quality, type View } from '../world3d/world';
+import { seenFor, type CitySeen } from '../lib/citySeen';
+import { W3dDiag, diagWanted } from '../components/W3dDiag';
 import { HERALDRY, envoyState } from './Kingdom';
 
 /**
@@ -18,7 +24,6 @@ import { HERALDRY, envoyState } from './Kingdom';
  * their civilization and server-computed level, open items and their stage. The scene has no
  * rules of its own — a click only moves the camera and opens existing screens.
  */
-const VIEW_KEY = 'modus.w3d.view';
 const HINT_KEY = 'modus.w3d.hint';
 type Mode = '3d' | 'city' | 'work';
 interface PersonHit {
@@ -96,11 +101,36 @@ const PLACES: { id: string; kind: Exclude<AnchorKind, 'district' | 'envoy'>; tit
   { id: 'camp', kind: 'camp', title: 'Без подразделения', sub: 'Ждут распределения', href: '#/all' },
 ];
 
-export function City3D({ k, onMode, onUnavailable, onReload }: { k: KingdomData; onMode: (m: Mode) => void; onUnavailable: (why: string) => void; onReload: () => void }) {
+/**
+ * A HUD counter that answers when its value really changes (ADR-0030): a short pulse, no layout shift.
+ * Still with reduced motion or «облегчённая графика»; the number itself is always the server's.
+ */
+function Tick({ value, children }: { value: number; children?: ReactNode }) {
+  const el = useRef<HTMLSpanElement>(null);
+  const prev = useRef(value);
+  const [lite] = useLite();
+  useEffect(() => {
+    if (prev.current === value) return;
+    prev.current = value;
+    if (lite || reducedMotion()) return;
+    el.current?.animate?.([{ transform: 'scale(1.24)', color: '#d9ba7c' }, { transform: 'scale(1)' }], { duration: 320, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)' });
+  }, [value, lite]);
+  return (
+    <span ref={el} className="w3d-tick">
+      {children ?? value}
+    </span>
+  );
+}
+
+export function City3D({ k, since, onMode, onUnavailable, onReload }: { k: KingdomData; since?: CitySeen | null; onMode: (m: Mode) => void; onUnavailable: (why: string) => void; onReload: () => void }) {
   const s = useSession();
   const [lite] = useLite();
+  const [diag] = useState(diagWanted);
+  // The memory of the last visit is shown once, by the first engine of this screen.
+  const sinceUsed = useRef(false);
   const host = useRef<HTMLDivElement>(null);
-  const canvas = useRef<HTMLCanvasElement>(null);
+  // The canvas belongs to the engine, not to React: a kept city comes back with its own canvas (ADR-0039).
+  const slot = useRef<HTMLDivElement>(null);
   const world = useRef<World | null>(null);
   const labels = useRef(new Map<string, HTMLElement>());
   const [ready, setReady] = useState(false);
@@ -119,12 +149,19 @@ export function City3D({ k, onMode, onUnavailable, onReload }: { k: KingdomData;
     }
   });
   const pending = useRef<string | null>(null);
+  // Seamless world (ADR-0038): the camera and the selection as they were before a building was entered.
+  const who = useMemo(() => ({ org: s.org, member: s.membershipId }), [s.org, s.membershipId]);
+  const entered = useRef(false);
+  const selectedRef = useRef<string | null>(null);
+  selectedRef.current = selected;
+  /** The building the person has just come back from: its plate is marked and takes the focus. */
+  const [returned, setReturned] = useState<string | null>(null);
   const colors = useMemo(() => new Map(k.castles.map((c, i) => [c.id, HERALDRY[i % HERALDRY.length]!])), [k.castles]);
   const current = selected ? k.castles.find((c) => c.id === selected) : undefined;
 
   // The engine lives as long as the screen: created once, fed with data, disposed on leave.
   useEffect(() => {
-    if (!host.current || !canvas.current) return;
+    if (!host.current || !slot.current) return;
     if (!webglSupported()) {
       onUnavailable('На этом устройстве нет WebGL — показана схема города.');
       return;
@@ -137,15 +174,36 @@ export function City3D({ k, onMode, onUnavailable, onReload }: { k: KingdomData;
       /* ignore */
     }
     const quality: Quality = stored === 'low' || stored === 'medium' || stored === 'high' ? stored : lite ? 'low' : coarse() ? 'medium' : 'high';
+    // The city built a moment ago for this person and this tier is shown again instead of being rebuilt.
+    const keepKey = `${s.org}:${s.membershipId}:${quality}`;
+    const had = takeWorld(keepKey);
     let w: World;
-    try {
-      w = new World(canvas.current, host.current, quality);
-    } catch {
-      onUnavailable('Не удалось запустить 3D на этом устройстве — показана схема города.');
-      return;
+    let cv: HTMLCanvasElement;
+    if (had) {
+      w = had.world;
+      cv = had.canvas;
+      slot.current.appendChild(cv);
+      w.resume(host.current);
+    } else {
+      cv = document.createElement('canvas');
+      cv.className = 'w3d-canvas';
+      cv.setAttribute('aria-hidden', 'true');
+      slot.current.appendChild(cv);
+      try {
+        w = new World(cv, host.current, quality);
+      } catch {
+        cv.remove();
+        onUnavailable('Не удалось запустить 3D на этом устройстве — показана схема города.');
+        return;
+      }
     }
     world.current = w;
     w.live = !lite && !reducedMotion();
+    if (!had && !sinceUsed.current) {
+      w.remember(seenFor(since ?? null, k));
+      // Consumed on the next task: the development double-run of effects must not swallow it.
+      window.setTimeout(() => (sinceUsed.current = true), 0);
+    }
     w.onLost = () => onUnavailable('Графический контекст потерян — показана схема города.');
     w.onFlight = setFlying;
     w.onHover = (id, kind) => setHoverEnvoy(kind === 'envoy' ? id : null);
@@ -158,13 +216,14 @@ export function City3D({ k, onMode, onUnavailable, onReload }: { k: KingdomData;
     w.resize(host.current.clientWidth, host.current.clientHeight);
     (window as unknown as { __world?: World }).__world = w;
     return () => {
-      try {
-        sessionStorage.setItem(VIEW_KEY, JSON.stringify(w.getView()));
-      } catch {
-        /* storage unavailable */
-      }
+      // Leaving through a building: the view from before the flight is already kept, the close-up is not.
+      if (!entered.current) writeWorldContext(who, { mode: '3d', view: w.getView(), selected: selectedRef.current, place: null });
       ro.disconnect();
-      w.dispose();
+      // A world whose graphics context was lost cannot be shown again; any other is kept for the way back.
+      if (w.lost) {
+        w.dispose();
+        cv.remove();
+      } else keepWorld(keepKey, w, cv);
       world.current = null;
       delete (window as unknown as { __world?: World }).__world;
     };
@@ -215,12 +274,12 @@ export function City3D({ k, onMode, onUnavailable, onReload }: { k: KingdomData;
     });
     if (!ready) {
       // Coming back from a district or a hall: the camera is where it was left.
-      try {
-        const saved = sessionStorage.getItem(VIEW_KEY);
-        if (saved) w.setView(JSON.parse(saved) as View);
-      } catch {
-        /* ignore */
-      }
+      // Only what is still true is restored: a department that is gone is not selected again.
+      const saved = readWorldContext(who);
+      const back = saved ? reconcile(saved, k.castles.map((c) => c.id)) : null;
+      if (back?.view) w.setView(back.view as View);
+      if (back?.selected) setSelected(back.selected);
+      if (back?.place && PLACES.some((p) => p.id === back.place)) setReturned(back.place);
       setReady(true);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -256,9 +315,24 @@ export function City3D({ k, onMode, onUnavailable, onReload }: { k: KingdomData;
     }
     const v = w.viewOf(id);
     pending.current = then ?? null;
+    if (then) {
+      // Entering a building: remember where the person stood, not the close-up the flight ends on.
+      entered.current = true;
+      writeWorldContext(who, { mode: '3d', view: w.getView(), selected: selectedRef.current, place: PLACES.some((p) => p.id === id) ? id : null });
+    }
     if (v) await w.flyTo(v, lite || reducedMotion() ? 0 : 1900);
     if (pending.current === then && then) location.hash = then;
-  }, [lite]);
+    // The flight was interrupted by another choice: the person is still in the city.
+    else if (then) entered.current = false;
+  }, [lite, who]);
+
+  // Back from a building: the keyboard and the screen reader land on its plate, the camera does not move.
+  useEffect(() => {
+    if (!ready || !returned) return;
+    labels.current.get(returned)?.focus({ preventScroll: true });
+    const t = window.setTimeout(() => setReturned(null), 2600);
+    return () => window.clearTimeout(t);
+  }, [ready, returned]);
 
   const openDistrict = useCallback(
     (id: string) => {
@@ -337,7 +411,7 @@ export function City3D({ k, onMode, onUnavailable, onReload }: { k: KingdomData;
 
   return (
     <div className="w3d" data-sheet={selected || listOpen || envoyOpen !== null ? 'yes' : 'no'} ref={host} tabIndex={0} onKeyDown={onKey} role="application" aria-label={`${s.realmName}: трёхмерный город подразделений. Стрелки двигают камеру, плюс и минус приближают, Q и E поворачивают. Все здания доступны кнопками ниже.`}>
-      <canvas ref={canvas} className="w3d-canvas" aria-hidden="true" />
+      <div ref={slot} className="w3d-canvas-slot" />
       {!ready ? (
         <div className="w3d-loading" role="status">
           Строим город…
@@ -379,6 +453,7 @@ export function City3D({ k, onMode, onUnavailable, onReload }: { k: KingdomData;
             ref={ref(p.id)}
             className="w3d-plate"
             data-kind={p.kind}
+            data-returned={returned === p.id ? 'yes' : undefined}
             href={p.href}
             aria-label={`${p.title}: ${p.sub}${p.kind === 'camp' ? `, ${k.wildlands}` : ''}`}
             onClick={(e) => {
@@ -399,7 +474,9 @@ export function City3D({ k, onMode, onUnavailable, onReload }: { k: KingdomData;
         {k.envoys.map((e) => {
           const st = envoyState(e);
           const late = e.overdueFirstResponse || e.overdueResolution;
-          const from = e.author ? shortName(e.author) : (k.castles.find((c) => c.id === e.departmentId)?.name ?? 'Без подразделения');
+          const sender = e.sender ?? e.author;
+          const from = sender ? shortName(sender) : (k.castles.find((c) => c.id === e.departmentId)?.name ?? 'Без подразделения');
+          const rank = e.envoyRank ?? 1;
           return (
             <button
               key={e.number}
@@ -410,17 +487,23 @@ export function City3D({ k, onMode, onUnavailable, onReload }: { k: KingdomData;
               data-tone={e.deferredUntil ? 'paused' : late ? 'late' : e.mine ? 'mine' : 'normal'}
               data-on={envoyOpen === e.number || hoverEnvoy === `e${e.number}` ? 'yes' : 'no'}
               style={{ ['--plate' as string]: (e.departmentId && colors.get(e.departmentId)) || '#7d8798' }}
-              aria-label={`Обращение №${e.number} от ${e.author ?? 'сотрудника'}: ${e.title}. ${st.label}`}
+              aria-label={`Обращение №${e.number} от ${sender ?? 'сотрудника'}: ${e.title}. ${st.label}. Посол ранга ${roman(rank)}, ${envoyRankName(rank)}`}
               onClick={() => openEnvoy(e.number)}
             >
               <span className="w3d-envoy-head">
                 <i aria-hidden="true" />
                 <b>№{e.number}</b>
                 <span>{from}</span>
+                <span className="w3d-envoy-rank" title={`Ранг посла: ${envoyRankName(rank)}`}>
+                  {roman(rank)}
+                </span>
               </span>
               <span className="w3d-envoy-more">
                 <em>{e.title}</em>
                 <small>{st.label}</small>
+                <small>
+                  Посол: {envoyRankName(rank)} · ранг {roman(rank)} из VII
+                </small>
               </span>
             </button>
           );
@@ -433,23 +516,33 @@ export function City3D({ k, onMode, onUnavailable, onReload }: { k: KingdomData;
         <dl className="w3d-stats">
           <div>
             <dt>Обращения в пути</dt>
-            <dd>{k.envoys.length}</dd>
+            <dd>
+              <Tick value={k.envoys.length} />
+            </dd>
           </div>
           <div>
             <dt>Ждут ответа</dt>
-            <dd>{waiting}</dd>
+            <dd>
+              <Tick value={waiting} />
+            </dd>
           </div>
           <div>
             <dt>Внедряется</dt>
-            <dd>{inWork}</dd>
+            <dd>
+              <Tick value={inWork} />
+            </dd>
           </div>
           <div data-alert={late ? 'yes' : 'no'}>
             <dt>Срок прошёл</dt>
-            <dd>{late}</dd>
+            <dd>
+              <Tick value={late} />
+            </dd>
           </div>
           <div>
             <dt>Подтверждённый опыт</dt>
-            <dd>{xp.toLocaleString('ru-RU')} XP</dd>
+            <dd>
+              <Tick value={xp}>{xp.toLocaleString('ru-RU')} XP</Tick>
+            </dd>
           </div>
         </dl>
         <a className="w3d-cta" href="#/new">
@@ -496,6 +589,8 @@ export function City3D({ k, onMode, onUnavailable, onReload }: { k: KingdomData;
           ⌂
         </button>
       </div>
+
+      {diag && ready ? <W3dDiag world={world} /> : null}
 
       {hint && ready ? (
         <div className="w3d-hint" data-world-ui="" role="note">

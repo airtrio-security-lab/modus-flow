@@ -63,6 +63,24 @@ async function caption(text) {
     el.textContent = t;
   }, text);
 }
+/**
+ * Cinematic notifications (ADR-0037): after a colleague's action on this same device the next person
+ * may be greeted by a scene. The story goes on: when recording the scene plays to its end, otherwise
+ * it is skipped at once. Every scene met is listed at the end of the run.
+ */
+const scenesMet = [];
+async function passScene(who) {
+  await page.waitForFunction(() => document.documentElement.dataset.cineChecked === '1', null, { timeout: 15000 });
+  for (let i = 0; i < 4; i++) {
+    const box = page.locator('dialog.cine[open], .cine-text');
+    if (!(await box.count())) return;
+    scenesMet.push(`${who}: ${(await box.locator('h2').first().textContent())?.trim()}`);
+    if (RECORD) await page.waitForFunction(() => { const v = document.querySelector('dialog.cine[open] video'); return !v || v.ended; }, null, { timeout: 8000 }).catch(() => undefined);
+    const close = box.getByRole('button', { name: /^(Пропустить|Позже|Закрыть)$/ }).first();
+    await close.click();
+    await box.first().waitFor({ state: 'detached', timeout: 5000 }).catch(() => undefined);
+  }
+}
 async function signIn(person, text) {
   if (page.url().startsWith('http')) await page.evaluate(() => sessionStorage.clear());
   await page.goto(BASE);
@@ -70,6 +88,7 @@ async function signIn(person, text) {
   await page.goto(BASE);
   await pickCharacter(page, person);
   await page.waitForSelector('.shell');
+  await passScene(person.name);
   if (text) await caption(text);
   await pause(800);
 }
@@ -241,7 +260,7 @@ try {
   if (await page.locator('.vault').isVisible()) await page.locator('.vault').click();
   await expectText('утверждено как наследие');
   await go('#/library', '10. Великая библиотека: что решили, почему, результат и чему научились');
-  await page.getByLabel('Поиск по всем залам').fill('этикет');
+  await page.getByLabel('Какое решение или опыт вы ищете?').fill('этикет');
   await page.locator('.volume', { hasText: 'Печать этикеток со сканера у ворот' }).getByText('утверждено как наследие').waitFor();
   await shot('10-search');
   await pause(3500);
@@ -251,6 +270,7 @@ try {
 
   if (errors.length) throw new Error(`ошибки в браузере: ${errors.join('; ')}`);
   console.log(`ГОТОВО: финальная история пройдена за ${((Date.now() - t0) / 1000).toFixed(1)} с`);
+  if (scenesMet.length) console.log(`Кинематографические сцены по пути (ADR-0037): ${scenesMet.join('; ')}`);
 } finally {
   await ctx.close();
   await browser.close();

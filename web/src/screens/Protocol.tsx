@@ -19,10 +19,10 @@ export function MeetingModes({ active }: { active: 'rows' | 'protocol' }) {
   if (!s.isLead && !s.isAdmin) return null;
   return (
     <nav className="segmented" aria-label="Как разобрать встречу">
-      <a href="#/meeting" aria-current={active === 'rows' ? 'page' : undefined} aria-pressed={active === 'rows'}>
+      <a href="#/meeting" aria-current={active === 'rows' ? 'page' : undefined}>
         По одному вопросу
       </a>
-      <a href="#/meeting/protocol" aria-current={active === 'protocol' ? 'page' : undefined} aria-pressed={active === 'protocol'}>
+      <a href="#/meeting/protocol" aria-current={active === 'protocol' ? 'page' : undefined}>
         Протокол целиком
       </a>
     </nav>

@@ -3,6 +3,7 @@ import { api, errorText } from '../lib/api';
 import { go } from '../lib/router';
 import { useSession } from '../lib/session';
 import './warrior-hall.css';
+import { ContextDisclosure, EMPTY_CONTEXT, contextBody, type ContextDraft } from '../components/ProjectContext';
 
 /** Personal Lab stores private ideas; the ordinary item/Council system handles public discussion. */
 interface LabContent { observation?: string; proposal?: string; notes?: string; }
@@ -39,6 +40,8 @@ export function WarriorHall({ departmentId, departmentName, discussions }: {
   const [busy, setBusy] = useState<'save' | 'publish' | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  // «Где возникла проблема?» (ADR-0031): optional, sent only together with the published proposal.
+  const [context, setContext] = useState<ContextDraft>(EMPTY_CONTEXT);
 
   useEffect(() => {
     let alive = true;
@@ -109,6 +112,15 @@ export function WarriorHall({ departmentId, departmentName, discussions }: {
         json: { organization: s.org, departmentId },
         key: 'warrior-hall-publish-' + selected.id,
       });
+      // The context is a separate, optional note on the published item; the private notes are not part of it.
+      const body = contextBody({ ...context, affected: context.affected.filter((id) => id !== departmentId) });
+      if (body) {
+        try {
+          await api('/orgs/' + s.org + '/ideas/' + result.idea.number + '/context', { json: body, key: 'warrior-hall-context-' + selected.id });
+        } catch {
+          s.toast('Предложение отправлено, но проект и этап не сохранились — их можно указать в карточке обращения.');
+        }
+      }
       s.toast('Предложение №' + result.idea.number + ' отправлено. Авторство сохранено.');
       go('/items/' + result.idea.number);
     } catch (e) { setError(errorText(e)); setBusy(null); }
@@ -167,6 +179,7 @@ export function WarriorHall({ departmentId, departmentName, discussions }: {
             <span>Что предлагаете сделать?</span>
             <textarea className="textarea" value={form.proposal} rows={3} maxLength={5000} onChange={(e) => edit('proposal', e.target.value)} placeholder="Для отправки — минимум 20 символов" />
           </label>
+          <ContextDisclosure value={context} onChange={setContext} responsible={departmentId} idPrefix="wh-ctx" />
           {error ? <p className="notice error" role="alert">{error}</p> : null}
           {notice ? <p className="notice" role="status">{notice}</p> : null}
           <div className="row">

@@ -5,6 +5,7 @@ import { useLoad, useSession } from '../lib/session';
 import type { PersonCard, PersonListItem } from '../lib/types';
 import { ErrorBox, Loading, StatusChip } from '../components/ui';
 import { Section } from './District';
+import { EnvoySection } from '../components/EnvoySection';
 
 /**
  * The working card of a person (ADR-0019): job, department, game title, questionnaire, tasks,
@@ -17,6 +18,12 @@ export function PersonPage({ id }: { id: string }) {
   const s = useSession();
   const { data, error, loading, reload } = useLoad(() => api<PersonCard>(`/orgs/${s.org}/people/${id}`), [s.org, id]);
   const section = new URLSearchParams(location.hash.split('?')[1] ?? '').get('section');
+  // A rank-up was just recorded: «Мой посол» shows the new attire at once (ADR-0036).
+  useEffect(() => {
+    const again = () => void reload();
+    window.addEventListener('modus:envoy-rank', again);
+    return () => window.removeEventListener('modus:envoy-rank', again);
+  }, [reload]);
   useEffect(() => {
     if (data && section) document.getElementById(`person-${section}`)?.scrollIntoView({ block: 'start' });
   }, [data, section]);
@@ -93,6 +100,10 @@ export function PersonPage({ id }: { id: string }) {
             <a href="#/me">Изменить анкету</a>
           </div>
         ) : null}
+      </Section>
+
+      <Section id="person-envoy" title={p.self ? 'Мой посол' : 'Посол'}>
+        <EnvoySection e={p.envoy} />
       </Section>
 
       <Section id="person-tasks" title="Задачи">

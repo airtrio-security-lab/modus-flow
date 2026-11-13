@@ -18,6 +18,7 @@ const FORMS: { id: NotePreferences['addressForm']; label: string }[] = [
 ];
 const OPTIONAL: { events: string[]; label: string }[] = [
   { events: ['castle_xp', 'castle_level_up', 'contribution_confirmed', 'honor_board_recognition'], label: 'Опыт и уровни замка' },
+  { events: ['envoy_rank_up'], label: 'Новый ранг моего посла (карточка «Ваш посол достиг ранга…»)' },
   { events: ['comment_added', 'status_report', 'revision_submitted', 'suggestion_submitted', 'objection_raised'], label: 'Комментарии и ход работ по моим обращениям' },
   { events: ['council_recommendation', 'meeting_recording_started', 'meeting_findings_ready'], label: 'Рекомендации Совета, запись и находки заседаний' },
   { events: ['knowledge_submitted', 'knowledge_in_library', 'knowledge_archived', 'knowledge_reverify'], label: 'Наследие: Летопись, Библиотека и Высший Архив' },
@@ -42,6 +43,8 @@ export function NotePrefs() {
       await api(`/orgs/${s.org}/me/notification-preferences`, { method: 'PUT', json: { style: p.style, addressForm: p.addressForm, groupRepeats: p.groupRepeats, muted: p.muted } });
       s.toast('Настройки посланий сохранены');
       await reload();
+      // Cinematic notifications follow the wording and the form of address (ADR-0037).
+      window.dispatchEvent(new Event('modus:note-prefs'));
     } catch (x) {
       setErr(errorText(x));
     } finally {

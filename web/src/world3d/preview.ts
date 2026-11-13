@@ -7,6 +7,8 @@ import type { CivId } from './kits';
  *   ?set=camelot            five districts of one civilization, levels 1…5
  *   ?focus=2                frame district #2;  ?focus=palace|library|plaza|camp
  *   ?q=high|medium|low      quality tier;       ?view=x,z,dist,az,pol
+ *   ?seen={"levels":{…},"envoys":{…}}  what was «seen last time» (ADR-0030): the scene shows what changed since
+ *   ?hold=1                 the loop is stopped after the first frame; `world.start()` continues (checks of the first moment)
  */
 const q = new URLSearchParams(location.search);
 const COLORS = ['#a2412f', '#2f4f7a', '#9a6d12', '#4d7448', '#73466a', '#2b6f6a', '#8a5a2b', '#55606e'];
@@ -19,6 +21,8 @@ const host = document.getElementById('host')!;
 const t0 = performance.now();
 const world = new World(document.getElementById('c') as HTMLCanvasElement, host, (q.get('q') as Quality) ?? 'high');
 world.resize(host.clientWidth, host.clientHeight);
+const seen = q.get('seen');
+if (seen) world.remember(JSON.parse(seen) as Parameters<World['remember']>[0]);
 const t1 = performance.now();
 world.setData({ districts, achievements: Number(q.get('ach') ?? 7) });
 const t2 = performance.now();
@@ -45,5 +49,6 @@ addEventListener('keydown', (e) => {
   const k = map[e.key];
   if (k) world.nudge(k);
 });
+if (q.get('hold') === '1') world.stop();
 (window as unknown as { world: World }).world = world;
 document.title = 'ready';

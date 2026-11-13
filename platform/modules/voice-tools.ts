@@ -11,7 +11,7 @@ import * as council from './council.ts';
 import * as meetings from './meetings.ts';
 
 /**
- * The voice advisor's tools (ADR-0042): a short, closed list of READ operations over the
+ * The voice advisor's tools (ADR-0043): a short, closed list of READ operations over the
  * existing modules. The model only names a tool and proposes arguments; the server
  *  - takes the person from the session token, never from the arguments;
  *  - validates the arguments with zod (unknown fields are refused);

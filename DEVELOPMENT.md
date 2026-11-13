@@ -83,8 +83,12 @@ RECORD=1 npm run demo:final   # the same at presentation pace, recorded as the f
 npm run demo:councils    # optional, on a fresh seed: Japanese IT titles → small council in the Зал даймё → Great Round Table → decision → XP (ADR-0020)
 npm run platform:import-dataset -- --demo-confirm A-004,A-008   # the organizer's official synthetic set A-001—A-020, idempotent (ADR-0026)
 npm run demo:world3d     # optional, on a fresh seed WITH the set: the 3D city, camera, picking, citadel, search, fallback, phone (ADR-0026)
+npm run demo:refinement  # optional, on a fresh seed: the customer story «от инициативы к измеримому результату» (ADR-0031), desktop and phone
 npm run demo:city        # optional, on a fresh seed: «Живое Королевство» — city camera, district screen, staff cards and privacy, style picker, workspace, phone (ADR-0019)
 npm run demo:record      # optional, on a fresh seed: records the kingdom scenario as a fallback video (.demo/kingdom-demo.mp4)
+npm run demo:living      # the hackathon story end to end, 15 steps through the real API: an engineer's proposal → decision → pilot → evidence → XP → the Library → another employee applies the method → back on the map (ADR-0038, 0040, 0041)
+npm run demo:seamless    # the way back into the world: camera, selected department, browser «Назад», reload, reduced motion, the SVG city on a phone (ADR-0038)
+npm run demo:perf        # the performance profile of every graphics mode; GPU=software|hardware, THROTTLE=6, OUT=file LABEL=name (ADR-0039)
 ```
 The final 3-minute story inside a 5-minute talk: [`docs/demo/final-3min.md`](docs/demo/final-3min.md); readiness for the pilot: [`docs/audit/2026-11-11-final-readiness.md`](docs/audit/2026-11-11-final-readiness.md).
 The city and the district screen: [`docs/demo/city-demo.md`](docs/demo/city-demo.md) (a 90–120 s version and the extended one); civilizations and councils: [`docs/demo/councils-demo.md`](docs/demo/councils-demo.md) (12 steps and a 90 s version). The 3D city and the organizer's set: [`docs/demo/world3d-demo.md`](docs/demo/world3d-demo.md); art direction: [`docs/3d/art-direction.md`](docs/3d/art-direction.md); decision and limitations: [`docs/adr/0026-world3d.md`](docs/adr/0026-world3d.md). The town of a district has two views — the painted panorama and the 3D town with the same eight buildings; the Russian Tsardom is the fifth civilization in 3D: [`docs/adr/0029-town3d.md`](docs/adr/0029-town3d.md).

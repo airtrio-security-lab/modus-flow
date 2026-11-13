@@ -11,11 +11,11 @@ export const ERROR_STATUS = {
   checks_failed: 409,
   payload_too_large: 413,
   unsupported_media_type: 415,
-  /** A voice tool the server does not offer (ADR-0030): fails loudly, never a fake success. */
+  /** A voice tool the server does not offer (ADR-0043): fails loudly, never a fake success. */
   unsupported_tool: 400,
-  /** Voice session limits: frequency, concurrency, duration (ADR-0030). */
+  /** Voice session limits: frequency, concurrency, duration (ADR-0043). */
   rate_limited: 429,
-  /** An optional external service is not configured or does not answer (ADR-0030). */
+  /** An optional external service is not configured or does not answer (ADR-0043). */
   service_unavailable: 503,
   internal: 500,
 } as const;

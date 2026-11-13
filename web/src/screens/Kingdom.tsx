@@ -1,4 +1,4 @@
-import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
+import { Suspense, lazy, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { api } from '../lib/api';
 import { plural } from '../lib/format';
 import { LiteToggle, useLite } from '../lib/lite';
@@ -10,6 +10,12 @@ import { HowItWorks } from '../components/HowItWorks';
 import { IsoCastle, IsoCouncil, IsoLibrary, P, Scaffold, Tree } from '../components/iso';
 import { CIV_HEIGHT, CivCastle, CouncilHall, DistrictHouses, IsoArchive, IsoPlaza, civName, civOf, hallName } from '../components/civ';
 import { useCamera } from '../lib/camera';
+import { roman } from '../components/EnvoyRankUp';
+import { STATUS } from '../lib/status';
+import { MAP_MOTION_BUDGET, MOTION_WORDS, envoyMotion, envoyRankName, type EnvoyMotion } from '../lib/envoy-outfits';
+import { EnvoyAvatarMark } from '../components/EnvoyAvatar';
+import { readWorldContext, writeWorldContext } from '../lib/worldReturn';
+import { readCitySeen, seenFor, writeCitySeen, type CitySeen } from '../lib/citySeen';
 
 // three.js is loaded only when the 3D city is opened.
 const City3D = lazy(() => import('./City3D').then((m) => ({ default: m.City3D })));
@@ -106,9 +112,20 @@ function placeCastles(castles: Castle[], L: Layout) {
 export function Kingdom() {
   const s = useSession();
   const { data, error, loading, reload } = useLoad(() => api<KingdomData>(`/orgs/${s.org}/kingdom`), [s.org]);
-  const [selected, setSelected] = useState<string | null>(null);
+  // Seamless world (ADR-0038): the department selected before a building was entered is selected again.
+  const who = useMemo(() => ({ org: s.org, member: s.membershipId }), [s.org, s.membershipId]);
+  const [selected, setSelectedRaw] = useState<string | null>(() => readWorldContext({ org: s.org, member: s.membershipId })?.selected ?? null);
+  const setSelected = useCallback(
+    (id: string | null) => {
+      setSelectedRaw(id);
+      writeWorldContext(who, { selected: id });
+    },
+    [who],
+  );
   const [celebrate, setCelebrate] = useState<{ id: string; text: string } | null>(null);
   const seen = useRef<Map<string, number> | null>(null);
+  // What this person saw here last time (ADR-0030): read once, before the first answer of the server.
+  const [since] = useState(() => readCitySeen(s.org, s.membershipId));
   const [enter] = useState(enterTarget);
   const [mode, setModeRaw] = useState<Mode>(initialMode);
   const [notice, setNotice] = useState<string | null>(null);
@@ -139,29 +156,47 @@ export function Kingdom() {
     };
   }, [reload]);
 
+  // A rank-up was just recorded for the viewer: redraw every envoy of theirs in the new attire (ADR-0036).
+  useEffect(() => {
+    const again = () => void reload();
+    window.addEventListener('modus:envoy-rank', again);
+    return () => window.removeEventListener('modus:envoy-rank', again);
+  }, [reload]);
+
   // Without the map there is nothing to fly over: go straight in.
   useEffect(() => {
     if (enter && mode === 'work') location.hash = enter;
   }, [enter, mode]);
 
+  // A remembered department that the server no longer returns is not selected again.
+  useEffect(() => {
+    if (data && selected && !data.castles.some((c) => c.id === selected)) setSelected(null);
+  }, [data, selected, setSelected]);
+
   // A level-up is shown only when the backend reports a higher level than before.
   useEffect(() => {
     if (!data) return;
-    const prev = seen.current;
+    // The first answer is compared with the last visit, the following ones — with the previous answer.
+    const prev = seen.current ?? (since ? new Map(Object.entries(since.levels)) : null);
     seen.current = new Map(data.castles.map((c) => [c.id, c.level]));
+    writeCitySeen(s.org, s.membershipId, data, (e) => envoyState(e).t);
     if (!prev) return;
     const grown = data.castles.find((c) => c.level > (prev.get(c.id) ?? c.level));
     if (!grown) return;
     setCelebrate({ id: grown.id, text: `${grown.name}: новый уровень — ${grown.levelName}` });
     setSelected(grown.id);
+  }, [data]);
+  // The message leaves by its own clock: a refresh of the data in between does not keep it on the screen.
+  useEffect(() => {
+    if (!celebrate) return;
     const t = window.setTimeout(() => setCelebrate(null), 7000);
     return () => window.clearTimeout(t);
-  }, [data]);
+  }, [celebrate]);
 
   if (mode === '3d' && data && !enter)
     return (
       <Suspense fallback={<Loading label="Строим город…" rows={3} />}>
-        <City3D k={data} onMode={setMode} onUnavailable={unavailable} onReload={() => void reload()} />
+        <City3D k={data} since={since} onMode={setMode} onUnavailable={unavailable} onReload={() => void reload()} />
         <div className="realm-toast-slot w3d-toast" aria-live="polite">
           {celebrate ? (
             <div className="realm-toast" role="status">
@@ -203,7 +238,7 @@ export function Kingdom() {
       </div>
       {error ? <ErrorBox error={error} retry={() => void reload()} /> : null}
       {loading && !data ? <Loading label="Рисуем карту…" rows={3} /> : null}
-      {data && flat === 'city' ? <Realm k={data} selected={selected} onSelect={setSelected} celebrate={celebrate} enterCouncil={enter} /> : null}
+      {data && flat === 'city' ? <Realm k={data} selected={selected} onSelect={setSelected} celebrate={celebrate} enterCouncil={enter} since={since} /> : null}
       {data && flat === 'work' ? <WorkView k={data} /> : null}
     </div>
   );
@@ -306,6 +341,7 @@ function Realm({
   onSelect,
   celebrate,
   enterCouncil = null,
+  since = null,
 }: {
   k: KingdomData;
   selected: string | null;
@@ -313,6 +349,8 @@ function Realm({
   celebrate: { id: string; text: string } | null;
   /** «Войти в Совет»: fly to the palace, then open this page. */
   enterCouncil?: string | null;
+  /** Where each envoy stood at the last visit (ADR-0030): an envoy that really moved walks from there. */
+  since?: CitySeen | null;
 }) {
   const { ref, wide } = useWide();
   const [lite] = useLite();
@@ -322,6 +360,18 @@ function Realm({
   const { flyTo } = cam;
   const placed = useMemo(() => placeCastles(k.castles, L), [k.castles, L]);
   const mine = k.envoys.filter((e) => e.mine);
+  /**
+   * Where each envoy stood before this answer of the server: first the last visit (same item, same
+   * castle), then the previous refresh. Only an envoy whose place really changed walks.
+   */
+  const lastPlace = useRef<Map<number, { d: string | null; t: number }> | null>(null);
+  if (lastPlace.current === null) {
+    const was = seenFor(since, k)?.envoys ?? {};
+    lastPlace.current = new Map(Object.entries(was).map(([key, v]) => [Number(key.slice(1)), v]));
+  }
+  useEffect(() => {
+    lastPlace.current = new Map(k.envoys.map((e) => [e.number, { d: e.departmentId, t: envoyState(e).t }]));
+  }, [k]);
   const current = selected ? placed.find((p) => p.castle.id === selected) : undefined;
   const achievements = k.castles.reduce((n, c) => n + (c.achievements ?? 0), 0);
   const cu = L.u * (wide ? 1 : 0.9);
@@ -379,11 +429,15 @@ function Realm({
     const byId = new Map(placed.map((p) => [p.castle.id, p]));
     // Envoys that share a spot step aside along the road's normal.
     const crowd = new Map<string, number>();
+    let budget = MAP_MOTION_BUDGET;
     const figures = k.envoys.map((e) => {
       const st = envoyState(e);
+      const motion = envoyMotion(e);
       const home = e.departmentId ? byId.get(e.departmentId) : undefined;
       let p: Pt;
       let color = '#7a6a52';
+      let road: (Road & { side: number }) | null = null;
+      let fromT: number | null = null;
       if (home) {
         const key = `${home.castle.id}:${st.t}`;
         const k2 = crowd.get(key) ?? 0;
@@ -392,13 +446,20 @@ function Realm({
         const side = k2 === 0 ? 0 : (k2 % 2 ? 1 : -1) * Math.ceil(k2 / 2) * 17 * L.s;
         p = { x: base.x + home.road.normal.x * side, y: base.y + home.road.normal.y * side };
         color = home.color;
+        road = { ...home.road, side };
+        const was = lastPlace.current?.get(e.number);
+        if (was && was.d === e.departmentId && Math.abs(was.t - st.t) > 0.01) fromT = was.t;
       } else {
         const k2 = crowd.get('camp') ?? 0;
         crowd.set('camp', k2 + 1);
         p = { x: L.camp.x + (52 + (k2 % 4) * 18) * L.s, y: L.camp.y + 12 + Math.floor(k2 / 4) * 24 * L.s };
       }
-      return { e, st, p, color };
+      return { e, st, p, color, castle: home?.castle.name ?? null, motion, road, fromT };
     });
+    // The motion budget: envoys that really moved first, then the viewer's own envoys on the road.
+    const moves = new Set<number>();
+    for (const f of figures) if (f.fromT !== null && budget > 0) (moves.add(f.e.number), budget--);
+    for (const f of figures) if (f.e.mine && f.motion === 'travel' && !moves.has(f.e.number) && budget > 0) (moves.add(f.e.number), budget--);
     // Painter's order: farther (higher on screen) first.
     const drawables = [
       ...placed.map((p) => ({
@@ -426,7 +487,7 @@ function Realm({
           node: <HallMark key={`h-${p.castle.id}`} c={p.castle} at={at} L={L} color={p.color} onEnter={enter(`#/castles/${p.castle.id}/council`, at, 3)} />,
         };
       }),
-      ...figures.map((f) => ({ y: f.p.y, node: <EnvoyMark key={`e-${f.e.number}`} e={f.e} at={f.p} s={L.s} color={f.color} label={f.st.label} home={!!f.st.home} /> })),
+      ...figures.map((f) => ({ y: f.p.y, node: <EnvoyMark key={`e-${f.e.number}`} e={f.e} at={f.p} s={L.s} label={f.st.label} home={!!f.st.home} castle={f.castle} motion={f.motion} road={f.road} t={f.st.t} fromT={f.fromT} animate={!lite && !reducedMotion() && moves.has(f.e.number)} /> })),
     ].sort((a, b) => a.y - b.y);
     return (
       <>
@@ -438,23 +499,26 @@ function Realm({
           </g>
         ))}
         <CityPaths L={L} />
-        <a href="#/council" className="realm-place" aria-label="Дворец Большого Круглого стола — совет всего Содружества: обращения у Совета" onClick={enter('#/council', L.capital, 2.4)}>
+        <a href="#/council" className="realm-place realm-centre" aria-label="Дворец Большого Круглого стола — общий Совет Великого Содружества: обращения у Совета" onClick={enter('#/council', L.capital, 2.4)}>
           <g transform={`translate(${L.capital.x},${L.capital.y})`}>
             <IsoCouncil u={cu} />
-            <LabelPlate y={4.9 * cu + 12} title="Большой Круглый стол" sub="совет всего Содружества" font={L.font} strong />
+            <LabelPlate y={6.2 * cu + 6} title="Большой Круглый стол" sub="совет всего Содружества" font={L.font} strong />
+            <PlaceTip top={17 * cu} title="Дворец Большого Круглого стола" sub="Общий Совет Великого Содружества" font={L.font} />
           </g>
         </a>
         {k.wildlands ? <Camp at={L.camp} count={k.wildlands} font={L.font} /> : null}
-        <a href="#/library" className="realm-place realm-library-link" aria-label="Великая библиотека: Летопись, Библиотека решений и Высший Архив" onClick={enter('#/library', L.library, 2.6)}>
+        <a href="#/library" className="realm-place realm-centre realm-library-link" aria-label="Великая библиотека: Летопись, Библиотека решений и Высший Архив" onClick={enter('#/library', L.library, 2.6)}>
           <g transform={`translate(${L.library.x},${L.library.y})`}>
             <IsoLibrary u={lu} />
-            <LabelPlate y={3.4 * lu + 8} title="Великая библиотека" sub="решения, итоги и уроки" font={L.font * 0.9} />
+            <LabelPlate y={4.2 * lu + 6} title="Великая библиотека" sub="решения, итоги и уроки" font={L.font * 0.9} />
+            <PlaceTip top={7.6 * lu} title="Великая библиотека" sub="Три зала: Летопись, Библиотека решений, Высший Архив" font={L.font * 0.9} />
           </g>
         </a>
-        <a href="#/library?hall=archive" className="realm-place" aria-label="Высший Архив: наследие, утверждённое Советом" onClick={enter('#/library?hall=archive', L.archive, 2.6)}>
+        <a href="#/library?hall=archive" className="realm-place realm-centre" aria-label="Высший Архив: наследие, утверждённое Советом" onClick={enter('#/library?hall=archive', L.archive, 2.6)}>
           <g transform={`translate(${L.archive.x},${L.archive.y})`}>
             <IsoArchive u={lu} />
-            <LabelPlate y={2.5 * lu + 10} title="Высший Архив" sub="наследие Содружества" font={L.font * 0.9} />
+            <LabelPlate y={3.3 * lu + 6} title="Высший Архив" sub="наследие Содружества" font={L.font * 0.9} />
+            <PlaceTip top={5.8 * lu} title="Высший Архив" sub="Знания, прошедшие проверку и утверждение" font={L.font * 0.9} />
           </g>
         </a>
         <a href="#/rating" className="realm-place" aria-label={`Площадь достижений: ${achievements} ${plural(achievements, 'достижение', 'достижения', 'достижений')} замков; рейтинг подразделений`} onClick={enter('#/rating', L.plaza, 2.4)}>
@@ -495,7 +559,7 @@ function Realm({
             {...cam.handlers}
             viewBox={`${cam.view.x} ${cam.view.y} ${cam.view.w} ${cam.view.h}`}
             style={{ touchAction: zoomed ? 'none' : 'pan-y' }}
-            role="img"
+            role="group"
             aria-label={`Город Содружества «${realm}»: ${k.castles.length} замков подразделений, ${envoysWord(k.envoys.length)} в работе`}
           >
             {scene}
@@ -737,16 +801,21 @@ function CastleDetails({ c, color, envoys }: { c: Castle; color: string; envoys:
 
 function Legend({ levels }: { levels: string[] }) {
   const rows: { t: string; fig: JSX.Element }[] = [
-    { t: 'Обращение в пути к Совету', fig: <EnvoyBody color={HERALDRY[1]!} /> },
-    { t: 'Срок первого ответа прошёл', fig: <EnvoyBody color={HERALDRY[1]!} pennant={RED} /> },
-    { t: 'Ваше обращение', fig: <EnvoyBody color={HERALDRY[1]!} mine /> },
+    { t: 'В пути: ответа ещё не было', fig: <EnvoyBody motion="travel" /> },
+    { t: 'Ожидает ответа: срок прошёл, решение ждут или отложено', fig: <EnvoyBody motion="waiting" /> },
+    { t: 'Принят: ответственный ответил', fig: <EnvoyBody motion="received" /> },
+    { t: 'Срок первого ответа прошёл', fig: <EnvoyBody pennant={RED} motion="waiting" /> },
+    { t: 'Ваше обращение', fig: <EnvoyBody mine /> },
+    { t: 'Ранг отправителя III–IV: герб, печать, жезл и знамя', fig: <EnvoyBody rank={4} /> },
+    { t: 'Ранг V–VI: золотая цепь, мантия, золотой жезл', fig: <EnvoyBody rank={6} /> },
+    { t: 'Ранг VII: кольцо Великого Содружества', fig: <EnvoyBody rank={7} /> },
   ];
   return (
     <div className="stack">
       <ul className="realm-legend">
         {rows.map((r) => (
           <li key={r.t}>
-            <svg viewBox="-14 -32 28 36" width="22" height="28" aria-hidden="true">
+            <svg viewBox="-16 -40 32 42" width="26" height="34" aria-hidden="true">
               {r.fig}
             </svg>
             {r.t}
@@ -852,6 +921,27 @@ function LabelPlate({ y, title, sub, font, strong = false }: { y: number; title:
   );
 }
 
+/**
+ * The name of a building of the centre, shown above it while the pointer is over the building or the
+ * keyboard focus is on it. The plate under the building is always there, so a phone loses nothing.
+ */
+function PlaceTip({ top, title, sub, font }: { top: number; title: string; sub: string; font: number }) {
+  const w = Math.max(title.length * 1.08, sub.length * 0.8) * font * 0.56 + 30;
+  const h = font * 2.45 + 12;
+  const y = -top - h - 8;
+  return (
+    <g className="realm-tip" aria-hidden="true">
+      <rect x={-w / 2} y={y} width={w} height={h} rx="8" />
+      <text x="0" y={y + font + 6} textAnchor="middle" className="realm-tip-title" style={{ fontSize: font * 1.05 }}>
+        {title}
+      </text>
+      <text x="0" y={y + font * 2.15 + 7} textAnchor="middle" className="realm-tip-sub" style={{ fontSize: font * 0.8 }}>
+        {sub}
+      </text>
+    </g>
+  );
+}
+
 function Camp({ at, count, font }: { at: Pt; count: number; font: number }) {
   return (
     <g transform={`translate(${at.x},${at.y})`} aria-hidden="true">
@@ -951,32 +1041,113 @@ function HallMark({ c, at, L, color, onEnter }: { c: Castle; at: Pt; L: Layout; 
   );
 }
 
-function EnvoyBody({ color, pennant, mine }: { color: string; pennant?: string; mine?: boolean }) {
+/**
+ * An envoy on the map (ADR-0032, ADR-0036): the sender's ONE envoy — rank and attire of the person,
+ * state of the item from the server (в пути / ожидает ответа / принят). A red pennant beside it:
+ * a deadline has passed. A gold halo: yours.
+ */
+function EnvoyBody({ pennant, mine, rank = 1, civ = 'camelot', walking = false, motion }: { pennant?: string; mine?: boolean; rank?: number; civ?: string; walking?: boolean; motion?: EnvoyMotion }) {
   return (
     <g>
-      {mine ? <circle cy="-12" r="14" fill="#fff4cf" fillOpacity="0.85" stroke="#b8860b" strokeWidth="2" /> : null}
-      <ellipse cy="1" rx="7" ry="2.4" fill="#2d3a22" opacity="0.3" />
-      <path d="M-6,0 L0,-15 L6,0 Z" fill={color} stroke="#2d2a24" strokeWidth="1" />
-      <circle cy="-18" r="4" fill="#f2dfc2" stroke="#2d2a24" strokeWidth="1" />
-      <line x1="7" y1="1" x2="7" y2="-25" stroke="#2d2a24" strokeWidth="1.3" />
-      <path d="M7,-25 L17,-22 L7,-19 Z" fill={pennant ?? color} stroke="#2d2a24" strokeWidth="0.8" />
+      {mine ? <circle cy="-14" r="15" fill="#fff4cf" fillOpacity="0.85" stroke="#b8860b" strokeWidth="2" /> : null}
+      <g transform="scale(0.8)">
+        <EnvoyAvatarMark civ={civ} rank={rank} variant="map" state={motion} walking={walking} />
+      </g>
+      {pennant ? (
+        <g>
+          <line x1="-9" y1="1" x2="-9" y2="-22" stroke="#2d2a24" strokeWidth="1.2" />
+          <path d="M-9,-22 L-1.5,-19.5 L-9,-17 Z" fill={pennant} stroke="#2d2a24" strokeWidth="0.7" />
+        </g>
+      ) : null}
     </g>
   );
 }
 
-function EnvoyMark({ e, at, s, color, label, home }: { e: Envoy; at: Pt; s: number; color: string; label: string; home: boolean }) {
-  const text = `Обращение №${e.number} «${e.title}»: ${label}${e.mine ? ' (ваше)' : ''}`;
+const easeInOut = (x: number) => (x < 0.5 ? 2 * x * x : 1 - (-2 * x + 2) ** 2 / 2);
+const WALK_MS = 2200;
+
+function EnvoyMark({
+  e,
+  at,
+  s,
+  label,
+  home,
+  castle,
+  motion,
+  road,
+  t,
+  fromT,
+  animate,
+}: {
+  e: Envoy;
+  at: Pt;
+  s: number;
+  label: string;
+  home: boolean;
+  castle: string | null;
+  motion: EnvoyMotion;
+  road: (Road & { side: number }) | null;
+  t: number;
+  fromT: number | null;
+  /** Within the motion budget and motion is allowed (not light mode, not reduced motion). */
+  animate: boolean;
+}) {
+  const rank = e.envoyRank ?? 1;
+  const ref = useRef<SVGGElement>(null);
+  const [moving, setMoving] = useState(false);
+  const place = (x: number) => {
+    const b = bezier(road!.from, road!.ctrl, road!.to, x);
+    return { x: b.x + road!.normal.x * road!.side, y: b.y + road!.normal.y * road!.side };
+  };
+  // A real change of place: walk along the castle's own road from where it stood, and stop there.
+  // Layout effect: the first frame already shows the old place, never a flash of the new one.
+  useLayoutEffect(() => {
+    const g = ref.current;
+    if (!g || !road || fromT === null || !animate) return;
+    let raf = 0;
+    const t0 = performance.now();
+    g.style.transition = 'none';
+    const p0 = place(fromT);
+    g.style.transform = `translate(${p0.x}px, ${p0.y}px) scale(${s})`;
+    setMoving(true);
+    const frame = (now: number) => {
+      const k = Math.min(1, (now - t0) / WALK_MS);
+      const p = place(fromT + (t - fromT) * easeInOut(k));
+      g.style.transform = `translate(${p.x}px, ${p.y}px) scale(${s})`;
+      if (k < 1) raf = requestAnimationFrame(frame);
+      else {
+        g.style.transition = '';
+        setMoving(false);
+      }
+    };
+    raf = requestAnimationFrame(frame);
+    return () => {
+      cancelAnimationFrame(raf);
+      g.style.transition = '';
+      g.style.transform = `translate(${at.x}px, ${at.y}px) scale(${s})`;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [t, fromT, animate]);
+  // Hover: who sent it (as on the item card), the envoy's rank, department, number and status — nothing more.
+  const text = [
+    `Обращение №${e.number} «${e.title}»: ${label}${e.mine ? ' (ваше)' : ''}`,
+    `Посол: ${e.sender ?? e.author ?? 'автор не указан'} — ранг ${roman(rank)}, ${envoyRankName(rank)}; ${MOTION_WORDS[motion]}`,
+    `Подразделение: ${castle ?? 'ждёт распределения'}`,
+    `Статус: ${STATUS[e.status]?.label ?? e.status}`,
+  ].join('. ');
+  // The viewer's own envoy on the road keeps walking (within the budget); any other walks only while it moves.
+  const walking = animate && (moving || (e.mine && motion === 'travel'));
   return (
-    <g className="realm-envoy" style={{ transform: `translate(${at.x}px, ${at.y}px) scale(${s})` }}>
+    <g ref={ref} className="realm-envoy" style={{ transform: `translate(${at.x}px, ${at.y}px) scale(${s})` }} data-envoy-rank={rank} data-state={motion} data-moving={moving ? 'yes' : undefined}>
       <a href={`#/items/${e.number}`} aria-label={text}>
         <title>{text}</title>
         <g className="realm-walk" transform={home ? 'scale(-1,1)' : undefined}>
-          <EnvoyBody color={color} pennant={e.overdueFirstResponse || e.overdueResolution ? RED : undefined} mine={e.mine} />
+          <EnvoyBody pennant={e.overdueFirstResponse || e.overdueResolution ? RED : undefined} mine={e.mine} rank={rank} civ={e.envoyCivilization} walking={walking} motion={motion} />
         </g>
         {e.mine ? (
           <g>
-            <rect x="-22" y="-50" width="44" height="18" rx="5" className="realm-plate" />
-            <text y="-36" textAnchor="middle" className="realm-tag">
+            <rect x="-22" y="-56" width="44" height="18" rx="5" className="realm-plate" />
+            <text y="-42" textAnchor="middle" className="realm-tag">
               №{e.number}
             </text>
           </g>

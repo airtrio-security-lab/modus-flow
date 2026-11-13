@@ -245,12 +245,13 @@ try {
     for (const e of k.envoys) {
       const it = await api(page, `/ideas/${e.number}`);
       if (it.decisionOwner?.name === ops.name && it.author.name !== ops.name && ['published', 'review', 'decision'].includes(it.stage) && !it.deferral && e.departmentId) {
-        paused = { number: e.number, author: it.author.name, departmentId: e.departmentId, due: it.resolutionDueAt };
+        // The card names whose question it is (ADR-0036): the person it was recorded for, else the author.
+        paused = { number: e.number, author: it.author.name, sender: e.sender ?? e.author ?? it.author.name, departmentId: e.departmentId, due: it.resolutionDueAt };
         break;
       }
     }
     must(paused, 'the demo has an open item decided by the operations director');
-    const chip = page.locator(`button.w3d-envoy[aria-label^="Обращение №${paused.number} от ${paused.author}"]`);
+    const chip = page.locator(`button.w3d-envoy[aria-label^="Обращение №${paused.number} от ${paused.sender}"]`);
     must((await chip.locator('.w3d-envoy-head').textContent()).includes(`№${paused.number}`), 'the card names the item and the sender');
     await chip.dispatchEvent('click');
     await page.waitForFunction(() => !window.__world.flying, null, { timeout: 20000 });
@@ -359,6 +360,14 @@ try {
       const pins = [...document.querySelectorAll('.town3d-pin')];
       return pins.length === 8 && pins.every((e) => e.style.visibility === 'visible' && e.dataset.compact === 'no');
     }, null, { timeout: 60000 });
+    // The town turns slowly and a lifted name rides a 140 ms transition of its stem: the names are compared
+    // on a frame where no stem is in transition (two frames with the same stem heights).
+    await page.waitForFunction(() => {
+      const now = [...document.querySelectorAll('.town3d-pin-stem')].map((e) => Math.round(e.getBoundingClientRect().height)).join('|');
+      const same = window.__stems === now;
+      window.__stems = now;
+      return same;
+    }, null, { timeout: 15000, polling: 'raf' });
     const plates = await page.locator('.town3d-pin-name').evaluateAll((els) => els.map((e) => e.getBoundingClientRect()).map((r) => [r.left, r.top, r.right, r.bottom]));
     for (let i = 0; i < plates.length; i++)
       for (let j = i + 1; j < plates.length; j++) {
@@ -451,6 +460,83 @@ try {
     },
     PHONE,
   );
+
+  // 9. ADR-0030 through the real screen: the memory of the last visit and the service diagnostics panel.
+  const ready = (page) => page.waitForFunction(() => !document.querySelector('.w3d-loading') && window.__world, null, { timeout: 120000 });
+  await as(storekeeper, async (page) => {
+    await page.goto(`${BASE}/#/kingdom`);
+    await page.locator('.w3d').waitFor({ timeout: 60000 });
+    await ready(page);
+    const k = await api(page, '/kingdom');
+    const first = await page.evaluate(() => ({ seen: window.__world.seen, responses: window.__world.diagnostics().responses, keys: Object.keys(localStorage).filter((x) => x.startsWith('modus.city.seen.')) }));
+    must(first.seen === null && first.responses === 0, 'the first visit on a device opens a still city');
+    must(first.keys.length === 1, 'what was seen is remembered on the device, one record per person');
+    must((await page.locator('.w3d-diag, .w3d-diag-chip').count()) === 0, 'the diagnostics panel is not part of the product screen');
+    // «Last time» this person saw one castle a level lower, one envoy at another stage, and one envoy not yet on the road.
+    const castle = k.castles.find((c) => c.level > 1);
+    const [walker, fresh] = k.envoys.filter((e) => e.departmentId);
+    must(castle && walker && fresh, 'the demo has a castle above level 1 and two envoys of departments');
+    // Written and reloaded in one turn of the page: a refresh in between would store today's picture again.
+    const was = await page.evaluate(({ key, castle, walker, fresh }) => {
+      const m = JSON.parse(localStorage.getItem(key));
+      m.levels[castle] -= 1;
+      const t = m.envoys[walker].t;
+      m.envoys[walker].t = t > 0.5 ? 0.2 : 0.9;
+      delete m.envoys[fresh];
+      localStorage.setItem(key, JSON.stringify(m));
+      setTimeout(() => location.reload(), 0);
+      return { now: t, then: m.envoys[walker].t };
+    }, { key: first.keys[0], castle: castle.id, walker: String(walker.number), fresh: String(fresh.number) });
+    await page.locator('.realm-toast', { hasText: castle.name }).waitFor({ timeout: 120000 });
+    must((await page.locator('.realm-toast').innerText()).includes('Улучшение замка'), 'the growth since the last visit is announced in words');
+    await page.waitForFunction(() => window.__world && window.__world.seen && window.__world.diagnostics().responses > 0, null, { timeout: 120000, polling: 50 });
+    const told = await page.evaluate(({ castle, walker, fresh }) => {
+      const w = window.__world;
+      return { level: w.seen.levels[castle], walker: w.seen.envoys[`e${walker}`], fresh: w.seen.envoys[`e${fresh}`] ?? null };
+    }, { castle: castle.id, walker: walker.number, fresh: fresh.number });
+    must(told.level === castle.level - 1 && told.walker && Math.abs(told.walker.t - was.then) < 1e-9 && told.fresh === null, `the scene is told what was seen last time: ${JSON.stringify(told)}`);
+    await shot(page, '08-since-last-visit');
+    const end = await page.evaluate((walker) => {
+      const w = window.__world;
+      w.live = false;
+      w.renderNow();
+      const e = w.envoyItems.find((x) => x.id === `e${walker}`);
+      return { responses: w.diagnostics().responses, t: e.t, walking: e.walking };
+    }, walker.number);
+    must(end.responses === 0 && Math.abs(end.t - was.now) < 1e-9 && !end.walking, `and everything ends where the server says it is: ${JSON.stringify(end)}`);
+    must(Number(await page.locator('.w3d-stats dd').first().innerText()) === k.envoys.length, 'the counters still show the server numbers');
+    step('память прошлого визита: выросший замок объявлен и «встаёт», гонец идёт от места, где его видели, новый появляется; всё кончается там, где говорит сервер');
+
+    await page.goto(`${BASE}/#/kingdom?diag=1`);
+    await page.reload();
+    await page.locator('.w3d-diag').waitFor({ timeout: 120000 });
+    await page.waitForFunction(() => /Программная отрисовка/.test(document.querySelector('.w3d-diag-verdict')?.textContent ?? ''), null, { timeout: 60000 });
+    const diag = await page.locator('.w3d-diag').innerText();
+    must(/Вызовы отрисовки\s+\d+ из 220/.test(diag) && /Треугольники\s+\d+ тыс\. из 450 тыс\./.test(diag) && diag.includes('SwiftShader'), `the panel reads this device against the budget: ${diag}`);
+    must(diag.includes('служебная панель, в показ не входит'), 'and says it is not part of the show');
+    for (const b of await page.locator('.w3d-diag button').all()) {
+      const r = await b.boundingBox();
+      must(!r || (r.width >= 44 && r.height >= 44), `diagnostics touch target too small: ${JSON.stringify(r)}`);
+    }
+    await shot(page, '09-diagnostics');
+    await page.getByRole('button', { name: 'Свернуть диагностику' }).click();
+    await page.locator('.w3d-diag-chip').click();
+    await page.getByRole('button', { name: 'Убрать панель' }).click();
+    must((await page.locator('.w3d-diag, .w3d-diag-chip').count()) === 0, 'the panel is removed');
+    await page.goto(`${BASE}/#/kingdom`);
+    await page.reload();
+    await ready(page);
+    must((await page.locator('.w3d-diag, .w3d-diag-chip').count()) === 0, 'and does not come back without ?diag=1');
+    step('диагностика: только по ?diag=1, читает устройство по бюджету, программную отрисовку называет прямо, убирается');
+  });
+  await as(whHead, async (page) => {
+    await page.goto(`${BASE}/#/kingdom`);
+    await page.locator('.w3d').waitFor({ timeout: 60000 });
+    await ready(page);
+    const other = await page.evaluate(() => ({ seen: window.__world.seen, responses: window.__world.diagnostics().responses }));
+    must(other.seen === null && other.responses === 0, 'the memory belongs to one person: a colleague on a new device sees a still city');
+    step('память прошлого визита — у каждого своя');
+  });
 
   if (errors.length) throw new Error(`page errors: ${errors.join(' | ')}`);
   console.log(`\nВсе проверки 3D-города пройдены за ${((Date.now() - t0) / 1000).toFixed(1)} с.`);

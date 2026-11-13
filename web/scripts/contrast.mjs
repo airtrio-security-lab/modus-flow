@@ -62,9 +62,9 @@ for (const [fg, bg, min] of KL_PAIRS) {
     console.error(`✗ sign-in: --${fg} on --${bg} = ${r.toFixed(2)} < ${min}`);
   }
 }
-// «Спросить советника» keeps the Kingdom palette in its own block (src/components/voice-advisor.css, ADR-0042).
+// «Спросить советника» keeps the Kingdom palette in its own block (src/components/voice-advisor.css, ADR-0043).
 const vaCss = readFileSync(new URL('../src/components/voice-advisor.css', import.meta.url), 'utf8');
-const vaBlock = vaCss.match(/^\.va,\n\.va-fab \{([\s\S]*?)\n\}/m);
+const vaBlock = vaCss.match(/^\.va,\n[^{]*\{([\s\S]*?)\n\}/m);
 if (!vaBlock) throw new Error('token block not found: .va');
 const va = Object.fromEntries([...vaBlock[1].matchAll(/--([\w-]+):\s*(#[0-9a-fA-F]{6})/g)].map((x) => [x[1], x[2]]));
 const VA_PAIRS = [

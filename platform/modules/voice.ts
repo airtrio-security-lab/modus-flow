@@ -8,7 +8,7 @@ import { realtimeToolSpecs, runVoiceTool, UNTRUSTED_NOTICE, type ToolDeps, type 
 import * as council from './council.ts';
 
 /**
- * «Спросить советника» — the company side of the voice advisor (ADR-0042): who the advisor is,
+ * «Спросить советника» — the company side of the voice advisor (ADR-0043): who the advisor is,
  * which tools it has, how a session starts and ends, and the text alternative through the existing
  * MODUS ADVISOR model. The transport (OpenAI Realtime, WebRTC) is in voice-realtime.ts.
  *

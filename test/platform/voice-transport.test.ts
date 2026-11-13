@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { createRealtimeTransport, type ChannelLike, type PeerLike, type TransportEnv, type VoiceErrorCode, type VoiceState } from '../../web/src/lib/realtimeTransport.ts';
 
 /**
- * The browser WebRTC transport of the voice advisor (ADR-0042) against fake media objects:
+ * The browser WebRTC transport of the voice advisor (ADR-0043) against fake media objects:
  * no microphone, no network, no OpenAI. Runs without a database (fast verify step).
  */
 class Track {

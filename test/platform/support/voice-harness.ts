@@ -7,7 +7,7 @@ import { demoConfigFromEnv } from '../../../platform/http/demo.ts';
 import { DEFAULT_LIMITS } from '../../../platform/modules/voice-realtime.ts';
 
 /**
- * TEST HARNESS — not a demo, not a product mode (ADR-0042).
+ * TEST HARNESS — not a demo, not a product mode (ADR-0043).
  *
  * The real MODUS FLOW server with the voice advisor switched on, but with OpenAI replaced by a
  * provider that issues a session and then REFUSES the WebRTC connection (HTTP 503). It lets a real

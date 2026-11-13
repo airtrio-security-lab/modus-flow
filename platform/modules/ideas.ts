@@ -1,9 +1,12 @@
+import { methodOfItem } from './knowledge-path.ts';
 import { notFound } from '../domain/errors.ts';
 import { activeDeferral } from './deferral.ts';
 import { runChecks, type CheckResult } from '../domain/checks.ts';
 import type { IdeaAccessFacts, IdeaStage, OrgActor } from '../domain/model.ts';
 import { withTx, type Client, type Database } from '../db/pool.ts';
 import { orgTx } from './context.ts';
+import { effectLines, effectMeasured, type Measurement } from '../domain/effect.ts';
+import { loadContext } from './project-context.ts';
 
 /** Read side of the organization workspace. All queries run under tenant RLS. */
 
@@ -151,7 +154,8 @@ export async function getIdea(db: Database, actor: OrgActor, number: number) {
               v.started_at, v.completed_at, v.created_at,
               coalesce((SELECT jsonb_agg(jsonb_build_object(
                          'id', x.id, 'kind', x.kind, 'body', x.body, 'metric', x.metric, 'value', x.value,
-                         'unit', x.unit, 'recordedBy', er.display_name, 'createdAt', x.created_at) ORDER BY x.created_at, x.id)
+                         'unit', x.unit, 'period', x.period, 'source', x.source, 'goal', x.goal, 'comparable', x.comparable,
+                         'recordedBy', er.display_name, 'createdAt', x.created_at) ORDER BY x.created_at, x.id)
                           FROM verification_evidence x JOIN employees er ON er.membership_id = x.recorded_by_membership_id
                          WHERE x.verification_id = v.id), '[]'::jsonb) AS evidence
          FROM verifications v
@@ -168,8 +172,16 @@ export async function getIdea(db: Database, actor: OrgActor, number: number) {
       [idea.id],
     );
     const contributions = await c.query(
-      `SELECT c.kind, c.status, c.source_type, c.source_id, e.display_name AS member, c.created_at
+      `SELECT c.kind, c.status, c.source_type, c.source_id, e.display_name AS member, c.created_at,
+              c.id, c.membership_id AS "membershipId", c.confirmed_at AS "confirmedAt", ce.display_name AS "confirmedBy",
+              -- ADR-0042: what the reader may confirm here (the database checks the same rules again).
+              (c.status = 'recorded' AND c.kind <> 'authorship' AND c.membership_id <> app_membership_id()
+                AND app_membership_id() IN (i.maintainer_membership_id, i.decision_owner_membership_id)
+                AND (c.source_type <> 'verification'
+                     OR EXISTS (SELECT 1 FROM verifications v WHERE v.id = c.source_id AND v.status = 'completed'))) AS "canConfirm"
          FROM contributions c JOIN employees e ON e.membership_id = c.membership_id
+         JOIN ideas i ON i.id = c.idea_id
+         LEFT JOIN employees ce ON ce.membership_id = c.confirmed_by_membership_id
         WHERE c.idea_id = $1 ORDER BY c.created_at, c.id`,
       [idea.id],
     );
@@ -197,8 +209,24 @@ export async function getIdea(db: Database, actor: OrgActor, number: number) {
         WHERE x.idea_id = $1 ORDER BY x.created_at`,
       [idea.id],
     );
+    // Measured effect (ADR-0031): «before» and «after» of the same metric, from the evidence above.
+    const measurements = (verifications.rows as { id: string; evidence: Measurement[] }[]).flatMap((v) => v.evidence.map((e) => ({ ...e, verificationId: v.id })));
+    const lines = effectLines(measurements);
+    const approved = await c.query<{ at: Date; by: string }>(
+      `SELECT a.created_at AS at, e.display_name AS by FROM effect_approvals a JOIN employees e ON e.membership_id = a.approved_by_membership_id WHERE a.idea_id = $1`,
+      [idea.id],
+    );
     return {
       ...(overview.rows[0] as Record<string, unknown>),
+      context: await loadContext(c, idea.id),
+      // «Применить этот метод» (ADR-0040): the knowledge this item was started from, if its reader may open it.
+      method: await methodOfItem(c, idea.id),
+      effect: {
+        lines,
+        measured: effectMeasured(lines),
+        // The bonus approved by the decision owner (0007) is shown next to the measurements, never instead of them.
+        approval: approved.rows[0] ? { by: approved.rows[0].by, at: approved.rows[0].at.toISOString() } : null,
+      },
       attachments: attachments.rows,
       escalations: escalations.rows,
       deferral: await activeDeferral(c, idea.id),

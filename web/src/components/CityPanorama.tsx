@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent } from 'react';
 import type { District } from '../lib/types';
 import './city-panorama.css';
 
@@ -27,6 +27,9 @@ export const RUSSIAN_BUILDINGS = [
   { id: 'initiatives', name: 'Торговая площадь', detail: 'Идеи и инициативы', x: 50, y: 55, tab: 'initiatives' },
 ] as const;
 
+/** The push is shorter than a blink of impatience: the section opens after this many milliseconds. */
+const PUSH_MS = 330;
+
 export function CivilizationPanorama({ district, onPickStyle }: { district: District; onPickStyle: () => void }) {
   const [active, setActive] = useState<string | null>(null);
   const isRussia = district.civilization.id === 'russia';
@@ -40,6 +43,51 @@ export function CivilizationPanorama({ district, onPickStyle }: { district: Dist
     : 'Кинематографичная панорама Камелота: крепость, библиотека, зал Совета, арена, мастерские и площади';
   const routeFor = (tab: string) =>
     tab === 'archive' ? '#/library?hall=archive' : '#/castles/' + district.id + '/' + tab;
+  // A short push of the picture towards the clicked building before its section opens (taken from PR #16,
+  // for both towns). Decoration only: the link is an ordinary link, a second click or Escape opens the
+  // section at once, a modified click (new tab) is left to the browser, and with reduced motion or the
+  // lite graphics there is no push at all.
+  const [entering, setEntering] = useState<{ x: number; y: number; href: string } | null>(null);
+  const pushTimer = useRef<number | null>(null);
+  // Where the push leads: kept outside the render, so Escape works from the very first moment.
+  const pending = useRef<string | null>(null);
+  const finish = () => {
+    const href = pending.current;
+    if (pushTimer.current !== null) window.clearTimeout(pushTimer.current);
+    pushTimer.current = null;
+    pending.current = null;
+    if (href) window.location.hash = href;
+  };
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && pending.current) finish();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      if (pushTimer.current !== null) window.clearTimeout(pushTimer.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const enter = (e: ReactMouseEvent<HTMLAnchorElement>, b: { x: number; y: number; tab: string }) => {
+    if (e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return;
+    let still = document.documentElement.dataset.lite === 'on';
+    try {
+      still = still || window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    } catch {
+      /* no matchMedia: the link works as a link */
+    }
+    if (still) return;
+    e.preventDefault();
+    const href = routeFor(b.tab);
+    if (pending.current) {
+      finish();
+      return;
+    }
+    pending.current = href;
+    setEntering({ x: b.x, y: b.y, href });
+    pushTimer.current = window.setTimeout(finish, PUSH_MS);
+  };
   return (
     <section className="town-section" aria-label={'Интерактивный город ' + cityName + ' — ' + district.name}>
       <header className="town-heading">
@@ -56,7 +104,11 @@ export function CivilizationPanorama({ district, onPickStyle }: { district: Dist
         </div>
       </header>
       <div className="town-scroll" tabIndex={0} aria-label="Панорама города: прокрутите по горизонтали на узком экране">
-        <div className="town-canvas">
+        <div
+          className={entering ? 'town-canvas is-entering' : 'town-canvas'}
+          aria-busy={entering ? true : undefined}
+          style={entering ? ({ '--enter-x': entering.x + '%', '--enter-y': entering.y + '%' } as CSSProperties) : undefined}
+        >
           <img
             src={cityImage}
             alt={imageAlt}
@@ -84,6 +136,7 @@ export function CivilizationPanorama({ district, onPickStyle }: { district: Dist
                 className={'town-hotspot' + (active === b.id ? ' is-active' : '')}
                 style={{ left: b.x + '%', top: b.y + '%' }}
                 href={routeFor(b.tab)}
+                onClick={(e) => enter(e, b)}
                 onFocus={() => setActive(b.id)}
                 onBlur={() => setActive(null)}
                 onMouseEnter={() => setActive(b.id)}

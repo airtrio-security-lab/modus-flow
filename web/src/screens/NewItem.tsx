@@ -9,6 +9,7 @@ import { PageHead, StatusChip } from '../components/ui';
 import { uploadFile, ACCEPT } from './files';
 import { takeShared, takeSharedPeek } from '../lib/share';
 import { clearDraft, loadDraft, saveDraft } from '../lib/draft';
+import { ContextDisclosure, EMPTY_CONTEXT, contextBody, type ContextDraft } from '../components/ProjectContext';
 
 interface Created {
   item: { number: number; routed: boolean; maintainer: string | null; firstResponseDueAt: string | null; status: Status };
@@ -19,6 +20,18 @@ interface Similar {
   status: Status;
   category: string | null;
 }
+
+/** «Применить этот метод» (ADR-0040): the knowledge named in the address, `#/new?method=<id>`. */
+interface MethodRef {
+  id: string;
+  title: string;
+  hall: string;
+  can: { apply?: boolean };
+}
+const methodParam = (): string | null => {
+  const m = new URLSearchParams(location.hash.split('?')[1] ?? '').get('method');
+  return m && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(m) ? m : null;
+};
 
 /**
  * Quick submission. One screen, plain words: what happens, optionally how to fix
@@ -40,6 +53,8 @@ export function NewItem() {
   const [note, setNote] = useState('');
   const [files, setFiles] = useState<File[]>([]);
   const [busy, setBusy] = useState(false);
+  // «Где возникла проблема?» (ADR-0031): optional and closed by default.
+  const [context, setContext] = useState<ContextDraft>(EMPTY_CONTEXT);
   const [error, setError] = useState<string | null>(null);
   const [similar, setSimilar] = useState<Similar[]>([]);
   const fileInput = useRef<HTMLInputElement>(null);
@@ -47,6 +62,39 @@ export function NewItem() {
   const [touched, setTouched] = useState<Record<string, boolean>>({});
   const [restored, setRestored] = useState(false);
   const touch = (f: string) => setTouched((t) => ({ ...t, [f]: true }));
+
+  // «Применить этот метод» (ADR-0040). The knowledge is read with the person's own rights; the server
+  // checks again on submission. The item stays an ordinary one: nothing is applied by pressing a button.
+  const [methodId, setMethodId] = useState(methodParam);
+  const [method, setMethod] = useState<MethodRef | null>(null);
+  const [methodError, setMethodError] = useState<string | null>(null);
+  useEffect(() => {
+    if (!methodId) {
+      setMethod(null);
+      setMethodError(null);
+      return;
+    }
+    let live = true;
+    api<MethodRef>(`/orgs/${s.org}/knowledge/${methodId}`)
+      .then((k) => {
+        if (!live) return;
+        if (!k.can.apply) {
+          setMethodError('Это знание нельзя применить: применяются только проверенные записи Библиотеки решений и Высшего Архива, которые не отмечены устаревшими.');
+          return;
+        }
+        setMethod(k);
+        // Applying a method is a proposal: what the person plans to do.
+        setKind('idea');
+      })
+      .catch((e) => live && setMethodError(`Метод недоступен: ${errorText(e)}`));
+    return () => {
+      live = false;
+    };
+  }, [methodId, s.org]);
+  const dropMethod = () => {
+    setMethodId(null);
+    history.replaceState(null, '', '#/new');
+  };
 
   // Draft on this device: an idea typed on the phone survives a closed tab or a lost connection.
   useEffect(() => {
@@ -132,6 +180,9 @@ export function NewItem() {
         ...(dept ? { departmentId: dept } : {}),
         sourceChannel: onBehalf ? channel : 'app',
         ...(onBehalf ? { raisedBy, ...(note.trim() ? { sourceNote: note.trim() } : {}) } : {}),
+        // The department chosen above answers for the item; it is never sent as «affected».
+        ...(contextBody({ ...context, affected: context.affected.filter((id) => id !== dept) }) ? { context: contextBody({ ...context, affected: context.affected.filter((id) => id !== dept) }) } : {}),
+        ...(method ? { methodId: method.id } : {}),
       };
       const r = await api<Created>(`/orgs/${s.org}/ideas`, { json: body });
       const n = r.item.number;
@@ -149,6 +200,7 @@ export function NewItem() {
           ? `Обращение №${n} зарегистрировано. Ответственный назначен${when ? `, первый ответ ${when.text}` : ''}.`
           : `Обращение №${n} зарегистрировано и передано руководителям для распределения.`,
       );
+      if (method) s.toast('Обращение создано на основе метода. Применение ещё не подтверждено: это покажет результат.');
       if (failed.length) s.toast(`Обращение создано, но не все файлы приложены: ${failed.join('; ')}`);
       clearDraft();
       go(`/items/${n}`);
@@ -167,6 +219,35 @@ export function NewItem() {
           Несколько вопросов с совещания или из чата
         </a>
       </PageHead>
+      {methodId && !method && !methodError ? (
+        <div className="notice" role="status">
+          Открываем метод…
+        </div>
+      ) : null}
+      {methodError ? (
+        <div className="notice warn" role="alert">
+          {methodError}{' '}
+          <button type="button" className="btn quiet small" onClick={dropMethod}>
+            Подать обращение без ссылки на метод
+          </button>
+        </div>
+      ) : null}
+      {method ? (
+        <section className="method-ref" aria-labelledby="method-ref-h">
+          <p className="method-ref-kicker" id="method-ref-h">
+            Обращение на основе метода
+          </p>
+          <p className="method-ref-title">
+            Метод: <a href={`#/library/${method.id}`}>{method.title}</a> <span className="muted">· {method.hall}</span>
+          </p>
+          <p className="small muted">
+            Будет создано обычное обращение со ссылкой на это знание; вы — его автор, рассматривают его по тем же правилам. Метод не считается применённым, пока результат не подтверждён, и опыт за само обращение не начисляется.
+          </p>
+          <button type="button" className="btn quiet small" onClick={dropMethod}>
+            Убрать ссылку на метод
+          </button>
+        </section>
+      ) : null}
       {restored && !shared && (
         <div className="notice" role="status">
           Восстановлен черновик, который вы не отправили.{' '}
@@ -205,7 +286,7 @@ export function NewItem() {
       <div className="stack">
         <div className="field">
           <label htmlFor="problem">
-            {kind === 'problem' ? 'Что происходит?' : 'Что сейчас не так или можно сделать лучше?'}
+            {method ? 'Где хотите применить метод и какая там ситуация?' : kind === 'problem' ? 'Что происходит?' : 'Что сейчас не так или можно сделать лучше?'}
             <span className="req">обязательно</span>
           </label>
           <textarea
@@ -225,7 +306,8 @@ export function NewItem() {
         {kind === 'idea' && (
           <div className="field">
             <label htmlFor="proposal">
-              Что предлагаете?<span className="req">обязательно</span>
+              {method ? 'Что планируете сделать?' : 'Что предлагаете?'}
+              <span className="req">обязательно</span>
             </label>
             <textarea
               id="proposal"
@@ -294,7 +376,7 @@ export function NewItem() {
           <span className="hint">По теме выбирается ответственный.</span>
         </div>
         <div className="field">
-          <label htmlFor="department">Где это происходит</label>
+          <label htmlFor="department">{method ? 'Подразделение, где применяете' : 'Где это происходит'}</label>
           <select id="department" className="select" value={dept} onChange={(e) => setDepartmentId(e.target.value)}>
             <option value="">Не относится к подразделению</option>
             {dir?.departments
@@ -308,8 +390,10 @@ export function NewItem() {
         </div>
       </div>
 
+      <ContextDisclosure value={context} onChange={setContext} responsible={dept || undefined} idPrefix="new-ctx" />
+
       <div className="field">
-        <label htmlFor="criteria">Как поймём, что вопрос решён? (необязательно)</label>
+        <label htmlFor="criteria">{method ? 'Ожидаемый результат (необязательно)' : 'Как поймём, что вопрос решён? (необязательно)'}</label>
         <input
           id="criteria"
           className="input"
@@ -411,7 +495,7 @@ export function NewItem() {
       )}
       <div className="submit-bar">
         <button type="submit" className="btn primary" disabled={busy}>
-          {busy ? 'Отправляем…' : 'Отправить обращение'}
+          {busy ? 'Отправляем…' : method ? 'Создать обращение на основе метода' : 'Отправить обращение'}
         </button>
         {!ready && <span className="small muted">Осталось: {problems.join(', ')}.</span>}
         {ready && <span className="small muted">После отправки текст правится только новой версией — история сохраняется.</span>}

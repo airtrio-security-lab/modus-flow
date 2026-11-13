@@ -71,7 +71,9 @@ export function Settings() {
                 <th>Решает</th>
                 <th className="n">Ответ, ч</th>
                 <th className="n">Решение, дн</th>
-                <th />
+                <th>
+                  <span className="sr-only">Действия</span>
+                </th>
               </tr>
             </thead>
             <tbody>

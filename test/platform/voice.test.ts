@@ -15,7 +15,7 @@ import { freshDatabase, fullDraft, ownerQuery, world } from './support/db.ts';
 import { ideaInReview } from './support/flow.ts';
 
 /**
- * «Спросить советника» (ADR-0042). OpenAI is never called: a recording fake stands in for it.
+ * «Спросить советника» (ADR-0043). OpenAI is never called: a recording fake stands in for it.
  * What is checked: the key stays on the server, every session belongs to one person in one
  * organization, tools only read and only what the person may see, unknown tools fail, limits hold.
  */

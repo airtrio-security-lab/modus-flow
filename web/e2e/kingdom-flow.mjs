@@ -127,8 +127,13 @@ try {
     await expectText(page, 'Отчёт отправлен');
     await page.getByRole('button', { name: 'Отметить как реализовано' }).click();
     await page.getByLabel('Что внедрено').fill('Этикетки печатаются у ворот, к компьютеру больше не ходим');
-    await page.locator('form.composer').getByRole('button', { name: 'Отметить как реализовано' }).click();
-    await expectText(page, 'Внедрение подтверждено');
+    // Wait for the server's answer, not for the words: «…когда внедрение подтверждено. Сейчас идёт внедрение»
+    // is already on the page before the click, so a text match alone could close the page mid-request.
+    await Promise.all([
+      page.waitForResponse((r) => r.request().method() === 'POST' && r.url().endsWith(`/ideas/${n}/implementation`) && r.status() === 201),
+      page.locator('form.composer').getByRole('button', { name: 'Отметить как реализовано' }).click(),
+    ]);
+    await expectText(page, 'Внедрение подтверждено:');
   });
   step('внедрено и подтверждено исполнителем');
 

@@ -96,10 +96,10 @@ export function MeetingsList() {
 export function CouncilTabs({ active }: { active: 'items' | 'meetings' }) {
   return (
     <nav className="segmented" aria-label="Совет">
-      <a href="#/council" aria-pressed={active === 'items'} aria-current={active === 'items' ? 'page' : undefined}>
+      <a href="#/council" aria-current={active === 'items' ? 'page' : undefined}>
         Обращения на Совете
       </a>
-      <a href="#/meetings" aria-pressed={active === 'meetings'} aria-current={active === 'meetings' ? 'page' : undefined}>
+      <a href="#/meetings" aria-current={active === 'meetings' ? 'page' : undefined}>
         Заседания с записью
       </a>
     </nav>
@@ -1007,7 +1007,7 @@ function FindingCard({ view, f, onDone, onSeek }: { view: MeetingView; f: Meetin
         <div className="stack">
           <div className="segmented" role="radiogroup" aria-label="Что это">
             {(['problem', 'idea'] as const).map((x) => (
-              <button key={x} type="button" role="radio" aria-checked={kind === x} aria-pressed={kind === x} onClick={() => setKind(x)}>
+              <button key={x} type="button" role="radio" aria-checked={kind === x} onClick={() => setKind(x)}>
                 {x === 'problem' ? 'Проблема' : 'Предложение / поручение'}
               </button>
             ))}

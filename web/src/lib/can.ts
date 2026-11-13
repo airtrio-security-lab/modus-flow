@@ -39,6 +39,8 @@ export function facts(v: Viewer, i: IdeaDetail) {
     startCheck: open && !originator && maintainer && i.stage === 'review',
     evidence: (vOwner: string) => open && !author && (vOwner === me || maintainer || decider),
     conclude: open && !originator && maintainer,
+    // Measuring the effect of an implementation (ADR-0031): the lead of the item, one measurement at a time.
+    startImpact: open && !originator && maintainer && ['adoption', 'impact_verification'].includes(i.stage) && !i.verifications.some((x) => x.purpose === 'impact' && x.status === 'running'),
     decide: open && decider && !originator && ['review', 'decision'].includes(i.stage),
     // Postponing belongs to whoever decides the item (0018); a game title gives no right.
     defer: open && decider && !originator && ['published', 'review', 'development', 'verification', 'decision'].includes(i.stage),

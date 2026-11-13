@@ -18,6 +18,7 @@ import {
 } from '../modules/lab.ts';
 import { listInbox, markRead } from '../modules/notifications.ts';
 import * as notificationsMod from '../modules/notifications.ts';
+import * as envoy from '../modules/envoy.ts';
 import * as royalAudience from '../modules/royal-audience.ts';
 import * as wf from '../modules/workflow.ts';
 import * as admin from '../modules/admin.ts';
@@ -38,6 +39,7 @@ import { engineReachable } from '../modules/transcribe.ts';
 import type { ModelConfig } from '../modules/advisor-model.ts';
 import { downloadAttachment, MAX_ATTACHMENT_BYTES, uploadAttachment } from '../modules/attachments.ts';
 import { SubmitInput, submitItem } from '../modules/intake.ts';
+import * as pc from '../modules/project-context.ts';
 import { SearchQuery, searchItems, SimilarQuery, similarItems } from '../modules/search.ts';
 import * as datasetMod from '../modules/dataset.ts';
 import * as deferral from '../modules/deferral.ts';
@@ -70,7 +72,7 @@ export interface AppConfig {
   advisorFetch?: typeof fetch;
   /** Optional local speech-to-text engine (ADR-0014). Null: no transcription, the UI offers typing it. */
   transcribeEngine?: TranscribeConfig | null;
-  /** Live voice advisor (ADR-0042). Null: «Голосовой AI не подключён»; the text advisor still works. */
+  /** Live voice advisor (ADR-0043). Null: «Голосовой AI не подключён»; the text advisor still works. */
   voice?: VoiceConfig | null;
   /** Test seam for the voice provider. */
   voiceFetch?: typeof fetch;
@@ -284,6 +286,7 @@ export function createApp(config: AppConfig) {
     wf.decideSuggestion(db, a, n, NumberParam.parse(p.rev), i, k),
   );
   step('/verifications', wf.StartVerificationInput, (a, n, i, _p, k) => wf.startVerification(db, a, n, i, k));
+  step('/impact-verifications', wf.StartImpactInput, (a, n, i, _p, k) => wf.startImpactVerification(db, a, n, i, k));
   step(`/verifications/(?<v>${UUID})/evidence`, wf.EvidenceInput, (a, n, i, p, k) => wf.recordEvidence(db, a, n, p.v!, i, k));
   step(`/verifications/(?<v>${UUID})/conclusion`, wf.ConcludeInput, (a, n, i, p, k) => wf.concludeVerification(db, a, n, p.v!, i, k));
   step('/decision', wf.DecideInput, (a, n, i, _p, k) => wf.decide(db, a, n, i, k));
@@ -292,6 +295,8 @@ export function createApp(config: AppConfig) {
   step('/implementer', wf.ImplementerInput, (a, n, i, _p, k) => wf.assignImplementer(db, a, n, i, k));
   step('/implementation', wf.CompleteImplementationInput, (a, n, i, _p, k) => wf.completeImplementation(db, a, n, i, k));
   step('/attribution/decline', z.object({}).strict(), (a, n, _i, _p, k) => wf.declineAttribution(db, a, n, k));
+  // ADR-0042: the item's lead confirms someone else's recorded contribution; the contributor is told once.
+  step(`/contributions/(?<contribution>${UUID})/confirm`, z.object({}).strict(), (a, n, _i, p, k) => wf.confirmContribution(db, a, n, p.contribution!, k));
 
   route('POST', `${IDEA}/attachments`, async (ctx) => {
     const actor = await org(ctx);
@@ -367,6 +372,10 @@ export function createApp(config: AppConfig) {
   route('GET', `${ORG}/datasets/(?<dataset>[a-z0-9-]{2,60})`, async (ctx) => ({ status: 200, body: await datasetMod.listDataset(db, await org(ctx), ctx.params.dataset!) }));
   route('GET', `${ORG}/ideas/(?<number>\\d+)/dataset`, async (ctx) => ({ status: 200, body: await datasetMod.datasetOfItem(db, await org(ctx), Number(ctx.params.number)) }));
   route('GET', `${ORG}/people`, async (ctx) => ({ status: 200, body: await district.searchPeople(db, await org(ctx), district.PeopleQuery.parse(queryObject(ctx.query)).q) }));
+  // ---- «Путь Посла» (0020, ADR-0032): read only; XP is written by the database ----
+  route('GET', `${IDEA}/resolution`, async (ctx) => ({ status: 200, body: await envoy.problemResolution(db, await org(ctx), Number(ctx.params.number)) }));
+  route('GET', `${ORG}/me/envoy`, async (ctx) => ({ status: 200, body: await envoy.myEnvoy(db, await org(ctx)) }));
+  route('GET', `${ORG}/people/(?<id>${UUID})/envoy`, async (ctx) => ({ status: 200, body: await envoy.envoyOf(db, await org(ctx), ctx.params.id!) }));
   route('GET', `${ORG}/me/contribution`, async (ctx) => ({ status: 200, body: await progress.myContribution(db, await org(ctx)) }));
   json('PATCH', '/settings/progress', progress.ProgressSettingsInput, (a, i) => progress.updateProgressSettings(db, a, i));
   route('GET', `${ORG}/council`, async (ctx) => ({ status: 200, body: await council.listCouncil(db, await org(ctx)) }));
@@ -509,6 +518,8 @@ export function createApp(config: AppConfig) {
   json('POST', `/meetings/(?<id>${UUID})/cancel`, meetings.CancelInput, (a, i, p) => meetings.cancel(db, a, p.id!, i));
   json('POST', `/meetings/(?<id>${UUID})/participants`, meetings.ParticipantInput, (a, i, p) => meetings.setParticipant(db, a, p.id!, i));
   route('GET', `${IDEA}/origin`, async (ctx) => ({ status: 200, body: await meetings.itemOrigin(db, await org(ctx), NumberParam.parse(ctx.params.number)) }));
+  // «Проблема решена» (0021, ADR-0035): the person whose question it is confirms, after the implementation.
+  step('/resolution', envoy.ResolutionInput, (a, n, i, _p, k) => envoy.confirmResolution(db, a, n, i, k));
   step('/effect', progress.EffectInput, (a, n, i, _p, k) => progress.approveEffect(db, a, n, i, k));
 
   // ---- «Наследие Королевства» (0012, ADR-0017): chronicle, library, higher archive ----
@@ -523,6 +534,10 @@ export function createApp(config: AppConfig) {
   json('POST', `${KN}/sources`, legacy.SourceInput, (a, i, p) => legacy.addSource(db, a, p.id!, i), 201);
   json('POST', `${KN}/applications`, legacy.ApplicationInput, (a, i, p) => legacy.addApplication(db, a, p.id!, i), 201);
   json('POST', `${KN}/actions`, legacy.ActInput, (a, i, p) => legacy.act(db, a, p.id!, i));
+  // ---- Product refinement (ADR-0031): where the problem arose, affected departments, who to invite ----
+  route('POST', `${IDEA}/context`, async (ctx) => pc.setContext(db, await org(ctx), NumberParam.parse(ctx.params.number), pc.ContextInput.parse(await ctx.body()), idemKey(ctx.req)));
+  route('POST', `${IDEA}/affected-departments`, async (ctx) => pc.addAffected(db, await org(ctx), NumberParam.parse(ctx.params.number), pc.AffectedInput.parse(await ctx.body()), idemKey(ctx.req)));
+  route('GET', `${IDEA}/specialists`, async (ctx) => ({ status: 200, body: await pc.suggestSpecialists(db, await org(ctx), NumberParam.parse(ctx.params.number)) }));
   route('GET', `${IDEA}/knowledge-draft`, async (ctx) => ({ status: 200, body: await legacy.draftFromItem(db, await org(ctx), NumberParam.parse(ctx.params.number)) }));
   json('POST', `/members/(?<id>${UUID})/archivist`, legacy.ArchivistInput, (a, i, p) => legacy.setArchivist(db, a, p.id!, i.grant));
   // Personal data in knowledge (0013, ADR-0018): admin-only scan, erasure, pseudonymization.
@@ -534,7 +549,7 @@ export function createApp(config: AppConfig) {
     body: await analytics(db, await org(ctx), AnalyticsQuery.parse(queryObject(ctx.query))),
   }));
 
-  // ---- «Спросить советника» (ADR-0042): live voice and its text alternative ----
+  // ---- «Спросить советника» (ADR-0043): live voice and its text alternative ----
   // The person always comes from the token; tools are read-only module calls under RLS.
   const vdeps: voice.VoiceDeps = {
     db,

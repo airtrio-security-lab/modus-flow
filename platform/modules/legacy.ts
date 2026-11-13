@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { isRemote, modelFetch, modelLabel, type ModelConfig } from './advisor-model.ts';
 import { AppError, forbidden, notFound } from '../domain/errors.ts';
+import { effectLines, effectSentences, type Measurement } from '../domain/effect.ts';
 import {
   ACTIONS,
   ACTION_TITLE,
@@ -27,6 +28,7 @@ import { withTx, type Client, type Database } from '../db/pool.ts';
 import { audit } from './audit.ts';
 import { orgTx } from './context.ts';
 import { membersWithRoles } from './notifications.ts';
+import { solutionPath, type OtherSource } from './knowledge-path.ts';
 
 /**
  * «Наследие Королевства» (ADR-0017). One knowledge model, three halls:
@@ -364,12 +366,20 @@ export async function act(db: Database, actor: OrgActor, id: string, input: z.in
 // ---------------------------------------------------------------------------
 // Reading: the three halls with one search, and the knowledge page
 // ---------------------------------------------------------------------------
+/** One page of the catalogue. The browser never receives the whole library. */
+export const PAGE_DEFAULT = 24;
+export const PAGE_MAX = 60;
+export const OFFSET_MAX = 100_000;
+
 export const ListQuery = z
   .object({
     q: z.string().trim().max(200).optional(),
     level: z.enum(LEVELS).optional(),
     kind: z.enum(KINDS).optional(),
     status: z.enum(['active', 'needs_review', 'outdated']).optional(),
+    // Server-side pages (ADR-0041). Numbers arrive as text from the query string.
+    limit: z.coerce.number().int().min(1).max(PAGE_MAX).optional(),
+    offset: z.coerce.number().int().min(0).max(OFFSET_MAX).optional(),
   })
   .strict();
 
@@ -379,6 +389,34 @@ export const STALE_DAYS = 365;
 export async function list(db: Database, actor: OrgActor, f: z.infer<typeof ListQuery>) {
   return withTx(db, orgTx(actor), async (c) => {
     const q = f.q?.trim() || null;
+    const limit = f.limit ?? PAGE_DEFAULT;
+    const offset = f.offset ?? 0;
+    // «№126» or «126»: knowledge that rests on that item. Only through `idea_overview`, which shows the reader
+    // nothing but the items they may open — a search never confirms a source that is closed to them.
+    const number = q && /^№?\s*\d{1,9}$/.test(q) ? Number(q.replace(/\D/g, '')) : null;
+    // One condition for the page, the total and the counters of the halls: they can never disagree.
+    const MATCH = `k.organization_id = app_org_id()
+          AND ($3::text IS NULL OR k.kind = $3) AND ($4::text IS NULL OR k.status = $4)
+          AND ($1::text IS NULL
+               OR to_tsvector('russian', v.title || ' ' || v.card::text) @@ plainto_tsquery('russian', $1)
+               OR word_similarity($1, k.title) > 0.4 OR word_similarity($1, v.card::text) > 0.55
+               OR ($5::int IS NOT NULL AND EXISTS (
+                     SELECT 1 FROM knowledge_sources s JOIN idea_overview o ON o.id = s.source_id
+                      WHERE s.knowledge_id = k.id AND s.source_type = 'idea' AND o.number = $5)))`;
+    const FROM = `FROM knowledge_items k JOIN knowledge_versions v ON v.knowledge_id = k.id AND v.version = k.current_version`;
+    const args = [q, f.level ?? null, f.kind ?? null, f.status ?? null, number];
+    // Exact numbers of what this reader may open (row-level security applies to the count as to the rows).
+    // The counters of the halls ignore the chosen hall on purpose: «во всех залах» and one hall add up.
+    const tally = (
+      await c.query<{ total: number; chronicle: number; library: number; archive: number }>(
+        `SELECT count(*) FILTER (WHERE $2::text IS NULL OR k.level = $2)::int AS total,
+                count(*) FILTER (WHERE k.level = 'chronicle')::int AS chronicle,
+                count(*) FILTER (WHERE k.level = 'library')::int AS library,
+                count(*) FILTER (WHERE k.level = 'archive')::int AS archive
+           ${FROM} WHERE ${MATCH}`,
+        args,
+      )
+    ).rows[0]!;
     const { rows } = await c.query<{
       id: string;
       level: Level;
@@ -401,16 +439,12 @@ export async function list(db: Database, actor: OrgActor, f: z.infer<typeof List
                  FROM knowledge_sources s LEFT JOIN ideas i ON s.source_type = 'idea' AND i.id = s.source_id WHERE s.knowledge_id = k.id) AS sources,
               (SELECT count(*)::int FROM knowledge_applications a WHERE a.knowledge_id = k.id) AS applications,
               CASE WHEN $1::text IS NULL THEN NULL ELSE round(greatest(word_similarity($1, k.title), word_similarity($1, v.card::text))::numeric, 2)::float END AS score
-         FROM knowledge_items k
-         JOIN knowledge_versions v ON v.knowledge_id = k.id AND v.version = k.current_version
-        WHERE k.organization_id = app_org_id()
-          AND ($2::text IS NULL OR k.level = $2) AND ($3::text IS NULL OR k.kind = $3) AND ($4::text IS NULL OR k.status = $4)
-          AND ($1::text IS NULL
-               OR to_tsvector('russian', v.title || ' ' || v.card::text) @@ plainto_tsquery('russian', $1)
-               OR word_similarity($1, k.title) > 0.4 OR word_similarity($1, v.card::text) > 0.55)
-        ORDER BY score DESC NULLS LAST, k.updated_at DESC
-        LIMIT 200`,
-      [q, f.level ?? null, f.kind ?? null, f.status ?? null],
+         ${FROM}
+        WHERE ${MATCH} AND ($2::text IS NULL OR k.level = $2)
+        -- A total order: the id breaks every tie, so a page never repeats or skips a row.
+        ORDER BY score DESC NULLS LAST, k.updated_at DESC, k.id
+        LIMIT $6 OFFSET $7`,
+      [...args, limit, offset],
     );
     const now = Date.now();
     const items = rows.map((r) => ({
@@ -432,11 +466,27 @@ export async function list(db: Database, actor: OrgActor, f: z.infer<typeof List
       lastVerifiedAt: r.last_verified_at?.toISOString() ?? null,
       stale: r.level !== 'chronicle' && r.status === 'active' && now - (r.last_verified_at ?? r.created_at).getTime() > STALE_DAYS * 864e5,
       updatedAt: r.updated_at.toISOString(),
+      // The archivist's conclusion of the current version, when it has one: the catalogue shows it on the
+      // archive volume (ADR-0034). The same card the row already comes from — no new right, no new query.
+      conclusion:
+        r.card.archiveCategory || r.card.proof || r.card.applicability || r.card.basis || r.card.lastChecked
+          ? {
+              category: r.card.archiveCategory ? ARCHIVE_CATEGORY_TITLE[r.card.archiveCategory] : null,
+              proof: r.card.proof?.slice(0, 220) ?? null,
+              applicability: r.card.applicability?.slice(0, 220) ?? null,
+              basis: r.card.basis?.slice(0, 220) ?? null,
+              lastChecked: r.card.lastChecked ?? null,
+            }
+          : null,
     }));
-    const counts = Object.fromEntries(LEVELS.map((l) => [l, items.filter((i) => i.level === l).length]));
+    // Exact, from the database — never counted from the page that happened to be loaded.
+    const counts = { chronicle: tally.chronicle, library: tally.library, archive: tally.archive };
     return {
       items,
       counts,
+      total: tally.total,
+      allHalls: tally.chronicle + tally.library + tally.archive,
+      page: { limit, offset, next: offset + items.length < tally.total ? offset + items.length : null },
       roles: { archivist: isArchivist(actor), approver: isApprover(actor), curator: canCurate(actor) },
       note: 'Поиск по словам среди знаний, доступных вам. Уровень проверки указан у каждого результата.',
     };
@@ -608,10 +658,20 @@ export async function get(db: Database, actor: OrgActor, id: string) {
     for (const t of transitions) timeline.push({ at: t.created_at.toISOString(), what: ACTION_TITLE[t.action], who: t.actor, source: 'Великая библиотека', link: null });
     for (const a of applications) timeline.push({ at: a.created_at.toISOString(), what: `Метод применён повторно: №${a.number} «${a.title}»${a.implemented ? ' — внедрено' : ' — ещё не внедрено'}`, who: a.recorded_by, source: `обращение №${a.number}`, link: `#/items/${a.number}` });
     timeline.sort((a, b) => a.at.localeCompare(b.at));
+    // «Путь решения» (ADR-0040): the same recorded facts as a path with branches. Not a second history.
+    const path = await solutionPath(
+      c,
+      id,
+      (sources as { type: string; label: string; link: string | null; available: boolean }[]).filter((x) => x.type !== 'idea').map((x) => ({ type: x.type as OtherSource['type'], label: x.label, link: x.link, available: x.available })),
+      transitions.map((t) => ({ action: t.action, title: ACTION_TITLE[t.action], at: t.created_at.toISOString() })),
+    );
 
     const lastBy = (action: string) => [...transitions].reverse().find((t) => t.action === action)?.actor_id;
     const me = actor.membershipId;
-    const can: Partial<Record<Action | 'revise' | 'addSource' | 'addApplication', boolean>> = {
+    const can: Partial<Record<Action | 'revise' | 'addSource' | 'addApplication' | 'apply', boolean>> = {
+      // «Применить этот метод» (ADR-0040): any full member, only knowledge that passed the archivist's check
+      // and is not outdated. It opens the ordinary submission — the database checks the same again (0022).
+      apply: actor.access === 'member' && k.level !== 'chronicle' && k.status !== 'outdated',
       revise: canCurate(actor) && k.review === 'none' && !(k.level === 'archive' && k.status === 'active'),
       addSource: canCurate(actor),
       addApplication: canCurate(actor),
@@ -655,6 +715,7 @@ export async function get(db: Database, actor: OrgActor, id: string) {
       versions: versions.map((v) => ({ version: v.version, title: v.title, card: v.card, reason: v.change_reason, author: v.author, at: v.created_at.toISOString() })),
       transitions: transitions.map((t) => ({ action: t.action, title: ACTION_TITLE[t.action], fromLevel: t.from_level, toLevel: t.to_level, toStatus: t.to_status, version: t.version, reason: t.reason, actor: t.actor, at: t.created_at.toISOString() })),
       timeline,
+      path,
       can,
       roles: { archivist: isArchivist(actor), approver: isApprover(actor), curator: canCurate(actor) },
     };
@@ -737,6 +798,14 @@ export async function draftFromItem(db: Database, actor: OrgActor, number: numbe
     const decision = (await c.query<{ outcome: string; rationale: string }>('SELECT outcome, rationale FROM decisions WHERE idea_id = $1 ORDER BY created_at DESC LIMIT 1', [i.id])).rows[0];
     const report = (await c.query<{ body: string }>(`SELECT body FROM reviews WHERE idea_id = $1 AND kind = 'progress' ORDER BY created_at DESC LIMIT 1`, [i.id])).rows[0];
     const effect = (await c.query<{ rationale: string }>('SELECT rationale FROM effect_approvals WHERE idea_id = $1', [i.id])).rows[0];
+    const evidence = (
+      await c.query<Measurement>(
+        `SELECT x.id, x.kind, x.metric, x.value, x.unit, x.period, x.source, x.goal, x.comparable, x.created_at AS "createdAt"
+           FROM verification_evidence x JOIN verifications v ON v.id = x.verification_id WHERE v.idea_id = $1`,
+        [i.id],
+      )
+    ).rows;
+    const measured = effectSentences(effectLines(evidence));
     const pro = council.filter((x) => x.kind === 'argument_for' || (x.kind === 'recommendation' && (x.recommendation === 'implement' || x.recommendation === 'pilot'))).map((x) => x.body);
     const con = council.filter((x) => x.kind === 'argument_against' || x.kind === 'dissent' || (x.kind === 'recommendation' && (x.recommendation === 'reject' || x.recommendation === 'rework'))).map((x) => x.body);
     const card: CardT = cleanCard({
@@ -748,7 +817,8 @@ export async function draftFromItem(db: Database, actor: OrgActor, number: numbe
       reasons: decision?.rationale,
       initiator: i.author_membership_id,
       responsible: [i.decision_owner_membership_id, i.implementer_membership_id].filter((x): x is string => !!x),
-      results: [report?.body, effect?.rationale].filter(Boolean).join('\n') || undefined,
+      // Only comparable «before/after» pairs are carried over, as plain sentences; unmeasured lines are not written.
+      results: [report?.body, effect?.rationale, ...measured].filter(Boolean).join('\n') || undefined,
     });
     return {
       kind: decision ? 'decision' : 'problem',

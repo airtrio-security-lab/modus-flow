@@ -78,6 +78,7 @@ const TEMPLATES: Record<NotificationEvent, (actor: string, title: string) => str
   knowledge_reverify: (a, t) => `${a} запрашивает повторную проверку знания «${t}»`,
   council_escalated: (a, t) => `${a} передаёт «${t}» из малого совета подразделения в Большой совет компании`,
   idea_deferred: (a, t) => `${a} откладывает решение по «${t}»: срок и причина — в карточке обращения`,
+  envoy_rank_up: (_a, t) => `Подтверждённый результат обращения «${t}» повысил ранг вашего посла. Ранг — знак вклада, полномочий он не даёт`,
 };
 
 /**
@@ -121,6 +122,7 @@ export const HEADLINES: Record<NotificationEvent, string> = {
   knowledge_reverify: 'Знание требует проверки',
   council_escalated: 'Вопрос передан к Большому Круглому столу',
   idea_deferred: 'Решение отложено',
+  envoy_rank_up: 'Ваш посол получил новый ранг',
 };
 
 /** Plain business headlines for people who switched the game wording off. */
@@ -159,6 +161,7 @@ export const BUSINESS_HEADLINES: Record<NotificationEvent, string> = {
   knowledge_reverify: 'Требуется повторная проверка',
   council_escalated: 'Вопрос передан в Большой совет',
   idea_deferred: 'Решение отложено',
+  envoy_rank_up: 'Повышен ранг посла',
 };
 
 /** Groups for the inbox filter and for switching optional messages off. */
@@ -174,6 +177,7 @@ export const CATEGORY: Record<NotificationEvent, 'council' | 'items' | 'decision
   knowledge_submitted: 'legacy', knowledge_in_library: 'legacy', knowledge_archived: 'legacy', knowledge_reverify: 'legacy',
   council_escalated: 'council',
   idea_deferred: 'decisions',
+  envoy_rank_up: 'castle',
 };
 /** Never switched off (also enforced by app_notification_enabled in the database). */
 export const MANDATORY: readonly NotificationEvent[] = [
@@ -271,6 +275,10 @@ export interface MeetingInvite {
   consent: 'pending' | 'given' | 'declined';
   cancelled: boolean;
   cancelReason: string | null;
+  /** The session is over (its recording was saved) — ADR-0042: «Совет собран» is not announced after it. */
+  ended?: boolean;
+  /** When the organizer started the recording (all participants consented): the session has begun. */
+  recordingStartedAt?: string | null;
 }
 
 export interface InboxItem {
@@ -331,6 +339,8 @@ export async function inbox(c: Client, limit = 80): Promise<InboxItem[]> {
     m_scheduled: Date | null;
     m_cancelled: Date | null;
     m_cancel_reason: string | null;
+    m_ended: Date | null;
+    m_recording: Date | null;
     m_organizer: string | null;
     m_idea_number: number | null;
     m_idea_title: string | null;
@@ -348,7 +358,7 @@ export async function inbox(c: Client, limit = 80): Promise<InboxItem[]> {
     `SELECT n.id, n.event_type, CASE WHEN n.event_type LIKE 'knowledge\_%' THEN app_knowledge_person(n.actor_membership_id) ELSE u.display_name END AS actor_name, n.actor_membership_id AS actor_id, r.title, i.number, n.meeting_id, k.id AS knowledge_id, k.title AS k_title,
             CASE WHEN k.kind = 'method' THEN 'метода' ELSE 'знания' END AS k_noun,
             mt.title AS m_title, mt.scope AS m_scope, mt.scheduled_at AS m_scheduled, mt.cancelled_at AS m_cancelled,
-            mt.cancel_reason AS m_cancel_reason, ou.display_name AS m_organizer, mi.number AS m_idea_number, mr.title AS m_idea_title,
+            mt.cancel_reason AS m_cancel_reason, mt.ended_at AS m_ended, mt.recording_started_at AS m_recording, ou.display_name AS m_organizer, mi.number AS m_idea_number, mr.title AS m_idea_title,
             CASE
               WHEN mt.id IS NULL THEN NULL
               WHEN mi.decision_owner_membership_id = app_membership_id() THEN 'вы принимаете решение по этому обращению'
@@ -450,6 +460,8 @@ export async function inbox(c: Client, limit = 80): Promise<InboxItem[]> {
             consent: r.p_consent ?? 'pending',
             cancelled: !!r.m_cancelled,
             cancelReason: r.m_cancel_reason,
+            ended: !!r.m_ended,
+            recordingStartedAt: r.m_recording?.toISOString() ?? null,
           }
         : null;
     return {

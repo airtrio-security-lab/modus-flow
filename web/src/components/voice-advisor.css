@@ -1,7 +1,8 @@
-/* «Спросить советника» (ADR-0042): the Kingdom palette — dark graphite, muted gold, blue-green.
+/* «Спросить советника» (ADR-0043): the Kingdom palette — dark graphite, muted gold, blue-green.
    Tokens are local to the advisor and checked by web/scripts/contrast.mjs. */
 .va,
-.va-fab {
+.va-fab,
+.va-head-btn {
   --va-bg: #121519;
   --va-panel: #181c21;
   --va-card: #20252c;
@@ -148,9 +149,27 @@
 
 .va-table-btn { display: inline-flex; align-items: center; gap: 6px; }
 
+/* Phone header: the advisor on the right, next to the bell (hidden on desktop with the header). */
+.va-head-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  min-height: 44px; padding: 0 14px 0 10px; border-radius: 999px;
+  border: 1px solid var(--va-gold); background: var(--va-panel); color: var(--va-gold);
+  font: 600 var(--fs-sm, 0.875rem) / 1 var(--font, system-ui); cursor: pointer;
+}
+.va-head-btn:active { background: var(--va-card); }
+.mobile-head .row { flex-wrap: nowrap; }
+/* The narrowest phones: a round microphone button, the name stays for screen readers (aria-label). */
+@media (max-width: 370px) {
+  .va-head-btn { width: 44px; padding: 0; justify-content: center; flex: none; }
+  .va-head-btn span { display: none; }
+}
+.va-head-btn:focus-visible { outline: 2px solid var(--va-teal); outline-offset: 2px; }
+
 /* Phone: the button sits above the tab bar; the panel is a bottom sheet that leaves the tab bar free. */
 @media (max-width: 860px) {
   .va-fab { bottom: calc(90px + env(safe-area-inset-bottom)); padding: 0 16px 0 12px; }
+  /* The header button is on screen: one way to call the advisor at a time. */
+  .va-fab.is-head-visible { display: none; }
   /* The sheet runs under the tab bar (which stays on top, z-index 10): no gap, the tab bar stays usable. */
   .va {
     top: auto;

@@ -12,6 +12,8 @@ import { AdvisorPanel, advisorMethodLine, useAdvisorStatus } from '../components
 import { AskAdvisorAtTable } from '../components/VoiceAdvisor';
 import type { ExecutorView } from '../lib/types';
 import { CouncilTabs } from './Meetings';
+import { ItemContextPanel } from '../components/ProjectContext';
+import type { IdeaDetail } from '../lib/types';
 
 /**
  * «Совет королевства» — the round table (owner brief 2026-11-11, ADR-0012).
@@ -257,6 +259,8 @@ export function RoundTable({ number }: { number: number }) {
 
         <aside className="council-panel stack" aria-label="Обсуждение и действия">
           {selected ? <Position seat={selected} entries={data.entries.filter((e) => e.authorMembershipId === selected.membershipId)} onClose={() => setSeat(null)} /> : null}
+
+          <CouncilContext number={it.number} />
 
           <section className="panel stack">
             <h2 className="section-title">Предмет обсуждения</h2>
@@ -638,7 +642,7 @@ function ArgueForm({ number, canRecommend, onDone }: { number: number; canRecomm
       </h2>
       <div className="segmented wrap" role="radiogroup" aria-label="Что вы добавляете">
         {options.map((o) => (
-          <button key={o.id} type="button" role="radio" aria-checked={kind === o.id} aria-pressed={kind === o.id} onClick={() => setKind(o.id)}>
+          <button key={o.id} type="button" role="radio" aria-checked={kind === o.id} onClick={() => setKind(o.id)}>
             {o.label}
           </button>
         ))}
@@ -857,7 +861,7 @@ function DecideForm({ view, onDone }: { view: CouncilView; onDone: (t: string) =
     >
       <div className="segmented" role="radiogroup" aria-label="Решение">
         {(['merge', 'reject', 'close'] as const).map((o) => (
-          <button key={o} type="button" role="radio" aria-checked={outcome === o} aria-pressed={outcome === o} onClick={() => setOutcome(o)}>
+          <button key={o} type="button" role="radio" aria-checked={outcome === o} onClick={() => setOutcome(o)}>
             {label[o]}
           </button>
         ))}
@@ -1005,4 +1009,12 @@ function PlacePanel({ view, onDone }: { view: CouncilView; onDone: (t: string) =
       ) : null}
     </section>
   );
+}
+
+/** Where the problem arose and which departments it touches (ADR-0031): the same panel as on the item card. */
+function CouncilContext({ number }: { number: number }) {
+  const s = useSession();
+  const { data, reload } = useLoad(() => api<IdeaDetail>(`/orgs/${s.org}/ideas/${number}`), [s.org, number]);
+  if (!data) return null;
+  return <ItemContextPanel item={data} onChanged={() => void reload()} council />;
 }

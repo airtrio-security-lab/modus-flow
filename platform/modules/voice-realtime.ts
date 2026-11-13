@@ -1,7 +1,7 @@
 import { AppError } from '../domain/errors.ts';
 
 /**
- * Speech-to-speech provider for the live voice advisor (ADR-0042).
+ * Speech-to-speech provider for the live voice advisor (ADR-0043).
  *
  * This file is the generic transport layer only: it knows how to ask OpenAI Realtime for a
  * short-lived client secret and how to relay one WebRTC SDP offer with it. It knows nothing

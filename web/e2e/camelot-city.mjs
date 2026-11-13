@@ -52,6 +52,42 @@ try {
     await page.waitForURL(new RegExp('#/castles/' + districtId + '/' + tab + '$'));
     await page.locator('.district-tabs').waitFor();
   }
+  // The push towards the building: seen before the section opens, measured inside the page; Escape skips it.
+  await page.goto(BASE + '/#' + entry + '/city');
+  await page.locator('.town-hotspot').first().waitFor();
+  const push = await page.evaluate(() => new Promise((done) => {
+    const t = performance.now();
+    const canvas = document.querySelector('.town-canvas');
+    window.addEventListener('hashchange', () => done({ ms: performance.now() - t, pushed: window.__pushed === true }), { once: true });
+    [...document.querySelectorAll('.town-hotspot')].find((a) => a.textContent.includes('Гильдия')).click();
+    requestAnimationFrame(() => (window.__pushed = canvas.classList.contains('is-entering') && canvas.getAttribute('aria-busy') === 'true'));
+  }));
+  if (!push.pushed || push.ms < 250 || push.ms > 900) throw new Error('The push towards the building: ' + JSON.stringify(push));
+  await page.waitForURL(new RegExp('#/castles/' + districtId + '/staff$'));
+  await page.goto(BASE + '/#' + entry + '/city');
+  await page.locator('.town-hotspot').first().waitFor();
+  const skipped = await page.evaluate(() => new Promise((done) => {
+    const t = performance.now();
+    window.addEventListener('hashchange', () => done(performance.now() - t), { once: true });
+    [...document.querySelectorAll('.town-hotspot')].find((a) => a.textContent.includes('Гильдия')).click();
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+  }));
+  if (skipped > 200) throw new Error('Escape does not skip the push: ' + Math.round(skipped) + ' ms');
+  // With reduced motion the link is a plain link: no push, no delay.
+  const calm = await browser.newContext({ viewport: { width: 1280, height: 900 }, reducedMotion: 'reduce' });
+  const cp = await calm.newPage();
+  await cp.goto(BASE);
+  await cp.getByRole('button', { name: new RegExp(admin.name) }).click();
+  await cp.waitForSelector('.shell');
+  await cp.goto(BASE + '/#' + entry + '/city');
+  await cp.locator('.town-hotspot').first().waitFor();
+  const plain = await cp.evaluate(() => new Promise((done) => {
+    const t = performance.now();
+    window.addEventListener('hashchange', () => done({ ms: performance.now() - t, pushed: document.querySelector('.town-canvas')?.classList.contains('is-entering') ?? false }), { once: true });
+    [...document.querySelectorAll('.town-hotspot')].find((a) => a.textContent.includes('Гильдия')).click();
+  }));
+  if (plain.pushed || plain.ms > 200) throw new Error('Reduced motion must have no push: ' + JSON.stringify(plain));
+  await calm.close();
   await page.goto(BASE + '/#' + entry + '/city');
   await page.getByRole('navigation', { name: 'Все здания Камелота' }).getByRole('link', { name: /Высший Архив/ }).click();
   await page.waitForURL(/#\/library\?hall=archive$/);

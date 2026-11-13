@@ -5,6 +5,7 @@ import { CIVILIZATION_IDS, civilization, civilizationName } from '../domain/civi
 import { levelFor } from '../domain/progress.ts';
 import { withTx, type Client, type Database } from '../db/pool.ts';
 import { orgTx } from './context.ts';
+import { loadEnvoy } from './envoy.ts';
 import { castle as castleDetail, castleProgress, loadConfig } from './progress.ts';
 import { effectiveTitles } from './titles.ts';
 
@@ -292,6 +293,8 @@ export async function person(db: Database, actor: OrgActor, membershipId: string
       initiatives: await list(`coalesce(o.raised_by_membership_id, o.author_membership_id) = $1`),
       results,
       achievements: { implemented: f.implemented, ideasImplemented: f.ideas, effectsConfirmed: f.effects, confirmedAsExecutor: f.confirmed },
+      // «Мой посол» / «Посол» (ADR-0032): rank from confirmed results, its basis per line; no rights.
+      envoy: await loadEnvoy(c, actor, p.id),
     };
   });
 }

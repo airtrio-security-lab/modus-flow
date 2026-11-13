@@ -1,7 +1,7 @@
 import { api, ApiError, getToken } from './api';
 
 /**
- * The company side of «Спросить советника» in the browser (ADR-0042): calls to the MODUS FLOW
+ * The company side of «Спросить советника» in the browser (ADR-0043): calls to the MODUS FLOW
  * server only. The SDP offer goes to our server, which relays it with a short-lived secret the
  * page never sees; tool calls go to our server, which runs them with the employee's own rights.
  */

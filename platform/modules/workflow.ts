@@ -64,8 +64,17 @@ export const EvidenceInput = z
     metric: text(1, 160).optional(),
     value: z.number().finite().optional(),
     unit: text(1, 40).optional(),
+    // Measured effect (ADR-0031): when/under which conditions, where the number comes from; on a baseline —
+    // which direction is the improvement; on a result — whether the conditions match the baseline.
+    period: text(1, 200).optional(),
+    source: text(1, 300).optional(),
+    goal: z.enum(['decrease', 'increase']).optional(),
+    comparable: z.boolean().optional(),
   })
   .strict()
+  .refine((v) => v.goal === undefined || v.kind === 'baseline', { message: 'Направление улучшения указывают в исходном измерении', path: ['goal'] })
+  .refine((v) => v.comparable === undefined || v.kind === 'result', { message: 'Сопоставимость условий указывают в измерении «после»', path: ['comparable'] })
+  .refine((v) => v.comparable !== true || v.value !== undefined, { message: 'Сопоставимым может быть только измерение с числом', path: ['comparable'] })
   .refine((v) => v.value === undefined || v.metric !== undefined, 'Для значения укажите метрику');
 export const ConcludeInput = z
   .object({ outcome: z.enum(['positive', 'negative', 'inconclusive']), conclusion: text(10, 5000) })
@@ -431,9 +440,49 @@ export function startVerification(
   });
 }
 
+/**
+ * Measuring the effect of an implementation (ADR-0031): the existing «impact» verification, started by
+ * the lead of the item while the implementation is under way or after it is confirmed. It collects the
+ * same append-only evidence and is concluded by the same person as a pilot; it moves no stage and
+ * decides nothing — the effect is still approved by the decision owner (progress.approveEffect).
+ */
+export const StartImpactInput = z.object({ plan: text(10, 5000), successCriteria: text(10, 3000), owner: uuid }).strict();
+export function startImpactVerification(db: Database, actor: OrgActor, number: number, input: z.infer<typeof StartImpactInput>, key?: string) {
+  return mutate(db, actor, number, 'verification.start_impact', input, key, async (c, idea) => {
+    authorize(actor, 'verification.start', accessFacts(idea));
+    if (idea.stage !== 'adoption' && idea.stage !== 'impact_verification') {
+      throw conflict('Эффект внедрения измеряют, когда принято решение о внедрении');
+    }
+    if (input.owner === idea.author_membership_id) throw new AppError('validation_failed', 'Автор не измеряет эффект собственной идеи');
+    if (input.owner === idea.decision_owner_membership_id) {
+      throw new AppError('validation_failed', 'Ответственный за решение не измеряет эффект, который будет подтверждать');
+    }
+    const owner = await c.query(
+      `SELECT 1 FROM memberships WHERE id = $1 AND organization_id = app_org_id() AND status = 'active' AND (access = 'member' OR $2)`,
+      [input.owner, input.owner === idea.maintainer_membership_id],
+    );
+    if (!owner.rowCount) throw new AppError('validation_failed', 'Измеряющий должен быть сотрудником организации');
+    const running = await c.query(`SELECT 1 FROM verifications WHERE idea_id = $1 AND purpose = 'impact' AND status IN ('planned','running')`, [idea.id]);
+    if (running.rowCount) throw conflict('Измерение эффекта по этому обращению уже идёт');
+    const { rows } = await c.query<{ id: string }>(
+      `INSERT INTO verifications (organization_id, idea_id, revision_number, purpose, owner_membership_id,
+                                  created_by_membership_id, plan, success_criteria)
+       VALUES ($1, $2, $3, 'impact', $4, $5, $6, $7) RETURNING id`,
+      [actor.orgId, idea.id, idea.current_revision_number, input.owner, actor.membershipId, input.plan, input.successCriteria],
+    );
+    const id = rows[0]!.id;
+    await c.query(`UPDATE verifications SET status = 'running', started_at = clock_timestamp() WHERE id = $1`, [id]);
+    await touch(c, idea);
+    await recordContribution(c, actor, idea, input.owner, 'verification', 'verification', id);
+    await log(c, actor, 'verification.started', 'verification', id, { idea: idea.number, revision: idea.current_revision_number, purpose: 'impact' });
+    await ping(c, actor, 'verification_started', idea, [idea.author_membership_id, input.owner], id);
+    return { id, status: 'running', purpose: 'impact', revision: idea.current_revision_number, stage: idea.stage };
+  });
+}
+
 async function loadVerification(c: Client, idea: IdeaRow, id: string) {
-  const { rows } = await c.query<{ id: string; status: string; owner_membership_id: string }>(
-    'SELECT id, status, owner_membership_id FROM verifications WHERE id = $1 AND idea_id = $2 FOR UPDATE',
+  const { rows } = await c.query<{ id: string; status: string; owner_membership_id: string; purpose: string }>(
+    'SELECT id, status, owner_membership_id, purpose FROM verifications WHERE id = $1 AND idea_id = $2 FOR UPDATE',
     [id, idea.id],
   );
   if (!rows[0]) throw notFound('Проверка не найдена');
@@ -453,9 +502,13 @@ export function recordEvidence(
     authorize(actor, 'verification.record_evidence', accessFacts(idea), { verificationOwnerMembershipId: v.owner_membership_id });
     if (v.status !== 'running') throw conflict('Доказательства добавляются только в идущую проверку');
     const { rows } = await c.query<{ id: string }>(
-      `INSERT INTO verification_evidence (organization_id, verification_id, kind, body, metric, value, unit, recorded_by_membership_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
-      [actor.orgId, verificationId, input.kind, input.body, input.metric ?? null, input.value ?? null, input.unit ?? null, actor.membershipId],
+      `INSERT INTO verification_evidence (organization_id, verification_id, kind, body, metric, value, unit, recorded_by_membership_id,
+                                          period, source, goal, comparable)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id`,
+      [
+        actor.orgId, verificationId, input.kind, input.body, input.metric ?? null, input.value ?? null, input.unit ?? null, actor.membershipId,
+        input.period ?? null, input.source ?? null, input.goal ?? null, input.comparable ?? null,
+      ],
     );
     await touch(c, idea);
     await log(c, actor, 'verification.evidence_recorded', 'verification', verificationId, { evidence: rows[0]!.id, kind: input.kind });
@@ -488,7 +541,9 @@ export function concludeVerification(
               concluded_by_membership_id = $4, completed_at = clock_timestamp() WHERE id = $1`,
       [verificationId, input.outcome, input.conclusion, actor.membershipId],
     );
-    await moveStage(c, idea, 'decision');
+    // A pilot leads to the decision; a measurement of the effect changes no stage and decides nothing.
+    if (v.purpose === 'impact') await touch(c, idea);
+    else await moveStage(c, idea, 'decision');
     if (input.outcome === 'negative') {
       // A well-documented negative result is a contribution in its own right.
       await recordContribution(c, actor, idea, v.owner_membership_id, 'negative_result', 'verification', verificationId);
@@ -626,5 +681,41 @@ export function declineAttribution(db: Database, actor: OrgActor, number: number
     await log(c, actor, 'idea.attribution_declined', 'idea', idea.id, {});
     idea.raised_by_membership_id = null;
     return { number: idea.number, raisedBy: null };
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Confirming a contribution (ADR-0042): «Ваш вклад признан»
+// ---------------------------------------------------------------------------
+/**
+ * The item's maintainer or decision owner confirms a recorded contribution of someone else: a review,
+ * a co-authored revision, a completed verification, a negative result, an implementation, a question
+ * raised. Authorship is not confirmed (it is a fact of registration). The database checks the same
+ * rules (RLS, CHECK, migration 0023); the contributor is told once. No XP, no stage, no rights.
+ */
+export function confirmContribution(db: Database, actor: OrgActor, number: number, contributionId: string, key?: string) {
+  return mutate(db, actor, number, `contribution.confirm:${contributionId}`, {}, key, async (c, idea) => {
+    const { rows } = await c.query<{ id: string; membership_id: string; kind: string; status: string; source_type: string; source_id: string }>(
+      'SELECT id, membership_id, kind, status, source_type, source_id FROM contributions WHERE id = $1 AND idea_id = $2',
+      [contributionId, idea.id],
+    );
+    const k = rows[0];
+    if (!k) throw notFound('Вклад не найден');
+    authorize(actor, 'contribution.confirm', accessFacts(idea), { contributorMembershipId: k.membership_id });
+    if (k.status === 'confirmed') throw conflict('Вклад уже подтверждён');
+    if (k.status === 'revoked') throw conflict('Вклад отозван и не подтверждается');
+    if (k.kind === 'authorship') throw new AppError('validation_failed', 'Авторство — факт регистрации, его не подтверждают');
+    if (k.source_type === 'verification') {
+      const v = await c.query<{ status: string }>('SELECT status FROM verifications WHERE id = $1', [k.source_id]);
+      if (v.rows[0]?.status !== 'completed') throw new AppError('validation_failed', 'Вклад в проверку подтверждают после её завершения');
+    }
+    const done = await c.query<{ confirmed_at: Date }>(
+      `UPDATE contributions SET status = 'confirmed', confirmed_by_membership_id = $2, confirmed_at = clock_timestamp()
+        WHERE id = $1 RETURNING confirmed_at`,
+      [k.id, actor.membershipId],
+    );
+    await log(c, actor, 'contribution.confirmed', 'contribution', k.id, { idea: idea.number, kind: k.kind });
+    await c.query('SELECT app_notify_contribution($1)', [k.id]);
+    return { id: k.id, kind: k.kind, status: 'confirmed', confirmedAt: done.rows[0]!.confirmed_at };
   });
 }

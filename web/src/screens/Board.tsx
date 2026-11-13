@@ -122,11 +122,10 @@ export function Board() {
             </button>
           ))}
         </nav>
-        <div className="board" role="list">
+        <div className="board">
           {columns.map((c) => (
             <section
               key={c.id}
-              role="listitem"
               aria-label={`${c.title}: ${c.list.length}`}
               className={`column${over === c.id ? ' over' : ''}`}
               data-active={c.id === activeCol || undefined}

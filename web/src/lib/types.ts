@@ -100,8 +100,55 @@ export interface Evidence {
   metric: string | null;
   value: number | null;
   unit: string | null;
+  period?: string | null;
+  source?: string | null;
+  goal?: 'decrease' | 'increase' | null;
+  comparable?: boolean | null;
   createdAt: string;
   recordedBy: string;
+}
+/** Product refinement (ADR-0031). */
+export type WorkStage = 'design' | 'procurement' | 'installation' | 'commissioning' | 'operation' | 'internal' | 'other';
+export interface ItemContext {
+  project: string | null;
+  workStage: WorkStage | null;
+  workStageName: string | null;
+  setBy: string | null;
+  setAt: string | null;
+  affected: { id: string; name: string; addedBy: string; at: string }[];
+}
+export interface EffectPoint {
+  evidenceId: string;
+  value: number;
+  unit: string | null;
+  period: string | null;
+  source: string | null;
+  recordedBy: string | null;
+  at: string;
+}
+export interface EffectLine {
+  metric: string;
+  state: 'measured' | 'not_measured' | 'incomparable';
+  reason: 'no_baseline' | 'no_result' | 'units' | 'conditions' | null;
+  goal: 'decrease' | 'increase' | null;
+  before: EffectPoint | null;
+  after: EffectPoint | null;
+  delta: number | null;
+  percent: number | null;
+  verdict: 'improved' | 'worsened' | 'unchanged' | 'changed' | null;
+}
+export interface ItemEffect {
+  lines: EffectLine[];
+  measured: boolean;
+  approval: { by: string; at: string } | null;
+}
+export interface Specialists {
+  method: 'rules';
+  affected: { id: string; name: string }[];
+  heads: { membershipId: string; name: string; jobTitle: string | null; department: string }[];
+  specialists: { membershipId: string; name: string; jobTitle: string | null; department: string | null; matched: string[] }[];
+  canSeeSkills: boolean;
+  note: string;
 }
 export interface Verification {
   id: string;
@@ -133,6 +180,12 @@ export interface Contribution {
   status: 'recorded' | 'confirmed' | 'revoked';
   member: string;
   created_at: string;
+  /** ADR-0042: who confirmed it and when; whether the reader may confirm it (decided by the server). */
+  id?: string;
+  membershipId?: string;
+  confirmedAt?: string | null;
+  confirmedBy?: string | null;
+  canConfirm?: boolean;
 }
 export interface Attachment {
   id: string;
@@ -156,6 +209,10 @@ export interface Deferral {
   at: string;
 }
 export interface IdeaDetail {
+  context: ItemContext;
+  /** «Применить этот метод» (ADR-0040): the knowledge this item was started from, when its reader may open it. */
+  method?: { id: string; title: string; hall: string; startedAt: string } | null;
+  effect: ItemEffect;
   id: string;
   number: number;
   kind: Kind;
@@ -238,6 +295,9 @@ export interface MeetingInvite {
   consent: 'pending' | 'given' | 'declined';
   cancelled: boolean;
   cancelReason: string | null;
+  /** ADR-0042: the session is over; when its recording started. */
+  ended?: boolean;
+  recordingStartedAt?: string | null;
 }
 export interface Notification {
   id: string;
@@ -323,6 +383,12 @@ export interface Envoy {
   author: string | null;
   /** The decision is postponed until this date (0018), or null. */
   deferredUntil: string | null;
+  /** «Путь Посла» (ADR-0032): whose envoy it is (raised_by, else the author). */
+  sender: string | null;
+  /** Rank I..VII of the sender's envoy — from confirmed results only, grants nothing. */
+  envoyRank: number;
+  /** Style of the sender's own department: the clothes, not the castle the item goes to. */
+  envoyCivilization: string;
 }
 export interface Kingdom {
   castles: Castle[];
@@ -772,6 +838,39 @@ export interface PersonCard {
   initiatives: PersonListItem[];
   results: { number: number; title: string; role: string; xp: number }[];
   achievements: StaffCard['achievements'];
+  /** «Мой посол» / «Посол» (ADR-0032). */
+  envoy: EnvoyCard;
+}
+
+/** «Путь Посла» (ADR-0032): the envoy of one person, computed by the server from confirmed events. */
+export type EnvoyEventKind = 'resolution' | 'implementation' | 'effect';
+export interface EnvoyCard {
+  rank: number;
+  /** Name of the rank. */
+  name: string;
+  genitive: string;
+  attire: string;
+  floor: number;
+  next: number | null;
+  nextName: string | null;
+  progress: number;
+  membershipId: string;
+  personName: string;
+  self: boolean;
+  civilization: string;
+  civilizationName: string;
+  department: string | null;
+  xp: number;
+  thresholds: number[];
+  ranks: { rank: number; name: string; xp: number; attire: string; reachedAt: string | null; number: number | null }[];
+  history: { id: string; kind: EnvoyEventKind; xp: number; at: string; number: number | null; title: string | null; text: string }[];
+  items: { number: number; title: string; status: Status; xp: number }[];
+  results: { implemented: number; effects: number };
+  rules: { kind: EnvoyEventKind; label: string; xp: number; enabled: boolean }[];
+  noXp: string[];
+}
+export interface MyEnvoy extends EnvoyCard {
+  pending: { notificationId: string; rank: number; name: string; text: string; number: number | null; at: string } | null;
 }
 
 /** Civilization registry (ADR-0020): words only, no rights. */

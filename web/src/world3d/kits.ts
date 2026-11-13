@@ -745,72 +745,246 @@ export const KITS: Record<CivId, Kit> = { camelot, japan, kazakh, mongolia, russ
 // ---------------------------------------------------------------------------
 // The neutral centre of the commonwealth
 // ---------------------------------------------------------------------------
-/** The palace of the Great Round Table: a domed rotunda with four equal wings — one per civilization, none above the others. */
+/** A four-sided spire whose faces look along the axes; `half` is half the side of its base. */
+function pyramid(half: number, h: number) {
+  const g = cone(half * Math.SQRT2, h, 4);
+  g.rotateY(Math.PI / 4);
+  return g;
+}
+/**
+ * A row of lancet windows on a wall that faces +Z: a lit pane behind a stone panel with pointed
+ * openings. Centred on X, standing on y = 0 of the current frame; put it 0.1 in front of the wall.
+ */
+function lancets(b: Builder, wall: MatKey, len: number, h: number, n: number, openW: number, openH: number) {
+  b.add('window', box(len - 0.5, openH + openW * 0.25, 0.1), 0, 0, -0.05);
+  const w = len / n;
+  for (let i = 0; i < n; i++) b.add(wall, archWall(w, h, 0.7, openW, openH, true), -len / 2 + w * (i + 0.5), 0, 0.35);
+}
+/**
+ * The seal of the commonwealth on a wall that faces +Z: a gold ring with one stud per civilization
+ * around one field — the Round Table seen from above. No civilization is set above another.
+ */
+function seal(b: Builder, r: number, field: MatKey = 'burgundy') {
+  b.add(field, new THREE.CircleGeometry(r * 0.94, 24), 0, 0, 0.02);
+  b.add('gold', new THREE.TorusGeometry(r, r * 0.12, 6, 28), 0, 0, 0.06);
+  b.add('gold', new THREE.CircleGeometry(r * 0.28, 16), 0, 0, 0.05);
+  for (let i = 0; i < 5; i++) {
+    const a = (i / 5) * Math.PI * 2;
+    b.add('gold', new THREE.SphereGeometry(r * 0.16, 8, 6), Math.sin(a) * r, Math.cos(a) * r, 0.1);
+  }
+}
+/**
+ * The Palace of the Great Round Table (ADR-0034): a palace-fortress. The central donjon is the tallest
+ * thing in the city, the great hall of the Council is the most massive; a crenellated ward with four
+ * corner towers of different heights and a gatehouse stands on the round plinth where every road ends.
+ */
 export function greatPalace(b: Builder, ban: string) {
   b.add('stoneDark', cyl(40, 42, 2.4, 40));
   b.add('marble', cyl(34, 34, 0.6, 40), 0, 2.4, 0);
-  const y = 3;
-  // Grand stairs on four sides.
-  for (let i = 0; i < 4; i++) b.at(0, 0, 0, (i * Math.PI) / 2, () => {
-    for (let s = 0; s < 6; s++) b.add('marble', box(12, 0.5, 1.4), 0, s * 0.5, 44.6 - s * 1.4);
-  });
-  // The rotunda.
-  b.add('stone', cyl(15, 15.6, 13, 32), 0, y, 0);
-  ring(16, 15.3, (x, z, a) => {
-    b.add('marble', cyl(0.75, 0.85, 11, 10), x * 1.09, y, z * 1.09);
-    b.add('window', box(1.6, 5.5, 0.2), x, y + 3.5, z, a);
-  });
-  b.add('stone', cyl(17.6, 17.6, 1.4, 32), 0, y + 11, 0);
-  b.add('stone', cyl(12.5, 13, 5, 32), 0, y + 13, 0);
-  ring(12, 12.8, (x, z, a) => b.add('window', box(1.3, 2.8, 0.2), x, y + 14, z, a));
-  const R = 12.6;
-  const dy = y + 18;
-  b.add('copper', lathe([[R, dy], [R * 1.02, dy + R * 0.3], [R * 0.9, dy + R * 0.62], [R * 0.62, dy + R * 0.9], [R * 0.26, dy + R * 1.04], [0.4, dy + R * 1.08]], 32));
-  b.add('gold', cyl(1.6, 2.1, 2.2, 12), 0, dy + R * 1.06, 0);
-  b.add('gold', lathe([[1.2, dy + R * 1.06 + 2.2], [0.9, dy + R * 1.06 + 3.6], [0.06, dy + R * 1.06 + 6.4]], 10));
-  // Four wings with corner towers.
+  // Stairs on four sides: every road still ends at steps. The ceremonial flight to the main gate (+Z) is twice as wide.
   for (let i = 0; i < 4; i++)
-    b.at(0, y, 0, (i * Math.PI) / 2, () => {
-      b.add('stone', box(13, 10, 14), 0, 0, 21);
-      b.add('slate', gable(14.4, 13, 4.5, 0.4), 0, 10, 21, Math.PI / 2);
-      b.add('stone', archWall(13, 12.5, 1.6, 4.4, 8), 0, 0, 28.6);
-      b.add('dark', box(4.2, 7.6, 0.3), 0, 0, 28);
-      for (const s of [-1, 1]) {
-        b.add('marble', cyl(0.6, 0.7, 9, 10), s * 4.6, 0, 29.8);
-        b.add('window', box(1.2, 4.5, 0.2), s * 4.2, 3, 28.05);
-        b.at(s * 3.4, 12.2, 29.5, 0, () => hanging(b, ban, 1.6, 5.4));
+    b.at(0, 0, 0, (i * Math.PI) / 2, () => {
+      const w = i === 0 ? 22 : 10;
+      for (let s = 0; s < 6; s++) b.add('marble', box(w, 0.5, 1.4), 0, s * 0.5, 44.6 - s * 1.4);
+      if (i === 0)
+        for (const sx of [-1, 1]) {
+          b.add('stoneDark', box(2.2, 3.6, 7.4), sx * 12.2, 0, 41.2);
+          b.add('marble', box(2.6, 0.5, 7.8), sx * 12.2, 3.6, 41.2);
+          b.add('gold', new THREE.SphereGeometry(0.7, 10, 8), sx * 12.2, 4.8, 43.4);
+        }
+    });
+  b.at(0, 3, 0, 0, () => {
+    const W = 22;
+    const wallH = 9;
+    // The ward: a dark battered footing, then curtain walls with merlons on the outer side.
+    for (let i = 0; i < 4; i++) b.at(0, 0, 0, (i * Math.PI) / 2, () => b.add('stoneDark', box(W * 2 + 2, 1.5, 3.6), 0, 0, W));
+    curtain(b, 'stone', -W, W, -7, W, wallH, 2.4);
+    curtain(b, 'stone', 7, W, W, W, wallH, 2.4);
+    curtain(b, 'stone', W, W, W, -W, wallH, 2.4);
+    curtain(b, 'stone', W, -W, -W, -W, wallH, 2.4);
+    curtain(b, 'stone', -W, -W, -W, W, wallH, 2.4);
+    // Four corner towers, each of its own height; the rear pair is taller, so the front never hides the hall.
+    for (const [x, z, r, h] of [[-W, W, 3.5, 17], [W, W, 3.7, 20.5], [W, -W, 4.2, 27], [-W, -W, 4, 23.5]] as [number, number, number, number][])
+      b.at(x, 0, z, 0, () => roundTower(b, 'stone', r, h, 'slate', { roofH: r * 2.7 }));
+
+    // The gatehouse: a pointed gate between two drum towers, the seal of the commonwealth over the arch.
+    b.at(0, 0, W, 0, () => {
+      b.add('stone', archWall(14, 14, 6, 5.2, 8, true));
+      b.add('dark', box(5.4, 8.8, 0.3), 0, 0, -2.4);
+      b.add('iron', box(5.2, 1.5, 0.16), 0, 7, 1.4);
+      for (const sx of [-1, 1]) {
+        b.at(sx * 9.4, 0, 1.2, 0, () => roundTower(b, 'stone', 3, 17.5, 'slate', { roofH: 8 }));
+        b.at(sx * 4.7, 13.4, 3.06, 0, () => hanging(b, ban, 1.7, 6.2));
+        b.at(sx * 5, 14.7, -0.6, 0, () => banner(b, ban, 7, 1.6, 3.8));
       }
-      b.at(15.5, 0, 15.5, 0, () => {
-        roundTower(b, 'stone', 3.4, 17, 'slate', { roofH: 9 });
+      b.add('stone', box(14, 0.7, 6.6), 0, 14, 0);
+      merlons(b, 'stone', 14, 14.7, 3);
+      b.at(0, 11.4, 3.02, 0, () => seal(b, 1.5));
+    });
+
+    // The inner court: cobbles, and the Round Table itself laid in the paving.
+    b.add('cobble', box(W * 2 - 2, 0.12, W * 2 - 2));
+    b.add('marble', cyl(6.4, 6.4, 0.2, 36), 0, 0.1, 12.2);
+    const table = new THREE.TorusGeometry(6.2, 0.3, 6, 40);
+    table.rotateX(Math.PI / 2);
+    b.add('gold', table, 0, 0.36, 12.2);
+    b.add('gold', cyl(1.3, 1.3, 0.12, 20), 0, 0.3, 12.2);
+
+    // The great hall of the Council: the most massive volume, lancet windows between buttresses, a steep slate roof.
+    const HW = 32;
+    const HD = 18;
+    const HH = 16;
+    b.at(0, 0, -7, 0, () => {
+      b.add('stoneDark', box(HW + 1.8, 1.3, HD + 1.8));
+      b.add('stone', box(HW, HH, HD));
+      b.add('marble', box(HW + 1.2, 0.7, HD + 2.2), 0, HH, 0);
+      b.add('slate', gable(HW + 0.6, HD + 1.6, 9.5, 0.5), 0, HH + 0.7, 0);
+      // Stone gable ends with a lit oculus each: the roof is slate, the walls are not.
+      for (const sx of [-1, 1]) {
+        b.add('stone', gable(0.5, HD + 1.8, 9.7, 0.5), sx * (HW / 2 + 0.4), HH + 0.7, 0);
+        b.add('window', new THREE.CircleGeometry(1.5, 20), sx * (HW / 2 + 1.42), HH + 4, 0, (sx * Math.PI) / 2);
+      }
+      const bay = (HW - 2) / 7;
+      for (const s of [1, -1])
+        b.at(0, 0, 0, s === 1 ? 0 : Math.PI, () => {
+          b.at(0, 4, HD / 2 + 0.1, 0, () => lancets(b, 'stone', HW - 2, HH - 4, 7, 1.7, 8.4));
+          for (let i = 0; i <= 7; i++) {
+            if (s === 1 && (i === 3 || i === 4)) continue; // the portal stands here
+            const x = -(HW - 2) / 2 + bay * i;
+            b.add('stone', box(1, HH * 0.82, 1.5), x, 0, HD / 2 + 0.95);
+            b.add('marble', box(1.3, 0.4, 1.8), x, HH * 0.82, HD / 2 + 0.95);
+          }
+        });
+      // The portal of the hall: bronze doors under a pointed arch, a short flight of steps into the court.
+      b.at(0, 0, HD / 2 + 1.6, 0, () => {
+        b.add('stone', archWall(8.8, 12.6, 3, 4.6, 8.8, true));
+        b.add('slate', gable(3.4, 9.8, 3.6, 0.3), 0, 12.6, 0, Math.PI / 2);
+        b.add('bronze', box(4.8, 9.2, 0.3), 0, 0, -0.9);
+        b.add('iron', box(0.14, 9.2, 0.34), 0, 0, -0.88);
+        for (let s = 0; s < 3; s++) b.add('marble', box(11, 0.4, 1.2), 0, s * 0.4, 4.6 - s * 1.2);
       });
     });
-}
-/** The Great Library (chronicle and decisions) with the Higher Archive as a rotunda with its own entrance. */
-export function library(b: Builder) {
-  b.add('stoneDark', box(46, 1.6, 22));
-  b.add('stone', box(40, 11, 15), 0, 1.6, 0);
-  b.add('copper', gable(41, 16, 5.5, 0.6), 0, 12.6, 0);
-  for (let i = 0; i < 10; i++) {
-    const x = -18 + i * 4;
-    b.add('marble', cyl(0.65, 0.75, 9.6, 10), x, 1.6, 9.2);
-    b.add('window', box(1.5, 6, 0.2), x + 2, 4, 7.55);
-  }
-  b.add('stone', box(41, 1.4, 4.4), 0, 11.2, 8.6);
-  for (let s = 0; s < 4; s++) b.add('marble', box(16, 0.4, 1.3), 0, s * 0.4, 12.4 - s * 1.3 + 2);
-  b.add('dark', box(3.6, 6.4, 0.3), 0, 1.6, 7.6);
-  // The archive rotunda on the right end.
-  b.at(27, 0, -1, 0, () => {
-    b.add('stoneDark', cyl(11, 11.6, 1.6, 28));
-    b.add('stone', cyl(8.6, 8.6, 10, 28), 0, 1.6, 0);
-    ring(10, 8.7, (x, z, a) => b.add('window', box(1.1, 4.4, 0.2), x, 4.6, z, a));
-    b.add('stone', cyl(9.4, 9.4, 0.9, 28), 0, 11.6, 0);
-    b.add('tileBlue', lathe([[8.8, 12.5], [8.6, 14.5], [7, 17.4], [4, 19.4], [0.3, 20.2]], 28));
-    b.add('gold', cyl(0.1, 0.1, 2.6, 6), 0, 20.2, 0);
-    b.add('stone', archWall(5.4, 7.4, 1.4, 2.6, 5), 0, 1.6, 9);
-    b.add('dark', box(2.5, 4.9, 0.3), 0, 1.6, 8.6);
-    for (let s = 0; s < 3; s++) b.add('marble', box(6, 0.5, 1.2), 0, s * 0.5, 12 - s * 1.2);
+
+    // The donjon: the one great vertical of the commonwealth, rising through the hall.
+    const DW = 12;
+    const DH = 36;
+    b.at(0, 0, -7, 0, () => {
+      squareTower(b, 'stone', DW, DW, DH, { windows: 0 });
+      for (let k = 0; k < 4; k++) b.at(0, DH - 11.5, 0, (k * Math.PI) / 2, () => b.at(0, 0, DW / 2 + 0.1, 0, () => lancets(b, 'stone', DW - 2.6, 9.6, 2, 1.8, 7)));
+      for (const sx of [-1, 1]) for (const sz of [-1, 1]) b.at((sx * DW) / 2, DH - 5.5, (sz * DW) / 2, 0, () => roundTower(b, 'stone', 1.7, 8.5, 'slate', { windows: false, roofH: 5.8 }));
+      b.add('stone', box(8, 6.4, 8), 0, DH + 0.6, 0);
+      for (let k = 0; k < 4; k++) b.at(0, DH + 1.8, 0, (k * Math.PI) / 2, () => {
+        for (const t of [-1.7, 1.7]) b.add('window', box(1, 3.4, 0.12), t, 0, 4.03);
+      });
+      b.add('marble', box(9, 0.5, 9), 0, DH + 7, 0);
+      b.add('slate', pyramid(4.9, 14.5), 0, DH + 7.5, 0);
+      b.add('gold', cyl(0.12, 0.16, 2.6, 6), 0, DH + 21.6, 0);
+      b.add('gold', new THREE.SphereGeometry(0.6, 10, 8), 0, DH + 24.4, 0);
+      b.at(0, DH + 0.6, 4.6, 0, () => banner(b, ban, 8.5, 1.9, 4.4));
+    });
   });
-  b.add('stone', box(8, 7, 6), 18, 1.6, -1);
+}
+/**
+ * The Great Library (ADR-0034): a temple of knowledge. A tall nave with three pointed portals — one
+ * per hall: Летопись, Библиотека решений, Высший Архив — between two towers, low wings with lancet
+ * windows, a wide central flight of steps. A short gallery joins it to the Higher Archive.
+ */
+export function library(b: Builder) {
+  b.add('stoneDark', box(44, 1.6, 25), 0, 0, 0.5);
+  b.add('marble', box(42.4, 0.4, 23.4), 0, 1.6, 0.5);
+  for (let s = 0; s < 5; s++) b.add('marble', box(20, 0.4, 1.3), 0, s * 0.4, 18.6 - s * 1.3);
+  b.at(0, 2, 0, 0, () => {
+    const NW = 20;
+    const NH = 15;
+    // The nave: its gable looks at the palace.
+    b.add('stone', box(NW, NH, 17), 0, 0, -0.5);
+    b.add('marble', box(NW + 1, 0.7, 18), 0, NH, -0.5);
+    b.add('slate', gable(16.6, NW + 0.6, 8.5, 0.5), 0, NH + 0.7, -0.6, Math.PI / 2);
+    b.add('stone', gable(0.9, NW + 1.6, 9, 0), 0, NH + 0.7, 8.55, Math.PI / 2);
+    // A round window in the gable: the lamp of the reading hall.
+    b.add('window', new THREE.CircleGeometry(1.9, 24), 0, NH + 3.7, 9.03);
+    b.add('gold', new THREE.TorusGeometry(2, 0.2, 6, 28), 0, NH + 3.7, 9.06);
+    // Windows of the back wall: the building has no blind side.
+    b.at(0, 3, -9.1, Math.PI, () => lancets(b, 'stone', NW - 2, 11, 4, 1.6, 7.6));
+    // Three portals, one per hall, each under its own medallion: bronze, green, burgundy.
+    const medal: MatKey[] = ['bronze', 'copper', 'burgundy'];
+    for (let i = 0; i < 3; i++) {
+      const x = -NW / 3 + (NW / 3) * i;
+      b.add('stone', archWall(NW / 3, 11.4, 1.5, 3.5, 8, true), x, 0, 8.75);
+      b.add('dark', box(3.7, 8.6, 0.2), x, 0, 8.1);
+      b.add('wood', box(3.5, 6.2, 0.25), x, 0, 8.3);
+      b.add('iron', box(0.1, 6.2, 0.3), x, 0, 8.32);
+      b.add(medal[i]!, new THREE.CircleGeometry(0.62, 16), x, 10.1, 9.52);
+      b.add('gold', new THREE.TorusGeometry(0.66, 0.09, 5, 18), x, 10.1, 9.54);
+    }
+    b.add('marble', box(NW + 0.6, 0.5, 1.9), 0, 11.4, 8.75);
+    for (let i = 0; i < 5; i++) b.add('window', box(1, 2.3, 0.1), -6.4 + i * 3.2, 12.2, 8.03);
+    for (const s of [-1, 1]) {
+      // A tower on each side of the nave.
+      b.at(s * 12.6, 0, 5, 0, () => {
+        squareTower(b, 'stone', 5, 5, 19, { windows: 3, crenel: false });
+        b.add('marble', box(6.2, 0.5, 6.2), 0, 19.6, 0);
+        b.add('slate', pyramid(3.3, 8.5), 0, 20.1, 0);
+        b.add('gold', cyl(0.07, 0.07, 1.8, 6), 0, 28.3, 0);
+        b.add('gold', new THREE.SphereGeometry(0.28, 8, 6), 0, 30.2, 0);
+      });
+      // A low wing of reading rooms with tall lancet windows.
+      b.at(s * 17, 0, -1, 0, () => {
+        b.add('stone', box(8, 10, 13));
+        b.add('marble', box(8.6, 0.5, 13.8), 0, 10, 0);
+        b.add('slate', gable(8.2, 13.6, 4.6, 0.4), 0, 10.5, 0);
+        b.at(s * 1, 1.2, 6.6, 0, () => lancets(b, 'stone', 5.6, 8.6, 2, 1.4, 6.2));
+        // The free end of the left wing has windows; the right one meets the gallery to the archive.
+        if (s === -1) b.at(-4.1, 1.2, 0, -Math.PI / 2, () => lancets(b, 'stone', 12, 8.6, 3, 1.5, 6.2));
+      });
+    }
+  });
+  // The gallery to the archive: one complex, two characters.
+  b.add('stone', box(4.4, 5.6, 5), 22.8, 2, -1);
+  b.add('slate', gable(4.6, 5.4, 1.8, 0.2), 22.8, 7.6, -1);
+  b.at(31, 0, -1, 0, () => higherArchive(b));
+}
+/**
+ * The Higher Archive (ADR-0034): a treasury, not one more library. A heavy stepped footing, blind
+ * walls between corner piers, slit windows under the cornice, closed bronze doors with iron bands
+ * and the seal of approved heritage above them. The building says nothing about any record: what
+ * is kept here is decided only by the server workflow.
+ */
+function higherArchive(b: Builder) {
+  b.add('stoneDark', box(19, 1.2, 19));
+  b.add('stoneDark', box(17.4, 1.4, 17.4), 0, 1.2, 0);
+  for (let s = 0; s < 5; s++) b.add('marble', box(9.6, 0.52, 1.25), 0, s * 0.52, 14.6 - s * 1.25);
+  for (const sx of [-1, 1]) {
+    b.add('stoneDark', box(1.7, 3.6, 6.4), sx * 5.8, 0, 11.6);
+    b.add('marble', box(2.1, 0.45, 6.8), sx * 5.8, 3.6, 11.6);
+  }
+  b.at(0, 2.6, 0, 0, () => {
+    b.add('stone', box(14, 11, 14));
+    for (const sx of [-1, 1])
+      for (const sz of [-1, 1]) {
+        b.add('stoneDark', box(2.8, 12, 2.8), sx * 6.3, 0, sz * 6.3);
+        b.add('marble', box(3.2, 0.5, 3.2), sx * 6.3, 12, sz * 6.3);
+      }
+    b.add('marble', box(15.4, 0.9, 15.4), 0, 11, 0);
+    b.add('stone', box(11.4, 2.8, 11.4), 0, 11.9, 0);
+    b.add('marble', box(12.2, 0.5, 12.2), 0, 14.7, 0);
+    b.add('slate', pyramid(6.3, 5), 0, 15.2, 0);
+    b.add('gold', cyl(0.1, 0.14, 1.4, 6), 0, 20, 0);
+    b.add('gold', new THREE.SphereGeometry(0.5, 10, 8), 0, 21.6, 0);
+    // Slits instead of windows: light for the keepers, nothing to climb through.
+    for (let k = 0; k < 4; k++)
+      b.at(0, 0, 0, (k * Math.PI) / 2, () => {
+        for (const t of k === 0 ? [-3.4, 3.4] : [-3.2, 0, 3.2]) b.add('window', box(0.34, 2.2, 0.1), t, 7.6, 7.04);
+      });
+    // The portal: closed doors.
+    b.add('stone', archWall(8.4, 9.6, 2.2, 4.2, 7.2), 0, 0, 7.9);
+    b.add('marble', box(9.2, 0.6, 2.8), 0, 9.6, 7.9);
+    b.add('bronze', box(4.3, 7.3, 0.35), 0, 0, 7.5);
+    b.add('iron', box(0.12, 7.2, 0.4), 0, 0, 7.52);
+    for (const yy of [1.5, 3.5, 5.5]) b.add('iron', box(4.3, 0.22, 0.4), 0, yy, 7.52);
+    b.at(0, 13.3, 5.74, 0, () => seal(b, 1.05));
+    for (const sx of [-1, 1]) b.at(sx * 6.3, 10.8, 7.74, 0, () => hanging(b, 'burgundy', 1.5, 6.4));
+  });
 }
 /** The achievements plaza: a fountain and one pedestal per achievement really earned by the castles. */
 export function plaza(b: Builder, pedestals: number) {

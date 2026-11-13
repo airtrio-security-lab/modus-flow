@@ -145,6 +145,7 @@ lost, everyone sees the stage, the owner sees what needs attention. Migrations 0
 | POST | `…/ideas/:number/implementer` | after a merge decision, by the leads |
 | POST | `…/ideas/:number/implementation` | `{report}`; implementer (not an originator) or a lead → `implemented` |
 | POST | `…/ideas/:number/attribution/decline` | the person recorded as "raised by" declines the credit |
+| POST | `…/ideas/:number/contributions/:id/confirm` | `{}`; the item's maintainer or decision owner confirms someone else's recorded contribution (not authorship; a verification only once completed); the contributor gets `contribution_confirmed` once; no XP (ADR-0042) |
 | POST/GET | `…/ideas/:number/attachments[/:id]` | raw body, `Content-Type`, `X-File-Name` (URL-encoded); ≤ 5 MB, ≤ 10 per item; signature must match type |
 | GET | `/api/v1/orgs/:org/directory` | departments, categories, active members, settings (full members only) |
 | GET/POST | `/api/v1/orgs/:org/routing-rules`, `POST …/:id/active` | org_admin writes; rules are deactivated, never deleted |
@@ -263,3 +264,12 @@ same origin with a strict CSP.
 - **Запасной вид.** Без WebGL и в облегчённом режиме — список зданий с объяснением.
 - **Миграции.** Номера 0017 и 0018 встречаются дважды (`dataset_import` и `royal_audiences`, `deferral` и `russian_tsardom`); файлы независимы и учитываются по имени и контрольной сумме, переименовывать применённые нельзя.
 - **Статика.** `platform/http/static.ts` отдаёт `.webp` и `.jpg` с правильным типом (панорама Камелота — WebP).
+
+## Контекст проекта и измеренный эффект (ADR-0031, миграция 0019)
+
+- **Таблицы.** `idea_contexts` (проект или объект, этап работы; одна запись на обращение, только добавление) и `idea_affected_departments` (затронутые подразделения отдельно от `ideas.department_id`; только добавление). Четыре необязательных столбца в `verification_evidence`: `period`, `source`, `goal`, `comparable`.
+- **Маршруты.** `POST /ideas` принимает необязательный `context`; `POST /ideas/:n/context` (один раз), `POST /ideas/:n/affected-departments`, `GET /ideas/:n/specialists`, `POST /ideas/:n/impact-verifications`. `GET /ideas/:n` возвращает `context` и `effect`.
+- **Правила эффекта.** `platform/domain/effect.ts`: пара «до/после» по одной метрике; без пары — не измерено; разные единицы или нет отметки сопоставимости — без разницы и процента; метрики не складываются.
+- **Права не менялись.** Измерение запускает ведущий, бонус за эффект подтверждает ответственный за решение, записи в Летопись вносит Архивариус или руководитель.
+- **Интерфейс.** `web/src/components/ProjectContext.tsx` — блок «Связать с проектом», панель контекста (карточка и Совет), панель «Измеренный эффект».
+- **Демо.** `docs/demo/refinement-demo.md`, `npm run demo:refinement`.

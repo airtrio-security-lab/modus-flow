@@ -21,7 +21,7 @@ import {
 import './voice-advisor.css';
 
 /**
- * «Спросить советника» (ADR-0042). Two modes that never mix with a third:
+ * «Спросить советника» (ADR-0043). Two modes that never mix with a third:
  *  - «Поговорить»: a live voice conversation (OpenAI Realtime over WebRTC). Not recorded, not stored.
  *  - «Текстом»: the same server tools, answered by the existing MODUS ADVISOR model if one is connected.
  *  - Recording a meeting is a separate screen with everyone's consent (link only).
@@ -49,6 +49,8 @@ const LIVE: VoiceState[] = ['requesting_mic', 'connecting', 'listening', 'user_s
 
 interface Ctx {
   open: (context?: VoiceContextRef) => void;
+  /** The header button reports whether it is on screen: then the floating button is not needed. */
+  setHeadInView: (v: boolean) => void;
 }
 const VoiceCtx = createContext<Ctx | null>(null);
 export const useVoiceAdvisor = () => useContext(VoiceCtx);
@@ -56,17 +58,19 @@ export const useVoiceAdvisor = () => useContext(VoiceCtx);
 export function VoiceAdvisorProvider({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false);
   const [context, setContext] = useState<VoiceContextRef | undefined>(undefined);
+  const [headInView, setHeadInView] = useState(false);
   const value: Ctx = {
     open: (c) => {
       setContext(c);
       setOpen(true);
     },
+    setHeadInView,
   };
   return (
     <VoiceCtx.Provider value={value}>
       {children}
       {!open ? (
-        <button type="button" className="va-fab" onClick={() => value.open(undefined)} aria-haspopup="dialog">
+        <button type="button" className={`va-fab${headInView ? ' is-head-visible' : ''}`} onClick={() => value.open(undefined)} aria-haspopup="dialog">
           <MicGlyph />
           <span>Спросить советника</span>
         </button>
@@ -74,6 +78,34 @@ export function VoiceAdvisorProvider({ children }: { children: ReactNode }) {
         <AdvisorPanel context={context} onClose={() => setOpen(false)} onClearContext={() => setContext(undefined)} />
       )}
     </VoiceCtx.Provider>
+  );
+}
+
+/**
+ * Phones: the advisor in the header, on the right, next to the notifications bell — the first thing
+ * seen on every screen. While it is on screen the floating button stays hidden; once the header has
+ * scrolled away, the floating button takes over.
+ */
+export function AdvisorHeadButton() {
+  const v = useVoiceAdvisor();
+  const ref = useRef<HTMLButtonElement>(null);
+  const setHeadInView = v?.setHeadInView;
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || !setHeadInView || typeof IntersectionObserver === 'undefined') return;
+    const io = new IntersectionObserver(([e]) => setHeadInView(!!e?.isIntersecting));
+    io.observe(el);
+    return () => {
+      io.disconnect();
+      setHeadInView(false);
+    };
+  }, [setHeadInView]);
+  if (!v) return null;
+  return (
+    <button type="button" ref={ref} className="va-head-btn" onClick={() => v.open(undefined)} aria-haspopup="dialog" aria-label="Спросить советника">
+      <MicGlyph />
+      <span>Советник</span>
+    </button>
   );
 }
 
