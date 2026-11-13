@@ -214,6 +214,10 @@ test('demo chain: meeting → chronicle → council decision → confirmed resul
   // Search across halls shows the level and the status; another organization sees nothing.
   const found = (await legacy.list(db, w.colleague.actor, { q: 'этикеток' })).items.find((i) => i.id === id)!;
   assert.deepEqual([found.hall, found.statusTitle], ['Высший Архив', 'устарело']);
+  // The archive volume in the catalogue carries the archivist's conclusion of the current version (ADR-0034):
+  // the same card the row comes from; a record of the Chronicle without a conclusion has none.
+  assert.equal(found.conclusion?.applicability, 'Только сканеры с Bluetooth 5 и выше.');
+  assert.ok(found.conclusion?.category && found.conclusion.proof && found.conclusion.basis);
   assert.equal((await legacy.list(db, w.colleague.actor, { level: 'library' })).items.some((i) => i.id === id), false);
   assert.equal((await legacy.list(db, w.outsider.actor, {})).items.length, 0);
   assert.equal((await asUser(w.outsider, 'SELECT 1 FROM knowledge_versions')).rowCount, 0);

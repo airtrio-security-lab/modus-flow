@@ -329,17 +329,8 @@ export function DistrictHouses({ civ, level, u, color }: { civ: string; level: n
   );
 }
 
-/** The Higher Archive: a vaulted treasury of approved knowledge, next to the Great Library. */
-export function IsoArchive({ u }: { u: number }) {
-  return (
-    <g className="realm-archive">
-      <Plate r={2.4} u={u} s={{ top: '#d5cfc0', left: '#8a7355', right: '#735e44' }} />
-      <Box x0={-1.6} y0={-1.6} w={3.2} d={3.2} h={2.1} s={{ top: '#e9e2d0', left: '#cfc5ad', right: '#ada288' }} u={u} />
-      <Dome x={0} y={0} z={2.1} r={1.3} u={u} color="#2f4a7a" />
-      <Box x0={1.2} y0={-0.5} w={0.45} d={1} h={1.3} s={{ top: '#5a432c', left: '#5a432c', right: '#46331f' }} u={u} />
-    </g>
-  );
-}
+/** The Higher Archive stands in the centre with the palace and the library: it is drawn with them (ADR-0034). */
+export { IsoArchive } from './iso';
 
 /** The achievements plaza: one pedestal per achievement the castles really earned (up to 12 drawn). */
 export function IsoPlaza({ u, count }: { u: number; count: number }) {

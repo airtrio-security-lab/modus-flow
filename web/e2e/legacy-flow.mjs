@@ -224,7 +224,7 @@ try {
     await shot(page, '08-map');
     await page.getByRole('link', { name: /Великая библиотека: Летопись/ }).click();
     await page.waitForURL(/#\/library$/);
-    await page.getByLabel('Поиск по всем залам').fill('этикет');
+    await page.getByLabel('Какое решение или опыт вы ищете?').fill('этикет');
     await page.locator('.volume', { hasText: 'Печать этикеток у ворот приёмки' }).getByText('утверждено как наследие').waitFor();
     await page.locator('.volume', { hasText: 'Цветная разметка зон' }).waitFor({ state: 'detached' });
     await shot(page, '06-search');
