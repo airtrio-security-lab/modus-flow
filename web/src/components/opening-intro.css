@@ -1,0 +1,56 @@
+/* Заставка при открытии (OpeningIntro.tsx). Вертикальный ролик: на телефоне — во весь экран,
+   на широком экране — по центру поверх размытого кадра. */
+.opening-intro {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background: #05060a;
+  opacity: 1;
+  transition: opacity 450ms ease;
+}
+.opening-intro.is-leaving {
+  opacity: 0;
+  pointer-events: none;
+}
+.opening-intro-backdrop {
+  position: absolute;
+  inset: -40px;
+  width: calc(100% + 80px);
+  height: calc(100% + 80px);
+  object-fit: cover;
+  filter: blur(36px) brightness(0.45) saturate(1.2);
+}
+.opening-intro-video {
+  /* Absolute inside the fixed stage: the percentage height is definite, so a short landscape
+     screen scales the video down instead of showing it at its natural 1280 px. */
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: auto;
+  height: 100%;
+  max-width: 100%;
+  aspect-ratio: 9 / 16;
+  object-fit: cover;
+  box-shadow: 0 0 80px rgb(0 0 0 / 0.6);
+}
+@media (max-aspect-ratio: 3 / 4) {
+  .opening-intro-video {
+    width: 100%;
+    height: 100%;
+    aspect-ratio: auto;
+    box-shadow: none;
+  }
+}
+.opening-intro-actions {
+  position: absolute;
+  right: max(16px, env(safe-area-inset-right));
+  bottom: max(20px, env(safe-area-inset-bottom));
+  display: flex;
+  gap: 8px;
+}
+.opening-intro-actions .btn {
+  min-height: 44px;
+}

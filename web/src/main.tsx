@@ -1,6 +1,7 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from './App';
+import { OpeningIntro } from './components/OpeningIntro';
 import './styles.css';
 import { captureShare } from './lib/share';
 import { initTheme } from './lib/env';
@@ -13,6 +14,7 @@ captureShare();
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <App />
+    <OpeningIntro />
   </StrictMode>,
 );
 
