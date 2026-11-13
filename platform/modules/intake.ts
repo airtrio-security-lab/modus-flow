@@ -31,6 +31,9 @@ export const SubmitInput = z
     raisedBy: z.uuid().optional(),
     // «Где возникла проблема?» (ADR-0031): optional, never required for an ordinary idea.
     context: z.object(ContextFields).strict().optional(),
+    // «Применить этот метод» (ADR-0040): the knowledge this item is started from. A reference only:
+    // the item is an ordinary one, nothing is counted as applied and no experience is granted.
+    methodId: z.uuid().optional(),
   })
   .strict()
   .refine((v) => v.kind === 'problem' || !!v.proposal, { message: 'Для идеи опишите предлагаемое решение', path: ['proposal'] })
@@ -157,6 +160,21 @@ export async function createItem(c: Client, actor: OrgActor, item: ItemContent):
   };
 }
 
+/** The database decides (0022): the author, knowledge they can open, checked and not outdated, once per item. */
+async function linkMethod(c: Client, actor: OrgActor, item: CreatedItem, methodId: string): Promise<void> {
+  try {
+    await c.query('SELECT app_idea_link_method($1, $2)', [item.id, methodId]);
+  } catch (e) {
+    const err = e as { code?: string; message?: string };
+    if (err.code === '42501') throw new AppError('forbidden', 'Это знание недоступно вам: начать обращение на его основе нельзя');
+    if (err.code === '23514') {
+      throw new AppError('validation_failed', /outdated|verified/.test(err.message ?? '') ? 'Применить можно только проверенное знание Библиотеки или Высшего Архива, которое не отмечено устаревшим' : 'Это обращение нельзя начать на основе этого знания');
+    }
+    throw e;
+  }
+  await audit(c, { orgId: actor.orgId, actorUserId: actor.userId, action: 'idea.started_from_method', entityType: 'idea', entityId: item.id, data: { number: item.number, knowledge: methodId } });
+}
+
 /** Unrouted items go to every lead and to the organization's escalation contact — never to nobody. */
 async function unroutedRecipients(c: Client, orgId: string): Promise<string[]> {
   const leads = await membersWithRoles(c, orgId, ['maintainer', 'decision_owner']);
@@ -172,10 +190,8 @@ export async function submitItem(
   key?: string,
 ): Promise<IdempotentResult<{ item: CreatedItem }>> {
   return withTx(db, orgTx(actor), (c) =>
-    idempotent(c, actor.userId, `idea.submit:${actor.orgId}`, key, hashRequest(input), async () => ({
-      status: 201,
-      body: {
-        item: await createItem(c, actor, {
+    idempotent(c, actor.userId, `idea.submit:${actor.orgId}`, key, hashRequest(input), async () => {
+      const item = await createItem(c, actor, {
           kind: input.kind,
           title: input.title,
           problem: input.problem,
@@ -187,8 +203,10 @@ export async function submitItem(
           sourceNote: input.sourceNote,
           raisedBy: input.raisedBy,
           context: input.context,
-        }),
-      },
-    })),
+        });
+      // In the same transaction: if the knowledge may not be used by this person, no item is created.
+      if (input.methodId) await linkMethod(c, actor, item, input.methodId);
+      return { status: 201, body: { item } };
+    }),
   );
 }

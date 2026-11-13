@@ -100,7 +100,7 @@ try {
     const link = page.getByRole('link', { name: 'Вернуться в Содружество' }).first();
     await link.waitFor();
     must((await link.getAttribute('href')) === '#/kingdom', 'the Library links back to the city');
-    must((await page.locator('.world-return').count()) === 0, 'the catalogue has one link back, not two');
+    must((await page.getByRole('link', { name: 'Вернуться в Содружество' }).count()) === 1, 'the catalogue has one link back, not two');
     await shot(page, '02-library-with-way-back');
     step('вход в Библиотеку из 3D-города: запомнено место до подлёта');
 

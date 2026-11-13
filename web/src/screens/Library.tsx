@@ -241,9 +241,12 @@ export function Library() {
             >
               Найти знание
             </button>
-            <a className="btn quiet" href={worldBack?.href ?? "#/kingdom"}>
-              {worldBack?.label ?? "Вернуться в Содружество"}
-            </a>
+            {/* With a remembered place the shell shows the way back above the page (ADR-0038): one link, not two. */}
+            {worldBack ? null : (
+              <a className="btn quiet" href="#/kingdom">
+                Вернуться в Содружество
+              </a>
+            )}
           </>
         }
       />
@@ -707,9 +710,12 @@ export function KnowledgePage({ id }: { id: string }) {
               <a className="btn" href="#/library">
                 К каталогу библиотеки
               </a>
-              <a className="btn quiet" href={worldBack?.href ?? "#/kingdom"}>
-                {worldBack?.label ?? "Вернуться в Содружество"}
-              </a>
+              {/* With a remembered place the shell shows the way back above the page (ADR-0038): one link, not two. */}
+              {worldBack ? null : (
+                <a className="btn quiet" href="#/kingdom">
+                  Вернуться в Содружество
+                </a>
+              )}
             </div>
           </div>
         ) : (

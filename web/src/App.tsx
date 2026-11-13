@@ -207,8 +207,7 @@ function Shell() {
     } else setArrive(null);
   }, [routeKey, who]);
   const back = useWorldBack();
-  // The Great Library's catalogue has this link in its own header.
-  const showBack = back && !worldRoute(location.hash) && !(head === 'library' && !route[1]);
+  const showBack = back && !worldRoute(location.hash);
 
   // Mobile tab bar: Королевство, Обращения | «+» | Совет, Профиль. Notifications: the bell in the header.
   const pickTab = (h: string) => nav.find((n) => n.href === h);

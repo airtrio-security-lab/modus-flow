@@ -244,12 +244,13 @@ try {
     for (const e of k.envoys) {
       const it = await api(page, `/ideas/${e.number}`);
       if (it.decisionOwner?.name === ops.name && it.author.name !== ops.name && ['published', 'review', 'decision'].includes(it.stage) && !it.deferral && e.departmentId) {
-        paused = { number: e.number, author: it.author.name, departmentId: e.departmentId, due: it.resolutionDueAt };
+        // The card names whose question it is (ADR-0036): the person it was recorded for, else the author.
+        paused = { number: e.number, author: it.author.name, sender: e.sender ?? e.author ?? it.author.name, departmentId: e.departmentId, due: it.resolutionDueAt };
         break;
       }
     }
     must(paused, 'the demo has an open item decided by the operations director');
-    const chip = page.locator(`button.w3d-envoy[aria-label^="Обращение №${paused.number} от ${paused.author}"]`);
+    const chip = page.locator(`button.w3d-envoy[aria-label^="Обращение №${paused.number} от ${paused.sender}"]`);
     must((await chip.locator('.w3d-envoy-head').textContent()).includes(`№${paused.number}`), 'the card names the item and the sender');
     await chip.dispatchEvent('click');
     await page.waitForFunction(() => !window.__world.flying, null, { timeout: 20000 });
