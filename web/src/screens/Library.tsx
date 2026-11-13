@@ -188,6 +188,9 @@ export function Library() {
     if (query) p.set('q', query);
     const tail = p.toString();
     const next = `#/library${tail ? `?${tail}` : ''}`;
+    // Only while the catalogue is the open screen: a person who has already gone back (the browser's
+    // «Назад» right after entering) must not have the address rewritten under them.
+    if (!/^#\/library(\?|$)/.test(location.hash)) return;
     if (location.hash !== next) history.replaceState(null, '', next);
   }, [hall, query]);
   // A link that leads here while the library is open — the archive on the map, a crumb — changes the hall too.

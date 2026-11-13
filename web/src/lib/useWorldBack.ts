@@ -20,7 +20,8 @@ export function useWorldBack(): { href: string; label: string } | null {
   return useMemo(() => {
     if (!ctx?.from) return null;
     const departments = s.directory?.departments.filter((d) => d.active) ?? null;
-    // Until the directory is read nothing is concluded about a department: the city is always there.
+    // Until the directory is read nothing is known about a department: no link to it yet. The city is always there.
+    if (!departments && ctx.from !== '#/kingdom') return null;
     const checked = departments ? reconcile(ctx, departments.map((d) => d.id)) : ctx;
     const from = checked.from ?? '#/kingdom';
     return { href: from, label: returnLabel(from, departments ?? []) };
