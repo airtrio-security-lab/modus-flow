@@ -20,6 +20,7 @@
  * must not be quoted as the speed of a real video card. GPU load is not available from a browser.
  */
 import { chromium } from 'playwright';
+import { signIn } from './sign-in.mjs';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 
@@ -73,10 +74,9 @@ async function profile(mode) {
   const r = { mode: mode.id, title: mode.title };
   try {
     await page.goto(BASE);
-    const button = page.getByRole('button', { name: new RegExp(person.name) });
-    await button.waitFor();
+    await page.locator('.kl-card').first().waitFor();
     let t = Date.now();
-    await button.click();
+    await signIn(page, person);
     await page.waitForSelector('.shell');
     r.startMs = Date.now() - t;
 

@@ -12,6 +12,7 @@
  *   npm run demo:seed && npm run demo:start  →  npm run demo:mobile-new
  */
 import { chromium } from 'playwright';
+import { signIn as kingdomSignIn } from './sign-in.mjs';
 import { readFileSync } from 'node:fs';
 
 const BASE = process.env.BASE ?? 'http://localhost:3100';
@@ -61,7 +62,8 @@ async function signIn(page, person) {
   await page.evaluate(() => sessionStorage.removeItem('modus.token'));
   await page.goto(`${BASE}/#/`);
   await page.reload();
-  await page.getByRole('button', { name: new RegExp(person.name) }).click();
+  // The Kingdom sign-in screen of feat/kingdom-map: pick the character, then «Войти в Королевство».
+  await kingdomSignIn(page, person);
   await page.waitForSelector('.shell');
   await page.waitForFunction(() => document.documentElement.dataset.cineChecked === '1', null, { timeout: 15000 });
 }

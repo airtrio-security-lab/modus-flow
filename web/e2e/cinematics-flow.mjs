@@ -20,6 +20,7 @@
  *   npm run demo:seed && npm run demo:start  →  npm run demo:cinematics
  */
 import { chromium } from 'playwright';
+import { signIn as pickCharacter } from './sign-in.mjs';
 import { readFileSync } from 'node:fs';
 
 const BASE = process.env.BASE ?? 'http://localhost:3100';
@@ -58,7 +59,7 @@ async function signIn(page, person) {
   await page.evaluate(() => sessionStorage.removeItem('modus.token'));
   await page.goto(`${BASE}/#/`);
   await page.reload();
-  await page.getByRole('button', { name: new RegExp(person.name) }).click();
+  await pickCharacter(page, person);
   await page.waitForSelector('.shell');
 }
 const api = (page, path, init) =>

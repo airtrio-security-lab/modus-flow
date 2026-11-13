@@ -10,6 +10,7 @@
  *   npm run demo:advisor   (BASE and PERSONAS override the defaults)
  */
 import { chromium } from 'playwright';
+import { signIn } from './sign-in.mjs';
 import { readFileSync } from 'node:fs';
 import { schematic } from './schematic.mjs';
 
@@ -32,7 +33,7 @@ async function as(person, fn) {
   const page = await ctx.newPage();
   page.on('pageerror', (e) => errors.push(e.message));
   await page.goto(BASE);
-  await page.getByRole('button', { name: new RegExp(person.name) }).click();
+  await signIn(page, person);
   await page.waitForSelector('.shell');
   try {
     return await fn(page);

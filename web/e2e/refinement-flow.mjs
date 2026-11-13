@@ -14,6 +14,7 @@
  * same API the UI uses; everything new is done on the screen.
  */
 import { chromium } from 'playwright';
+import { signIn } from './sign-in.mjs';
 import { mkdirSync, readFileSync } from 'node:fs';
 import { schematic } from './schematic.mjs';
 
@@ -41,7 +42,7 @@ async function open(person, viewport = { width: 1280, height: 860 }, extra = {})
   await page.goto(BASE);
   await page.evaluate(() => { try { localStorage.setItem('modus.lite', '1'); localStorage.setItem('modus.howto.hidden', '1'); } catch {} });
   await page.goto(BASE);
-  await page.getByRole('button', { name: new RegExp(person.name) }).click();
+  await signIn(page, person);
   await page.waitForSelector('.shell');
   const call = (method, path, body) =>
     page.evaluate(async ({ method, path, body }) => {

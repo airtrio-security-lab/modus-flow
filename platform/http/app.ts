@@ -45,6 +45,9 @@ import * as datasetMod from '../modules/dataset.ts';
 import * as deferral from '../modules/deferral.ts';
 import * as assessment from '../modules/assessment.ts';
 import type { IdempotentResult } from '../modules/idempotency.ts';
+import * as voice from '../modules/voice.ts';
+import type { VoiceConfig } from '../modules/voice-realtime.ts';
+import { VoiceSessionRegistry } from '../modules/voice-sessions.ts';
 import { DevTokenAuthenticator, type Authenticator } from './authn.ts';
 import { createStaticHandler } from './static.ts';
 
@@ -69,12 +72,30 @@ export interface AppConfig {
   advisorFetch?: typeof fetch;
   /** Optional local speech-to-text engine (ADR-0014). Null: no transcription, the UI offers typing it. */
   transcribeEngine?: TranscribeConfig | null;
+  /** Live voice advisor (ADR-0043). Null: «Голосовой AI не подключён»; the text advisor still works. */
+  voice?: VoiceConfig | null;
+  /** Test seam for the voice provider. */
+  voiceFetch?: typeof fetch;
+  /** Test seam for the voice session clock. */
+  voiceNow?: () => number;
 }
 
 export interface DemoPersonas {
   organization: string;
   organizationName: string;
-  personas: { userId: string; name: string; title: string; department: string; hint: string }[];
+  personas: {
+    userId: string;
+    name: string;
+    title: string;
+    department: string;
+    hint: string;
+    /** Optional, for the sign-in screen only (written by the demo seed); never read to grant access. */
+    gameTitle?: string | null;
+    titleRank?: string | null;
+    civilization?: string | null;
+    castleId?: string | null;
+    roles?: string[];
+  }[];
 }
 
 interface Ctx {
@@ -527,6 +548,35 @@ export function createApp(config: AppConfig) {
     status: 200,
     body: await analytics(db, await org(ctx), AnalyticsQuery.parse(queryObject(ctx.query))),
   }));
+
+  // ---- «Спросить советника» (ADR-0043): live voice and its text alternative ----
+  // The person always comes from the token; tools are read-only module calls under RLS.
+  const vdeps: voice.VoiceDeps = {
+    db,
+    meetingDeps: mdeps,
+    voice: config.voice ?? null,
+    registry: config.voice ? new VoiceSessionRegistry(config.voice.limits, config.voiceNow) : null,
+    textModel: model,
+    fetchImpl: config.voiceFetch ?? config.advisorFetch,
+    log: config.log,
+  };
+  const VSES = `${ORG}/voice/sessions/(?<sid>${UUID})`;
+  route('GET', `${ORG}/voice/status`, async (ctx) => {
+    await org(ctx);
+    return { status: 200, body: await voice.voiceStatus(vdeps) };
+  });
+  json('POST', '/voice/sessions', voice.VoiceSessionInput, (a, i) => voice.startSession(vdeps, a, i), 201);
+  route('POST', `${VSES}/sdp`, async (ctx) => {
+    const actor = await org(ctx);
+    const type = (ctx.req.headers['content-type'] ?? '').split(';')[0]!.trim().toLowerCase();
+    if (type !== 'application/sdp') throw new AppError('unsupported_media_type', 'Ожидается Content-Type: application/sdp');
+    const offer = (await readRaw(ctx.req, 64 * 1024)).toString('utf8');
+    const answer = await voice.connectSession(vdeps, actor, ctx.params.sid!, offer);
+    return { status: 201, raw: Buffer.from(answer, 'utf8'), headers: { 'Content-Type': 'application/sdp' } };
+  });
+  json('POST', `/voice/sessions/(?<sid>${UUID})/tools`, voice.VoiceToolInput, (a, i, p) => voice.callTool(vdeps, a, p.sid!, i));
+  route('DELETE', VSES, async (ctx) => ({ status: 200, body: await voice.stopSession(vdeps, await org(ctx), ctx.params.sid!) }));
+  json('POST', '/voice/ask', voice.VoiceAskInput, (a, i) => voice.askText(vdeps, a, i));
 
   const serveStatic = config.staticDir ? createStaticHandler(config.staticDir) : null;
   const DemoLogin = z.object({ userId: z.uuid() }).strict();

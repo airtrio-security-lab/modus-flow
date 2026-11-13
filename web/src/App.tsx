@@ -33,6 +33,7 @@ import { CinematicHost } from './components/CinematicNotification';
 import { clearWorldContext, worldRoute, writeWorldContext } from './lib/worldReturn';
 import { useWorldBack } from './lib/useWorldBack';
 import { dropWorld } from './world3d/keep';
+import { AdvisorHeadButton, VoiceAdvisorProvider } from './components/VoiceAdvisor';
 
 export function App() {
   const [me, setMe] = useState<Me | null>(null);
@@ -84,7 +85,9 @@ export function App() {
     );
   return (
     <SessionProvider me={me} onSignOut={signOut}>
-      <Shell />
+      <VoiceAdvisorProvider>
+        <Shell />
+      </VoiceAdvisorProvider>
     </SessionProvider>
   );
 }
@@ -289,6 +292,7 @@ function Shell() {
                 </span>
               ) : null}
             </a>
+            <AdvisorHeadButton />
           </div>
         </div>
         <div className="page" data-arrive={arrive ?? undefined} onAnimationEnd={(e) => (e.target === e.currentTarget ? setArrive(null) : undefined)}>

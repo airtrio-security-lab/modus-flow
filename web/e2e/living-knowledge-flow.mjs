@@ -18,6 +18,7 @@
  * The 3D city runs on SwiftShader here: positions are checked, not speed.
  */
 import { chromium } from 'playwright';
+import { signIn } from './sign-in.mjs';
 import { mkdirSync, readFileSync } from 'node:fs';
 
 const BASE = process.env.BASE ?? 'http://localhost:3100';
@@ -62,7 +63,7 @@ async function open(person, { view = 'city', viewport = { width: 1280, height: 8
   const page = await ctx.newPage();
   page.on('pageerror', (e) => errors.push(e.message));
   await page.goto(BASE);
-  await page.getByRole('button', { name: new RegExp(person.name) }).click();
+  await signIn(page, person);
   await page.waitForSelector('.shell');
   const call = (method, path, body) =>
     page.evaluate(

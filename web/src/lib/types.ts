@@ -26,6 +26,12 @@ export interface Persona {
   title: string;
   department: string;
   hint: string;
+  /** Written by the demo seed for the sign-in screen; older persona files lack them. Decoration only. */
+  gameTitle?: string | null;
+  titleRank?: string | null;
+  civilization?: string | null;
+  castleId?: string | null;
+  roles?: string[];
 }
 export interface Personas {
   organization: string;
