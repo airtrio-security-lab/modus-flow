@@ -10,7 +10,7 @@
 
 **MODUS FLOW** helps organizations listen to employees, make accountable decisions, verify implementation, and retain useful knowledge.
 
-[Русский](README.md) · [How it works](#service-first) · [The Commonwealth](#why-the-commonwealth) · [Architecture](#architecture) · [Local demo](#run-the-demo)
+[Русский](README.md) · [Live demo](https://modus-flow-demo.vercel.app) · [How it works](#service-first) · [The Commonwealth](#why-the-commonwealth) · [What was added](#added-on-13-november-2026) · [Architecture](#architecture) · [Local demo](#run-the-demo)
 
 </div>
 
@@ -54,6 +54,8 @@ An employee sends an envoy for their own issue. The King acknowledges receipt, a
 
 **We plan to produce the final desktop and mobile cinematic clips using [Google Flow](https://labs.google/fx/tools/flow).** Only anonymous, faceless silhouettes are allowed — no human faces or portraits. Until approved footage exists, the preview above shows an animated SVG representation of the current prototype.
 
+**Since 13 November 2026 the app plays short cinematic notifications** ([ADR-0037](docs/adr/0037-cinematic-notifications.md), [ADR-0042](docs/adr/0042-contribution-confirmed-and-great-council.md)): a scene is shown only for an event confirmed by the server, once per device; with reduced motion or light graphics a still frame replaces the video. A nine-second intro plays when the app is opened and can be skipped with a button or Esc.
+
 [Royal audience prototype — PR #14](https://github.com/airtrio-security-lab/modus-flow/pull/14) · [Google Flow video pipeline](docs/GOOGLE_FLOW_CINEMATICS.md)
 
 The **Great Commonwealth** is an optional visual workspace **over the service**. An organization stays one tenant. Each department can select a district aesthetic and hosts a Small Council. The Great Round Table serves the whole organization.
@@ -74,6 +76,32 @@ In the platform, an append-only XP ledger is linked to confirmed implementation 
 
 **A person → an issue → a decision → implementation → evidence → knowledge.**
 
+## Added on 13 November 2026
+
+Everything below is in `main` and was checked locally. Each decision has an ADR (in Russian) with a section of stated limitations.
+
+| What | In short | Decision |
+|:--|:--|:--|
+| **Live demo** | [modus-flow-demo.vercel.app](https://modus-flow-demo.vercel.app): UI on Vercel's CDN, the API as one function, the database in Neon; fictional data only | [ADR-0033](docs/adr/0033-hosted-demo-vercel-neon.md) |
+| **Kingdom sign-in** | New demo sign-in screen for desktop and phone; an opening intro video | — |
+| **Cinematic notifications** | Short scenes for server-confirmed events: envoy sent, envoy accepted, implementation approved, contribution recognised, the Great Council gathered and others | [ADR-0037](docs/adr/0037-cinematic-notifications.md), [ADR-0042](docs/adr/0042-contribution-confirmed-and-great-council.md) |
+| **Living envoy** | One employee, one envoy that develops; its states come only from server facts | [ADR-0036](docs/adr/0036-living-envoy.md) |
+| **"Problem solved"** | Confirmed by the author of the issue, once, and only after a confirmed implementation | [ADR-0035](docs/adr/0035-problem-resolution-by-author.md) |
+| **Palace, Great Library, High Archive** | Knowledge screens live in the same world as the city | [ADR-0034](docs/adr/0034-palace-library-archive.md) |
+| **Solution path and "Apply this method"** | The path is built from recorded facts; reuse is an ordinary issue linked to the knowledge item, with no XP | [ADR-0040](docs/adr/0040-solution-path-method-reuse.md) |
+| **Library catalogue** | Server-side pages, exact counts under RLS, filters in the address; keyword search, not semantic | [ADR-0041](docs/adr/0041-library-paged-search.md) |
+| **Seamless world** | Leaving a building returns you to the same city, camera and selection | [ADR-0038](docs/adr/0038-seamless-world.md) |
+| **3D performance** | A reproducible measurement profile; the built world is kept for 120 s instead of being rebuilt | [ADR-0039](docs/adr/0039-performance-profile-kept-world.md) |
+| **"Ask the advisor"** | A voice assistant over MODUS FLOW data: the employee's own rights, read-only tools, conversations are not recorded. Off by default; without a provider a text mode works | [ADR-0043](docs/adr/0043-voice-advisor.md) |
+| **Living city** | Cloud shadows, clouds, shafts of light, birds and smoke over the 3D city — decoration, not data | [ADR-0044](docs/adr/0044-living-city-weather.md) |
+| **Living city details** | Smoke from hearths, glints and mist in the gorge, petals, dust and leaves by civilization, fountain spray | [ADR-0045](docs/adr/0045-living-city-details.md) |
+| **Unified style and phone** | One Commonwealth style on every screen, a navigation dock on phones | — |
+
+<div align="center">
+  <img src="docs/demo/weather/03-low-view-clouds-shafts.png" width="100%" alt="Application screenshot: the 3D Commonwealth city with cloud shadows on the hills and birds in the sky, district and issue labels; all names and issues are fictional" />
+  <sub>Screenshot of the real application: the living city (ADR-0044) · demo data · software rendering, not a video recording</sub>
+</div>
+
 ## Architecture
 
 <div align="center"><img src=".github/media/service-architecture.svg" width="100%" alt="MODUS FLOW architecture: client, API, authorization, database and optional visual layer" /></div>
@@ -87,14 +115,18 @@ In the platform, an append-only XP ledger is linked to confirmed implementation 
 | Commonwealth city | Three.js (procedural models and materials, no third-party assets), SVG fallback, work table |
 | District town | Painted panorama (Camelot, Russian Tsardom) and the same town in 3D |
 | Language model | Optional and off by default; without it the interface says "not connected" |
+| Voice advisor | Optional and off by default; OpenAI Realtime (WebRTC), the key never leaves the server; real data only with a separate switch |
+| Live demo | Vercel (static files and one API function) + Neon PostgreSQL; demo data only |
 | Access | Desktop/mobile web |
 | Early demo | Node.js, browser UI, native Node test runner |
 
-**Not done and not verified yet.** The 3D scene is procedural geometry and is below the concept art above; there are no authored 3D models and no moving envoys or residents. Frame rate was measured on one desktop (Chrome on Apple M5: median 5 ms between frames, p90 10 ms at ~600k triangles) and the phone layout in emulation only: weak GPUs and real phones are still to be tested. Project checks run locally; GitHub CI is not running at the moment.
+**Not done and not verified yet.** The 3D scene is procedural geometry and is below the concept art above; there are no authored 3D models and no residents in the streets. Frame rate was measured on one desktop (Chrome on Apple M5: median 5 ms between frames, p90 10 ms at ~600k triangles) and the phone layout in emulation only: weak GPUs and real phones are still to be tested. The living-city weather layer was measured in software rendering only. The voice advisor has not been tested with a real microphone. Cold start and load from several viewers were not measured for the live demo. Project checks run locally; GitHub CI is not running at the moment.
 
 **Security:** this is an evolving system, **not approved to handle real employee information in production**. Real authentication, operational controls and privacy/legal reviews are still required.
 
 ## Run the demo
+
+**Live demo** (nothing to install): [modus-flow-demo.vercel.app](https://modus-flow-demo.vercel.app). Sign in as any demo persona; all data is fictional; the AI assistant and voice are not connected there.
 
 **Platform with demo data** (macOS / Linux, Node.js ≥ 22.18, Docker running for PostgreSQL 16; all people and issues are fictional):
 
@@ -105,7 +137,9 @@ cd modus-flow
 # http://127.0.0.1:3100
 ~~~
 
-Details, tests and the local release gate: [DEVELOPMENT.md](DEVELOPMENT.md). 3D city walkthrough: [docs/demo/world3d-demo.md](docs/demo/world3d-demo.md) (Russian).
+Details, tests and the local release gate: [DEVELOPMENT.md](DEVELOPMENT.md). 3D city walkthrough: [docs/demo/world3d-demo.md](docs/demo/world3d-demo.md); living city: [docs/demo/weather-demo.md](docs/demo/weather-demo.md); voice advisor: [docs/demo/voice-advisor-90s.md](docs/demo/voice-advisor-90s.md) (all in Russian).
+
+The AI assistant is connected with the `--ai` flag (cloud model Claude Haiku; the Anthropic key is asked on its own line, [ADR-0028](docs/adr/0028-cloud-model.md)). The voice advisor is enabled with `MODUS_VOICE_PROVIDER=openai` and `OPENAI_API_KEY` ([ADR-0043](docs/adr/0043-voice-advisor.md)). Everything else works without keys.
 
 **Early standalone demo** (no database):
 
@@ -115,7 +149,7 @@ DEMO_MODE=true npm start
 # http://localhost:3000
 ~~~
 
-The demo sign-in is intentionally insecure. **Never put it on the public internet or use real staff data.**
+The demo sign-in is intentionally insecure. **Never put it on the public internet or use real staff data.** The live demo is a separate build with an explicit switch and fictional data only ([ADR-0033](docs/adr/0033-hosted-demo-vercel-neon.md)).
 
 ## Art direction and identity
 
@@ -135,6 +169,6 @@ Built by **Air Trio Security Lab**, MODUS FLOW separates verified capabilities, 
 
 **Turn feedback into decisions. Turn decisions into organizational knowledge.**
 
-<sub>Air Trio Security Lab · Kazakhstan · Private repository · All rights reserved unless separately licensed</sub>
+<sub>Air Trio Security Lab · Kazakhstan · Public repository · All rights reserved unless separately licensed</sub>
 
 </div>
