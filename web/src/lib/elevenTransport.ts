@@ -65,7 +65,6 @@ export function createElevenTransport(opts: { open: () => Promise<{ url: string;
   let stopped = false;
   let ready = false;
   let outRate = 16000;
-  let conversationId: string | null = null;
   /** After «Перебить» the rest of the current answer is not played; the next turn clears it. */
   let dropAudio = false;
   const hidden = new Set<string>();
@@ -135,8 +134,7 @@ export function createElevenTransport(opts: { open: () => Promise<{ url: string;
     const part = <T>(key: string) => (msg[key] ?? {}) as T;
     switch (msg.type) {
       case 'conversation_initiation_metadata': {
-        const meta = part<{ conversation_id?: string; agent_output_audio_format?: string; user_input_audio_format?: string }>('conversation_initiation_metadata_event');
-        conversationId = typeof meta.conversation_id === 'string' ? meta.conversation_id : null;
+        const meta = part<{ agent_output_audio_format?: string; user_input_audio_format?: string }>('conversation_initiation_metadata_event');
         outRate = rateOf(meta.agent_output_audio_format, 16000);
         const inRate = rateOf(meta.user_input_audio_format, 16000);
         if (stream && audio) audio.capture(stream, inRate, (b64) => (muted || stopped ? undefined : send({ user_audio_chunk: b64 })));
@@ -195,8 +193,6 @@ export function createElevenTransport(opts: { open: () => Promise<{ url: string;
     state: () => state,
     isMuted: () => muted,
     localStream: (): StreamLike | null => stream,
-    /** The provider's id of this conversation: lets the company server remove the provider's record of it. */
-    conversationId: (): string | null => conversationId,
 
     async start(): Promise<void> {
       if (state !== 'idle') throw new Error('Транспорт уже запускался: создайте новый');

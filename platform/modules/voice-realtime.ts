@@ -118,13 +118,14 @@ function elevenLabsConfigFromEnv(env: NodeJS.ProcessEnv): VoiceConfig {
 }
 
 /**
- * Asks ElevenLabs for a signed WebSocket URL of one conversation with the private agent. The URL is a
- * short-lived session secret (the only thing the browser gets); the API key stays here.
+ * Asks ElevenLabs for a signed WebSocket URL of ONE conversation with the private agent. Asked with
+ * `include_conversation_id`: the signature then works once, and the server learns the conversation id
+ * here — not from the browser. The URL is a short-lived session secret; the API key stays here.
  */
-export async function createSignedUrl(cfg: VoiceConfig, fetchImpl: typeof fetch = fetch): Promise<string> {
+export async function createSignedUrl(cfg: VoiceConfig, fetchImpl: typeof fetch = fetch): Promise<{ url: string; conversationId: string | null }> {
   let res: Response;
   try {
-    res = await fetchImpl(`${cfg.url}/convai/conversation/get-signed-url?agent_id=${encodeURIComponent(cfg.agentId ?? '')}`, {
+    res = await fetchImpl(`${cfg.url}/convai/conversation/get-signed-url?agent_id=${encodeURIComponent(cfg.agentId ?? '')}&include_conversation_id=true`, {
       headers: { 'xi-api-key': cfg.apiKey },
       signal: AbortSignal.timeout(15_000),
     });
@@ -140,16 +141,21 @@ export async function createSignedUrl(cfg: VoiceConfig, fetchImpl: typeof fetch 
   if (typeof url !== 'string' || !url.startsWith(`${cfg.wsOrigin}/`)) {
     throw new AppError('service_unavailable', 'Голосовой сервис ElevenLabs вернул адрес другого узла. Задайте его в MODUS_VOICE_WS_ORIGIN');
   }
-  return url;
+  const id = new URL(url.replace(/^wss:/, 'https:')).searchParams.get('conversation_id');
+  // Without the id the signature could be used again and the record could not be bound to this session.
+  if (!id || !CONVERSATION_ID.test(id)) throw new AppError('service_unavailable', 'Голосовой сервис ElevenLabs не выдал одноразовый адрес разговора');
+  return { url, conversationId: id };
 }
+
+const CONVERSATION_ID = /^conv_[A-Za-z0-9]{8,60}$/;
 
 /**
  * Removes the record of one finished conversation at ElevenLabs (transcript, summary, audio): a live
- * conversation must not become a stored one. Only a conversation of OUR agent is touched — the id comes
- * from the browser, so it is checked first.
+ * conversation must not become a stored one. The id is the one the server itself received with the signed
+ * URL of this session (never one named by the browser); the agent is checked as well.
  */
 export async function deleteConversation(cfg: VoiceConfig, conversationId: string, fetchImpl: typeof fetch = fetch): Promise<'deleted' | 'not_ours' | 'failed'> {
-  if (!/^conv_[A-Za-z0-9]{8,60}$/.test(conversationId)) return 'not_ours';
+  if (!CONVERSATION_ID.test(conversationId)) return 'not_ours';
   const url = `${cfg.url}/convai/conversations/${conversationId}`;
   const headers = { 'xi-api-key': cfg.apiKey };
   try {

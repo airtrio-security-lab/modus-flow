@@ -55,7 +55,7 @@ export const startVoiceSession = (org: string, language: VoiceLanguage, context?
   api<
     { sessionId: string; expiresAt: string; maxSeconds: number; model: string; voice: string; language: VoiceLanguage } & (
       | { provider: 'openai' }
-      /** ElevenLabs: the signed URL of this one conversation (a short-lived session secret) and its first message. */
+      /** ElevenLabs: the single-use signed URL of this one conversation and its first message (three variables). */
       | { provider: 'elevenlabs'; signedUrl: string; initiation: Record<string, unknown> }
     )
   >(`/orgs/${org}/voice/sessions`, {
@@ -90,9 +90,8 @@ export async function relayOffer(org: string, sessionId: string, offer: string):
 export const runVoiceTool = (org: string, sessionId: string, name: string, args: string, callId: string) =>
   api<ToolReply>(`/orgs/${org}/voice/sessions/${sessionId}/tools`, { json: { name, arguments: args, callId }, idempotent: false });
 
-/** `conversationId` (ElevenLabs): the server removes the provider's record of this conversation. */
-export const endVoiceSession = (org: string, sessionId: string, conversationId?: string | null) =>
-  api(`/orgs/${org}/voice/sessions/${sessionId}${conversationId ? `?conversation=${encodeURIComponent(conversationId)}` : ''}`, { method: 'DELETE', idempotent: false }).catch(() => undefined);
+export const endVoiceSession = (org: string, sessionId: string) =>
+  api(`/orgs/${org}/voice/sessions/${sessionId}`, { method: 'DELETE', idempotent: false }).catch(() => undefined);
 
 export const askAdvisorText = (org: string, question: string, language: VoiceLanguage, context?: VoiceContextRef) =>
   api<AskReply>(`/orgs/${org}/voice/ask`, { json: context ? { question, language, context } : { question, language }, idempotent: false });

@@ -171,10 +171,9 @@ function AdvisorPanel({ context, onClose, onClearContext }: { context?: VoiceCon
   const addRefs = (list: VoiceRef[]) => setRefs((r) => [...list.filter((x) => !r.some((y) => y.href === x.href)), ...r].slice(0, 12));
 
   const hangUp = useCallback((reason = 'ended') => {
-    const conv = transport.current && 'conversationId' in transport.current ? transport.current.conversationId() : null;
     transport.current?.stop(reason);
     transport.current = null;
-    if (session.current) void endVoiceSession(s.org, session.current, conv);
+    if (session.current) void endVoiceSession(s.org, session.current);
     session.current = null;
     setMuted(false);
   }, [s.org]);
@@ -298,7 +297,7 @@ function AdvisorPanel({ context, onClose, onClearContext }: { context?: VoiceCon
       onClosed: () => {
         // Any end — error, lost connection, the employee — frees the server session at once.
         if (sid && session.current === sid) {
-          void endVoiceSession(s.org, sid, 'conversationId' in t ? t.conversationId() : null);
+          void endVoiceSession(s.org, sid);
           session.current = null;
         }
       },

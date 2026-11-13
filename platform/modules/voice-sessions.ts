@@ -23,6 +23,8 @@ export interface VoiceSession {
   /** Server-only: the short-lived provider secret, dropped after the one SDP relay. */
   secret: string | null;
   callId: string | null;
+  /** ElevenLabs: the provider's id of this session's one conversation, learnt by the server with the signed URL. */
+  conversationId: string | null;
   toolCalls: number;
   endedAt: number | null;
   endReason: string | null;
@@ -93,6 +95,7 @@ export class VoiceSessionRegistry {
       deadline: now + this.#limits.maxSeconds * 1000,
       secret: null,
       callId: null,
+      conversationId: null,
       toolCalls: 0,
       endedAt: null,
       endReason: null,

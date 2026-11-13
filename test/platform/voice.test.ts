@@ -393,11 +393,12 @@ test('ElevenLabs: same switches plus the agent; the key stays on the server; the
   const cfg = voiceConfigFromEnv({ ...on, ELEVENLABS_API_KEY: KEY, MODUS_VOICE_AGENT_ID: 'agent_abcdef123456' })!;
   assert.deepEqual([cfg.provider, cfg.wsOrigin, cfg.voice, cfg.agentId], ['elevenlabs', 'wss://api.elevenlabs.io', 'Альфред', 'agent_abcdef123456']);
 
-  const SIGNED = 'wss://api.elevenlabs.io/v1/convai/conversation?agent_id=agent_abcdef123456&conversation_signature=cvtkn_test';
-  let reply: { status: number; url?: string } = { status: 200, url: SIGNED };
+  const signedFor = (conv: string) => `wss://api.elevenlabs.io/v1/convai/conversation?agent_id=agent_abcdef123456&conversation_signature=cvtkn_test&conversation_id=${conv}`;
+  let reply: { status: number; url?: string } = { status: 200, url: signedFor('conv_ours00000001') };
   const seen: { url: string; key: string }[] = [];
   const records: Record<string, { agent_id: string; status: string }> = {
     conv_ours00000001: { agent_id: 'agent_abcdef123456', status: 'done' },
+    conv_ours00000002: { agent_id: 'agent_abcdef123456', status: 'done' },
     conv_foreign00001: { agent_id: 'agent_someoneelse99', status: 'done' },
   };
   const deleted: string[] = [];
@@ -424,14 +425,14 @@ test('ElevenLabs: same switches plus the agent; the key stays on the server; the
 
   const s = await start(w.author, 'acme', { language: 'ru' }, root);
   assert.equal(s.status, 201);
-  assert.deepEqual([s.json.provider, s.json.signedUrl], ['elevenlabs', SIGNED]);
+  assert.deepEqual([s.json.provider, s.json.signedUrl], ['elevenlabs', signedFor('conv_ours00000001')]);
   assert.ok(!s.text.includes(KEY), 'the API key never reaches the browser');
-  assert.deepEqual(seen.at(-1), { url: 'https://api.elevenlabs.io/v1/convai/conversation/get-signed-url?agent_id=agent_abcdef123456', key: KEY });
-  assert.equal(s.json.initiation.type, 'conversation_initiation_client_data');
-  const prompt = s.json.initiation.conversation_config_override.agent.prompt.prompt as string;
-  assert.match(prompt, /Альфред/);
-  assert.match(prompt, /ТОЛЬКО ИЗ ИНСТРУМЕНТОВ/);
-  assert.match(prompt, /ВСТУПЛЕНИЕ/);
+  assert.deepEqual(seen.at(-1), { url: 'https://api.elevenlabs.io/v1/convai/conversation/get-signed-url?agent_id=agent_abcdef123456&include_conversation_id=true', key: KEY }, 'a single-use URL whose conversation id the server knows');
+
+  // The prompt is fixed in the agent: the browser gets no prompt to replace, only three narrow variables.
+  assert.deepEqual(Object.keys(s.json.initiation).sort(), ['dynamic_variables', 'type']);
+  assert.deepEqual(s.json.initiation.dynamic_variables, { address: 'без обращения', reply_language: 'русский', council_number: '0' });
+  assert.ok(!s.text.includes('ТОЛЬКО ИЗ ИНСТРУМЕНТОВ') && !s.text.includes('conversation_config_override'), 'no instructions travel through the browser');
 
   // The same server tools, the same rights, the same refusals.
   const sum = await tool(w.author, s.json.sessionId, 'get_my_summary', {}, 'acme', root);
@@ -440,19 +441,32 @@ test('ElevenLabs: same switches plus the agent; the key stays on the server; the
   assert.equal((await tool(w.colleague, s.json.sessionId, 'get_my_summary', {}, 'acme', root)).status, 404, 'another employee cannot use this session');
   assert.equal((await call(root, 'POST', `/orgs/acme/voice/sessions/${s.json.sessionId}/sdp`, { token: tok(w.author), sdp: SDP_OFFER })).status, 409, 'no SDP with this provider');
   assert.equal((await start(w.author, 'acme', { language: 'ru' }, root)).status, 429, 'one conversation per person here too');
-  // Ending the conversation removes ElevenLabs' record of it — only a record of OUR agent.
-  assert.equal((await call(root, 'DELETE', `/orgs/acme/voice/sessions/${s.json.sessionId}?conversation=conv_ours00000001`, { token: tok(w.author) })).status, 200);
-  assert.deepEqual(deleted, ['conv_ours00000001']);
+
+  // Ending the conversation removes ElevenLabs' record of it: the id the SERVER learnt, never one from the browser.
+  assert.equal((await call(root, 'DELETE', `/orgs/acme/voice/sessions/${s.json.sessionId}?conversation=conv_ours00000002`, { token: tok(w.author) })).status, 200);
+  assert.deepEqual(deleted, ['conv_ours00000001'], 'a conversation id named by the browser is ignored');
   assert.ok(seen.filter((x) => x.url.includes('/convai/conversations/')).every((x) => x.key === KEY));
-  const again = await start(w.author, 'acme', { language: 'ru' }, root);
-  assert.equal((await call(root, 'DELETE', `/orgs/acme/voice/sessions/${again.json.sessionId}?conversation=conv_foreign00001`, { token: tok(w.author) })).status, 200);
-  const third = await start(w.author, 'acme', { language: 'ru' }, root);
-  assert.equal((await call(root, 'DELETE', `/orgs/acme/voice/sessions/${third.json.sessionId}?conversation=../../agents/x`, { token: tok(w.author) })).status, 200);
-  assert.deepEqual(deleted, ['conv_ours00000001'], 'another agent’s conversation and a malformed id are never deleted');
   assert.ok(logs.some((l) => l.voice === 'provider_record' && l.result === 'deleted'));
 
-  // A signed URL of another host is refused: the page may connect only to the configured origin.
-  reply = { status: 200, url: 'wss://evil.example/v1/convai/conversation?x=1' };
+  // A conversation that turns out to belong to another agent is never deleted.
+  reply = { status: 200, url: signedFor('conv_foreign00001') };
+  const odd = await start(w.author, 'acme', { language: 'ru' }, root);
+  assert.equal((await call(root, 'DELETE', `/orgs/acme/voice/sessions/${odd.json.sessionId}`, { token: tok(w.author) })).status, 200);
+  assert.deepEqual(deleted, ['conv_ours00000001']);
+
+  // Form of address and council context travel as narrow, sanitised variables.
+  await ownerQuery(db, `INSERT INTO notification_preferences (organization_id, membership_id, style, address_form) VALUES ($1, $2, 'royal', 'milord')
+                        ON CONFLICT (organization_id, membership_id) DO UPDATE SET style = 'royal', address_form = 'milord'`, [w.acmeId, w.decider.membershipId]);
+  reply = { status: 200, url: signedFor('conv_ours00000002') };
+  const lord = await start(w.decider, 'acme', { language: 'kk', context: { kind: 'council', number: warehouse } }, root);
+  assert.deepEqual(lord.json.initiation.dynamic_variables, { address: 'мой милорд', reply_language: 'казахский', council_number: String(warehouse) });
+  await call(root, 'DELETE', `/orgs/acme/voice/sessions/${lord.json.sessionId}`, { token: tok(w.decider) });
+  assert.equal((await start(w.decider, 'acme', { language: 'ru', context: { kind: 'council', number: 99999 } }, root)).status, 404, 'a council item the employee cannot see');
+
+  // A reusable URL (no conversation id) or a URL of another host is refused.
+  reply = { status: 200, url: 'wss://api.elevenlabs.io/v1/convai/conversation?agent_id=a&conversation_signature=x' };
+  assert.match((await start(w.author, 'acme', { language: 'ru' }, root)).json.message, /одноразовый адрес/);
+  reply = { status: 200, url: 'wss://evil.example/v1/convai/conversation?conversation_id=conv_ours00000002' };
   const other = await start(w.author, 'acme', { language: 'ru' }, root);
   assert.equal(other.status, 503);
   assert.match(other.json.message, /MODUS_VOICE_WS_ORIGIN/);
@@ -460,7 +474,15 @@ test('ElevenLabs: same switches plus the agent; the key stays on the server; the
   const denied = await start(w.author, 'acme', { language: 'ru' }, root);
   assert.equal(denied.status, 503);
   assert.match(denied.json.message, /ключ не принят/);
-  assert.ok(!JSON.stringify(logs).includes(SIGNED), 'the signed URL is not logged');
+  assert.ok(!JSON.stringify(logs).includes('cvtkn_test'), 'the signed URL is not logged');
+});
+
+test('ElevenLabs: the fixed agent prompt carries the rules and exactly three variables', async () => {
+  const { ELEVENLABS_AGENT_PROMPT } = await import('../../platform/modules/voice.ts');
+  assert.match(ELEVENLABS_AGENT_PROMPT, /Альфред/);
+  assert.match(ELEVENLABS_AGENT_PROMPT, /ТОЛЬКО ИЗ ИНСТРУМЕНТОВ/);
+  assert.match(ELEVENLABS_AGENT_PROMPT, /не участник голосования/);
+  assert.deepEqual([...new Set(ELEVENLABS_AGENT_PROMPT.match(/\{\{\w+\}\}/g))].sort(), ['{{address}}', '{{council_number}}', '{{reply_language}}']);
 });
 
 test('ElevenLabs: the agent’s client tools are generated from the server schemas', () => {
