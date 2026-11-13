@@ -144,8 +144,8 @@ export function Login({ onSignedIn }: { onSignedIn: () => void }) {
     try {
       const { token } = await api<{ token: string }>('/demo/login', { json: { userId: chosen.userId }, idempotent: false });
       setToken(token);
-      // A shared link (#/items/12) wins over the start page.
-      if (!location.hash || location.hash === '#' || location.hash === '#/') location.hash = startOf(chosen).href;
+      // Only a bare address gets the start page: any explicit place (#/, #/items/12) wins.
+      if (!location.hash || location.hash === '#') location.hash = startOf(chosen).href;
       if (lite) finish();
       else setEntering(chosen);
     } catch (e) {

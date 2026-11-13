@@ -77,7 +77,7 @@ try {
   const calm = await browser.newContext({ viewport: { width: 1280, height: 900 }, reducedMotion: 'reduce' });
   const cp = await calm.newPage();
   await cp.goto(BASE);
-  await cp.getByRole('button', { name: new RegExp(admin.name) }).click();
+  await signIn(cp, admin);
   await cp.waitForSelector('.shell');
   await cp.goto(BASE + '/#' + entry + '/city');
   await cp.locator('.town-hotspot').first().waitFor();
