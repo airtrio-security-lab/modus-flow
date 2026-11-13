@@ -23,7 +23,7 @@ const TYPES: Record<string, string> = {
   '.woff2': 'font/woff2',
 };
 
-const PAGE_CSP = [
+export const PAGE_CSP = [
   "default-src 'self'",
   "script-src 'self'",
   "style-src 'self' 'unsafe-inline'",

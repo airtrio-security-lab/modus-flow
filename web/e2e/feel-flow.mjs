@@ -106,7 +106,17 @@ try {
   const start = await change(page, { envoys: moveTo(envoys(), 'd0-0', 0.62), envoy: 'd0-0' });
   must(dist(from, start.envoy) < 0.01, 'the envoy starts from where it stood, not from its new place');
   must(start.responses === 1, `only the envoy whose stage changed answers (${start.responses})`);
-  await page.waitForFunction(() => window.world.envoyItems.find((x) => x.id === 'd0-0').walking, null, { timeout: 60000, polling: 50 });
+  // Not the first walking frame: the walk eases in (easeInOutCubic), so there the envoy has barely
+  // moved. Wait until it is a real part of the way along the road and still walking.
+  await page.waitForFunction(
+    ([from, to]) => {
+      const e = window.world.envoyItems.find((x) => x.id === 'd0-0');
+      const k = (e.t - from) / (to - from);
+      return e.walking && k > 0.15 && k < 0.85;
+    },
+    [0.05, 0.62],
+    { timeout: 60000, polling: 50 },
+  );
   const mid = await envoyAt(page, 'd0-0');
   const anchorMid = await world(page, (w) => w.screenOf('d0-0'));
   await shot(page, '01-envoy-walks');
