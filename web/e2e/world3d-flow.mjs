@@ -107,7 +107,19 @@ try {
     await page.getByRole('button', { name: 'Повернуть вправо' }).click();
     await page.locator('.w3d').focus();
     await page.keyboard.press('ArrowLeft');
-    await page.waitForTimeout(900);
+    // Wait for the camera to arrive, not for a fixed time: on software rendering a frame can take a third
+    // of a second, and after one eased frame the turn stands at exactly 0.2 rad — the very threshold below.
+    await page.waitForFunction(
+      () => {
+        const w = window.__world;
+        const v = w.getView();
+        const same = w.__seen && ['x', 'z', 'dist', 'az', 'pol'].every((k) => Math.abs(v[k] - w.__seen[k]) < 1e-6);
+        w.__seen = v;
+        return same;
+      },
+      null,
+      { timeout: 15000, polling: 400 },
+    );
     const v1 = await world(page, (w) => w.getView());
     must(v1.dist < v0.dist * 0.9, 'zoom in works');
     must(Math.abs(v1.az - v0.az) > 0.2, 'rotation works');

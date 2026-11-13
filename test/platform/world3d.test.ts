@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { FEEL, Feel, easeInOutCubic, easeOutBack, easeOutCubic } from '../../web/src/world3d/feel.ts';
 import { BUDGET, read } from '../../web/src/world3d/budget.ts';
+import { AMBIENT, birdAt, cloudAt, cloudField, flicker, flocks, hash, puffAt, shadowShift } from '../../web/src/world3d/ambient.ts';
 
 /**
  * The 3D city (ADR-0030) without a browser or a database. The response layer: every movement ends
@@ -136,4 +137,92 @@ test('a measurement is read against the budget of its tier', () => {
   assert.equal(none.level, 'none');
   assert.equal(none.fps, 0);
   assert.ok(BUDGET.low.triangles < BUDGET.medium.triangles && BUDGET.medium.triangles < BUDGET.high.triangles);
+});
+
+// ---------------------------------------------------------------------------
+// The ambient life of the city (ADR-0044): weather is a function of time alone
+// ---------------------------------------------------------------------------
+test('the weather is a function of time: the same moment is the same picture, and nothing is random', () => {
+  const field = cloudField(9);
+  assert.deepEqual(field, cloudField(9), 'the cloud field is the same every time it is built');
+  assert.equal(new Set(field.map((c) => `${Math.floor(c.x / (AMBIENT.tile / 3))}:${Math.floor(c.z / (AMBIENT.tile / 3))}`)).size, 9, 'one cloud a cell: clouds neither bunch up nor leave half the sky empty');
+  assert.deepEqual(cloudField(5), field.slice(0, 5), 'a weaker tier draws fewer of the same clouds');
+  const a = { x: 0, z: 0, size: 0 };
+  const b = { x: 0, z: 0, size: 0 };
+  for (const t of [0, 13.7, 600, 86_400]) {
+    assert.deepEqual(cloudAt(field[3]!, t, a), cloudAt(field[3]!, t, b));
+    assert.ok(Math.abs(a.x) <= AMBIENT.tile / 2 && Math.abs(a.z) <= AMBIENT.tile / 2, 'a cloud never leaves its square of sky');
+    assert.ok(a.size >= 0 && a.size <= 1);
+  }
+  const f = flocks(300, 4);
+  const p = { x: 0, y: 0, z: 0, heading: 0, flap: 0 };
+  const q = { x: 0, y: 0, z: 0, heading: 0, flap: 0 };
+  assert.deepEqual({ ...birdAt(f[1]!, 3, 42.5, p) }, { ...birdAt(f[1]!, 3, 42.5, q) });
+  assert.ok(Math.abs(hash(7, 3) - hash(7, 3)) === 0 && hash(7, 3) >= 0 && hash(7, 3) < 1);
+});
+
+test('a cloud wraps unseen: it has shrunk to nothing where it jumps to the other side of the sky', () => {
+  const c = cloudField(9)[0]!;
+  const now = { x: 0, z: 0, size: 0 };
+  const next = { x: 0, z: 0, size: 0 };
+  let jumps = 0;
+  for (let t = 0; t < 4000; t += 0.5) {
+    cloudAt(c, t, now);
+    cloudAt(c, t + 0.5, next);
+    if (Math.abs(next.x - now.x) > 50 || Math.abs(next.z - now.z) > 50) {
+      jumps++;
+      assert.ok(now.size < 0.02 && next.size < 0.02, `a cloud of size ${now.size} must not jump across the sky`);
+    } else assert.ok(Math.hypot(next.x - now.x, next.z - now.z) < 3, 'between two frames a cloud moves a step, never a leap');
+  }
+  assert.ok(jumps > 0, 'the walk was long enough to cross the edge');
+});
+
+test('the shadow of the clouds stays a small number however long the map is open', () => {
+  const sun = { x: -0.58, y: 0.6, z: 0.55 };
+  const out = { x: 0, z: 0 };
+  for (const t of [0, 1, 3600, 86_400 * 30]) {
+    shadowShift(t, sun, 22, out);
+    assert.ok(out.x >= 0 && out.x < AMBIENT.tile && out.z >= 0 && out.z < AMBIENT.tile);
+  }
+  const a = { ...shadowShift(10, sun, 22, out) };
+  const b = { ...shadowShift(11, sun, 22, out) };
+  assert.ok(Math.abs(b.x - a.x - AMBIENT.wind.x) < 1e-6 && Math.abs(b.z - a.z - AMBIENT.wind.z) < 1e-6, 'the shadow moves with the wind, exactly as its cloud does');
+});
+
+test('birds fly over every roof, in a wedge, slowly, and their wings never fold through the body', () => {
+  const p = { x: 0, y: 0, z: 0, heading: 0, flap: 0 };
+  const n = { x: 0, y: 0, z: 0, heading: 0, flap: 0 };
+  for (const ring of [290, 520]) {
+    const all = flocks(ring, 4);
+    assert.equal(flocks(ring, 1).length, 1);
+    assert.equal(flocks(ring, 9).length, 4, 'never more than four flocks');
+    for (const f of all)
+      for (let k = 0; k < f.n; k++)
+        for (let t = 0; t < 900; t += 1.3) {
+          birdAt(f, k, t, p);
+          // Measured on 2026-11-13 with every district at level 5: roofs end at 94 m, the donjon of the palace at 108 m.
+          assert.ok(p.y >= AMBIENT.birdFloor, `bird at ${p.y} m is under the floor of flight`);
+          assert.ok(Math.abs(p.flap) < 1.1, 'a wing stays a wing');
+          birdAt(f, k, t + 1 / 60, n);
+          const step = Math.hypot(n.x - p.x, n.z - p.z);
+          assert.ok(step > 0.05 && step < 1.2, `a bird flies ${Math.round(step * 60)} m/s: it should glide, not dart`);
+        }
+    // The wedge: followers stay within a few wingspans of the leader.
+    const lead = { ...birdAt(all[0]!, 0, 50, p) };
+    for (let k = 1; k < all[0]!.n; k++) assert.ok(Math.hypot(birdAt(all[0]!, k, 50, p).x - lead.x, p.z - lead.z) < 40);
+  }
+});
+
+test('smoke is born and dissolves at nothing, and the fire never flashes', () => {
+  const p = { dx: 0, y: 0, dz: 0, s: 0 };
+  let top = 0;
+  for (let t = 0; t < 60; t += 0.05)
+    for (let k = 0; k < 6; k++) {
+      puffAt(k, 6, t, p);
+      assert.ok(p.s >= 0 && p.s < 2.6 && p.y > 0 && p.y < 20);
+      if (p.y < 1.5 || p.y > 17.9) assert.ok(p.s < 0.35, 'a puff appears and disappears small');
+      top = Math.max(top, p.s);
+    }
+  assert.ok(top > 0.8, 'in between it is a visible puff');
+  for (let t = 0; t < 30; t += 0.01) assert.ok(Math.abs(flicker(t) - 1) < 0.15, 'the fire flickers within 15%');
 });
