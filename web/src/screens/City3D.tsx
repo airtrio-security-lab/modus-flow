@@ -148,6 +148,9 @@ export function City3D({ k, since, onMode, onUnavailable, onReload }: { k: Kingd
       return true;
     }
   });
+  const sun = useRef<HTMLDivElement>(null);
+  const sunAt = useRef<number | null>(null);
+  const [sunOn, setSunOn] = useState(false);
   const pending = useRef<string | null>(null);
   // Seamless world (ADR-0038): the camera and the selection as they were before a building was entered.
   const who = useMemo(() => ({ org: s.org, member: s.membershipId }), [s.org, s.membershipId]);
@@ -199,6 +202,8 @@ export function City3D({ k, since, onMode, onUnavailable, onReload }: { k: Kingd
     }
     world.current = w;
     w.live = !lite && !reducedMotion();
+    setSunOn(quality !== 'low');
+    sunAt.current = null;
     if (!had && !sinceUsed.current) {
       w.remember(seenFor(since ?? null, k));
       // Consumed on the next task: the development double-run of effects must not swallow it.
@@ -207,7 +212,15 @@ export function City3D({ k, since, onMode, onUnavailable, onReload }: { k: Kingd
     w.onLost = () => onUnavailable('Графический контекст потерян — показана схема города.');
     w.onFlight = setFlying;
     w.onHover = (id, kind) => setHoverEnvoy(kind === 'envoy' ? id : null);
-    w.onAnchors = (list) => place(list);
+    w.onAnchors = (list) => {
+      place(list);
+      // The haze of sunlight over the picture runs the way the light travels: it turns with the camera.
+      const a = Math.round(w.sunBearing());
+      if (a !== sunAt.current && sun.current) {
+        sunAt.current = a;
+        sun.current.style.setProperty('--sun', `${a}deg`);
+      }
+    };
     const ro = new ResizeObserver(() => {
       const el = host.current;
       if (el) w.resize(el.clientWidth, el.clientHeight);
@@ -412,6 +425,8 @@ export function City3D({ k, since, onMode, onUnavailable, onReload }: { k: Kingd
   return (
     <div className="w3d" data-sheet={selected || listOpen || envoyOpen !== null ? 'yes' : 'no'} ref={host} tabIndex={0} onKeyDown={onKey} role="application" aria-label={`${s.realmName}: трёхмерный город подразделений. Стрелки двигают камеру, плюс и минус приближают, Q и E поворачивают. Все здания доступны кнопками ниже.`}>
       <div ref={slot} className="w3d-canvas-slot" />
+      {/* Sunlight in the air (ADR-0044): decoration only, under every label and control; not on the lowest tier. */}
+      {sunOn ? <div ref={sun} className="w3d-sun" aria-hidden="true" /> : null}
       {!ready ? (
         <div className="w3d-loading" role="status">
           Строим город…

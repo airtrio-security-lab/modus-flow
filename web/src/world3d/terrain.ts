@@ -340,9 +340,10 @@ export function buildSky(sunDir: THREE.Vector3) {
     side: THREE.BackSide,
     depthWrite: false,
     fog: false,
-    uniforms: { sun: { value: sunDir.clone().normalize() } },
+    // `time` is driven by the ambient layer (ADR-0044): the banks of cloud on the sky drift with the same wind.
+    uniforms: { sun: { value: sunDir.clone().normalize() }, time: { value: 0 } },
     vertexShader: 'varying vec3 d; void main(){ d = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
-    fragmentShader: `varying vec3 d; uniform vec3 sun;
+    fragmentShader: `varying vec3 d; uniform vec3 sun; uniform float time;
       float h(vec2 p){ return fract(sin(dot(p, vec2(127.1,311.7))) * 43758.5453); }
       float n(vec2 p){ vec2 i=floor(p), f=fract(p); f=f*f*(3.0-2.0*f); return mix(mix(h(i),h(i+vec2(1,0)),f.x), mix(h(i+vec2(0,1)),h(i+vec2(1,1)),f.x), f.y); }
       float fb(vec2 p){ float s=0.0, a=0.5; for(int i=0;i<5;i++){ s+=a*n(p); p*=2.03; a*=0.5; } return s; }
@@ -355,7 +356,7 @@ export function buildSky(sunDir: THREE.Vector3) {
         c += vec3(1.0, 0.72, 0.42) * (pow(s, 6.0) * 0.28 + pow(s, 90.0) * 0.9);
         // High cirrus and cumulus banks, lit warm on the sun side.
         vec2 uv = d.xz / (d.y + 0.22) * 1.6;
-        float cl = smoothstep(0.48, 0.78, fb(uv + vec2(3.0, 1.0))) * smoothstep(0.02, 0.22, y);
+        float cl = smoothstep(0.48, 0.78, fb(uv + vec2(3.0, 1.0) + vec2(0.0046, 0.0019) * time)) * smoothstep(0.02, 0.22, y);
         vec3 cc = mix(vec3(0.62, 0.60, 0.66), vec3(1.0, 0.93, 0.84), 0.45 + 0.55 * s);
         c = mix(c, cc, cl * 0.72);
         gl_FragColor = vec4(c, 1.0);

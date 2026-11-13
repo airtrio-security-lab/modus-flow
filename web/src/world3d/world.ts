@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { Builder, banner, box, cone, cyl } from './geo';
+import { Life } from './life';
 import { KITS, greatPalace, library, plaza, type CivId } from './kits';
 import { GEO, buildForest, buildRoads, buildSky, buildTerrain, configure, layoutSites, makeHeight, type Road, type Site } from './terrain';
 import { bannerTexture, createMaterials, createWorldMaterials, setAnisotropy } from './tex';
@@ -113,6 +114,8 @@ export class World {
   private mats: Record<string, THREE.Material>;
   private wm: ReturnType<typeof createWorldMaterials>;
   private sun = new THREE.DirectionalLight(0xffe0bb, 3.1);
+  /** Clouds, their shadows, light, birds, smoke (ADR-0044): weather over the city, never data. */
+  readonly life: Life;
   private tier: (typeof TIERS)[Quality];
   private height: (x: number, z: number) => number = () => 0;
   private sites: Site[] = [];
@@ -202,11 +205,18 @@ export class World {
     this.mats = { ...createMaterials(), trunk: this.wm.trunk, leafPine: this.wm.leafPine, leafGreen: this.wm.leafGreen, leafPink: this.wm.leafPink, pond: this.wm.pond, fire: this.wm.fire };
     for (const k of ['slate', 'tileJ', 'tileGreen', 'thatch', 'copper', 'tileBlue', 'felt']) (this.mats[k] as THREE.MeshStandardMaterial).side = THREE.DoubleSide;
     for (const m of Object.values(this.mats)) (m as THREE.MeshStandardMaterial).vertexColors = true;
+    // The ambient life of the city (ADR-0044): every lit material takes the shade of the clouds; cloth and treetops move.
+    this.life = new Life(SUN, quality);
+    for (const m of Object.values(this.mats)) this.life.enliven(m);
+    for (const m of [this.wm.ground, this.wm.forestTrunk, this.wm.trunk, this.wm.leafPine, this.wm.leafGreen, this.wm.leafPink, this.wm.foam, this.figureMat]) this.life.enliven(m);
+    this.life.enliven(this.wm.forestPine, 'tree');
+    this.life.enliven(this.wm.forestLeaf, 'tree');
     this.mats['ban:realm'] = this.bannerMat('#3d4a63', 'realm');
 
     // Light: a low warm sun, a cool sky fill, the sky itself as the environment.
     const sky = buildSky(SUN);
     this.scene.add(sky);
+    this.life.bindSky(sky);
     const pmrem = new THREE.PMREMGenerator(this.renderer);
     const envScene = new THREE.Scene();
     envScene.add(sky.clone());
@@ -219,7 +229,7 @@ export class World {
     this.scene.add(fill);
     this.sun.castShadow = this.tier.shadow > 0;
     this.scene.add(this.sun, this.sun.target);
-    this.scene.add(this.land, this.centre, this.plazaGroup, this.districtsGroup, this.envoysGroup);
+    this.scene.add(this.land, this.centre, this.plazaGroup, this.districtsGroup, this.envoysGroup, this.life.group);
 
     this.ring = new THREE.Mesh(
       new THREE.RingGeometry(0.984, 1, 128).rotateX(-Math.PI / 2),
@@ -397,7 +407,9 @@ export class World {
       t = bannerTexture(color, emblem);
       this.bannerTex.set(key, t);
     }
-    return new THREE.MeshStandardMaterial({ map: t, roughness: 0.9, side: THREE.DoubleSide, envMapIntensity: 0.3, vertexColors: true });
+    const mat = new THREE.MeshStandardMaterial({ map: t, roughness: 0.9, side: THREE.DoubleSide, envMapIntensity: 0.3, vertexColors: true });
+    this.life.enliven(mat, 'cloth');
+    return mat;
   }
 
   private drop(obj: THREE.Object3D) {
@@ -479,6 +491,8 @@ export class World {
       b.at(3.5, 0, 7, 0, () => banner(b, 'ban:realm', 7, 1.2, 3));
     });
     this.plazaAt = at(pa, rc - 4);
+    // The weather is laid over this land: flocks loop over the ring, smoke rises from the fire of the camp.
+    this.life.attach(GEO.ring, y, new THREE.Vector3(this.campAt.x + Math.sin(face(ca)) * 2, y + 1.2, this.campAt.z + Math.cos(face(ca)) * 2), this.wm.fire);
     // Paths from the palace ring to the neutral buildings.
     for (const [a, r] of [[la, rc - 14], [ca, rc - 16], [pa, rc - 26]] as [number, number][]) {
       const len = r - 64;
@@ -1133,6 +1147,8 @@ export class World {
       this.feel.settle();
       this.dirty = true;
     }
+    // …and the weather stops where it rests.
+    if (!this.live && this.life.moving) this.dirty = true;
     if (!moving && !this.dirty && !this.live) return;
     if (this.live) {
       this.clock += dt;
@@ -1150,6 +1166,9 @@ export class World {
       this.dirty = true;
     }
     this.applyCamera();
+    // The weather follows the same clock; with motion off it stands at its resting picture.
+    if (this.live) this.life.update(this.clock, this.camera);
+    else this.life.rest(this.camera);
     this.renderer.render(this.scene, this.camera);
     this.publishAnchors();
     const ms = performance.now() - t0;
@@ -1173,11 +1192,26 @@ export class World {
     }
     this.onAnchors(list);
   }
+  private sunA = new THREE.Vector3();
+  private sunB = new THREE.Vector3();
+  /**
+   * The way sunlight travels across the screen right now, CSS degrees (0 = up, 90 = right): the haze of
+   * light laid over the picture runs along it, so it turns with the camera (ADR-0044).
+   */
+  sunBearing() {
+    const a = this.sunA.set(this.view.x, GEO.centerY, this.view.z);
+    const b = this.sunB.copy(a).addScaledVector(SUN, -140);
+    a.project(this.camera);
+    b.project(this.camera);
+    return (Math.atan2((b.x - a.x) * this.w, (b.y - a.y) * this.h) * 180) / Math.PI;
+  }
   /** One frame right now (screenshots, tests, reduced motion). */
   renderNow() {
     if (!this.live) this.feel.settle();
     this.renderer.shadowMap.needsUpdate = true;
     this.applyCamera();
+    if (this.live) this.life.update(this.clock, this.camera);
+    else this.life.rest(this.camera);
     this.renderer.render(this.scene, this.camera);
     this.publishAnchors();
   }
@@ -1214,6 +1248,7 @@ export class World {
     for (const p of this.pulses) (p.material as THREE.Material).dispose();
     this.pulses.clear();
     this.pulseGeo?.dispose();
+    this.life.dispose();
     if (!this.parked) this.unbind();
     this.canvas.removeEventListener('webglcontextlost', this.onContextLost);
     document.removeEventListener('visibilitychange', this.onVisibility);

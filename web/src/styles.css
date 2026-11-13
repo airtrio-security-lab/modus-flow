@@ -1129,6 +1129,22 @@ button.ts { cursor: pointer; min-height: 28px; }
   outline: none;
 }
 .w3d:focus-visible { box-shadow: inset 0 0 0 3px rgba(217, 186, 124, 0.7); }
+/* Sunlight in the air over the 3D city (ADR-0044): soft beams that run the way the light travels (--sun is set
+   from the scene and turns with the camera), strongest on the sun's side, breathing slowly. One layer, decoration
+   only: under every label and control, never above 18% of light; not drawn on the lowest tier and in light graphics. */
+.w3d-sun {
+  position: absolute; inset: 0; pointer-events: none; opacity: 0.85;
+  background:
+    repeating-linear-gradient(calc(var(--sun, 105deg) + 90deg), transparent 0%, rgba(255, 228, 176, 0.18) 5%, transparent 11%, transparent 19%, rgba(255, 228, 176, 0.12) 22%, transparent 26%, transparent 37%),
+    repeating-linear-gradient(calc(var(--sun, 105deg) + 90deg), transparent 0%, transparent 13%, rgba(255, 236, 200, 0.09) 23%, transparent 33%, transparent 53%);
+  -webkit-mask-image: linear-gradient(var(--sun, 105deg), #000 0%, rgba(0, 0, 0, 0.5) 45%, transparent 88%);
+  mask-image: linear-gradient(var(--sun, 105deg), #000 0%, rgba(0, 0, 0, 0.5) 45%, transparent 88%);
+}
+:root[data-lite='on'] .w3d-sun { display: none; }
+@media (prefers-reduced-motion: no-preference) {
+  :root:not([data-lite='on']) .w3d-sun { animation: w3d-sun 21s ease-in-out infinite; }
+  @keyframes w3d-sun { 50% { opacity: 0.4; } }
+}
 .w3d-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
 .w3d-canvas-slot { display: contents; }
 .w3d-loading { position: absolute; inset: 0; display: grid; place-items: center; font-size: var(--fs-lg); color: var(--w-ink-2); background: #0e1014; }
