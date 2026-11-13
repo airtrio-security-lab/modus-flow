@@ -168,6 +168,8 @@ test('SDP: validated before anything leaves the server, relayed once with the sh
   assert.equal(sent.session.audio.input.transcription.language, 'kk');
   assert.equal(sent.session.audio.input.turn_detection.interrupt_response, true, 'speaking over the advisor interrupts it');
   assert.match(sent.session.instructions, /ТОЛЬКО ИЗ ИНСТРУМЕНТОВ/);
+  assert.match(sent.session.instructions, /Альфред/, 'the advisor is called Alfred');
+  assert.match(sent.session.instructions, /ты не человек/);
   assert.match(sent.session.instructions, /қазақ/);
   assert.equal(sent.session.tools.length, TOOL_NAMES.length);
 

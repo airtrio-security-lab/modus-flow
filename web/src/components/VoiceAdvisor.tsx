@@ -39,11 +39,16 @@ const STATE_LABEL: Record<VoiceState, string> = {
   requesting_mic: 'Включаем микрофон…',
   connecting: 'Подключаемся…',
   listening: 'Слушаю',
-  user_speaking: 'Слушаю',
+  user_speaking: 'Слышу вас',
   thinking: 'Думаю',
   speaking: 'Отвечаю',
   ended: 'Разговор завершён',
   error: 'Нет связи',
+};
+/** Said once the line is open: the employee hears at once that the sound works. */
+const GREETING: Record<VoiceLanguage, string> = {
+  ru: 'Скажи одной короткой фразой, без инструментов: «Здравствуйте, я Альфред, советник MODUS FLOW. Слушаю вас.» И жди вопроса.',
+  kk: 'Бір қысқа сөйлеммен, құралсыз айт: «Сәлеметсіз бе, мен Альфред, MODUS FLOW кеңесшісімін. Тыңдап тұрмын.» Сосын сұрақты күт.',
 };
 const LIVE: VoiceState[] = ['requesting_mic', 'connecting', 'listening', 'user_speaking', 'thinking', 'speaking'];
 
@@ -72,7 +77,7 @@ export function VoiceAdvisorProvider({ children }: { children: ReactNode }) {
       {!open ? (
         <button type="button" className={`va-fab${headInView ? ' is-head-visible' : ''}`} onClick={() => value.open(undefined)} aria-haspopup="dialog">
           <MicGlyph />
-          <span>Спросить советника</span>
+          <span>Спросить Альфреда</span>
         </button>
       ) : (
         <AdvisorPanel context={context} onClose={() => setOpen(false)} onClearContext={() => setContext(undefined)} />
@@ -102,9 +107,9 @@ export function AdvisorHeadButton() {
   }, [setHeadInView]);
   if (!v) return null;
   return (
-    <button type="button" ref={ref} className="va-head-btn" onClick={() => v.open(undefined)} aria-haspopup="dialog" aria-label="Спросить советника">
+    <button type="button" ref={ref} className="va-head-btn" onClick={() => v.open(undefined)} aria-haspopup="dialog" aria-label="Спросить Альфреда">
       <MicGlyph />
-      <span>Советник</span>
+      <span>Альфред</span>
     </button>
   );
 }
@@ -115,7 +120,7 @@ export function AskAdvisorAtTable({ number }: { number: number }) {
   if (!v) return null;
   return (
     <button type="button" className="btn va-table-btn" onClick={() => v.open({ kind: 'council', number })}>
-      <MicGlyph /> Спросить советника о вопросе №{number}
+      <MicGlyph /> Спросить Альфреда о вопросе №{number}
     </button>
   );
 }
@@ -144,6 +149,10 @@ function AdvisorPanel({ context, onClose, onClearContext }: { context?: VoiceCon
   const [error, setError] = useState<string | null>(null);
   const [elapsed, setElapsed] = useState(0);
   const [maxSeconds, setMaxSeconds] = useState(0);
+  /** Microphone level 0..1 and whether anything louder than silence came in since the start. */
+  const [level, setLevel] = useState(0);
+  const [silentHint, setSilentHint] = useState(false);
+  const [typed, setTyped] = useState('');
   const transport = useRef<RealtimeTransport | null>(null);
   const session = useRef<string | null>(null);
   const seq = useRef(0);
@@ -199,6 +208,52 @@ function AdvisorPanel({ context, onClose, onClearContext }: { context?: VoiceCon
     return () => window.clearInterval(id);
   }, [liveNow, maxSeconds, hangUp]);
 
+  // Microphone level: shows that the browser really hears the employee (the usual reason for «не отвечает»).
+  const connected = liveNow && state !== 'requesting_mic' && state !== 'connecting';
+  useEffect(() => {
+    const stream = connected ? (transport.current?.localStream() as MediaStream | null) : null;
+    if (!stream || typeof AudioContext === 'undefined') return;
+    let ctx: AudioContext;
+    try {
+      ctx = new AudioContext();
+    } catch {
+      return;
+    }
+    const an = ctx.createAnalyser();
+    an.fftSize = 512;
+    ctx.createMediaStreamSource(stream).connect(an);
+    const buf = new Float32Array(an.fftSize);
+    let loud = false;
+    const started = Date.now();
+    setSilentHint(false);
+    const id = window.setInterval(() => {
+      an.getFloatTimeDomainData(buf);
+      let sum = 0;
+      for (const v of buf) sum += v * v;
+      const rms = Math.sqrt(sum / buf.length);
+      const lv = Math.min(1, rms * 12);
+      setLevel(lv);
+      if (lv > 0.08) loud = true;
+      if (!loud && Date.now() - started > 9000) setSilentHint(true);
+      if (loud) setSilentHint(false);
+    }, 120);
+    return () => {
+      window.clearInterval(id);
+      void ctx.close().catch(() => undefined);
+      setLevel(0);
+    };
+  }, [connected]);
+
+  function sendTyped(e: FormEvent) {
+    e.preventDefault();
+    const q = typed.trim();
+    if (q.length < 2 || !transport.current) return;
+    if (transport.current.sendText(q)) {
+      addTurn('user', q);
+      setTyped('');
+    }
+  }
+
   async function startTalk() {
     hangUp('restart');
     setError(null);
@@ -238,6 +293,9 @@ function AdvisorPanel({ context, onClose, onClearContext }: { context?: VoiceCon
           }
         },
         onError: (_code, message) => setError(message),
+        onReady: () => {
+          t.speakFirst(GREETING[language]);
+        },
         onClosed: () => {
           // Any end — error, lost connection, the employee — frees the server session at once.
           if (sid && session.current === sid) {
@@ -266,7 +324,7 @@ function AdvisorPanel({ context, onClose, onClearContext }: { context?: VoiceCon
     <div className="va" role="dialog" aria-modal="false" aria-labelledby="va-title" ref={panelRef} tabIndex={-1} onKeyDown={(e) => e.key === 'Escape' && onClose()}>
       <header className="va-head">
         <div>
-          <h2 id="va-title">Советник</h2>
+          <h2 id="va-title">Альфред</h2>
           <p className="va-sub">
             {context ? (
               <>
@@ -276,11 +334,11 @@ function AdvisorPanel({ context, onClose, onClearContext }: { context?: VoiceCon
                 </button>
               </>
             ) : (
-              'Отвечает по данным MODUS FLOW, доступным вам'
+              'Советник MODUS FLOW · отвечает по данным, доступным вам'
             )}
           </p>
         </div>
-        <button type="button" className="va-icon" onClick={onClose} aria-label="Закрыть панель советника (разговор завершится)">
+        <button type="button" className="va-icon" onClick={onClose} aria-label="Закрыть панель Альфреда (разговор завершится)">
           ×
         </button>
       </header>
@@ -311,12 +369,23 @@ function AdvisorPanel({ context, onClose, onClearContext }: { context?: VoiceCon
           voiceReady ? (
             <>
               <div className={`va-stage is-${state}${muted ? ' is-muted' : ''}`}>
-                <SpeechIndicator state={state} muted={muted} />
+                <SpeechIndicator state={state} muted={muted} level={level} />
                 <div className="va-state" role="status" aria-live="polite">
                   {muted && live ? 'Микрофон выключен' : STATE_LABEL[state]}
                   {live && maxSeconds ? <span className="va-clock"> · {mmss(elapsed)} / {mmss(maxSeconds)}</span> : null}
                 </div>
               </div>
+              {connected && !muted ? (
+                <p className="va-fine" aria-live="polite">
+                  Микрофон: {level > 0.08 ? 'слышу звук' : 'тишина'}
+                </p>
+              ) : null}
+              {silentHint && connected && !muted ? (
+                <div className="va-notice">
+                  Не слышу микрофон. Проверьте, какой микрофон выбран для этого сайта (значок микрофона в адресной строке браузера), и что он не выключен на
+                  компьютере. Можно написать вопрос ниже.
+                </div>
+              ) : null}
               {lastQuestion ? (
                 <p className="va-q">
                   <span>Вы:</span> {lastQuestion}
@@ -324,7 +393,7 @@ function AdvisorPanel({ context, onClose, onClearContext }: { context?: VoiceCon
               ) : null}
               {lastAnswer ? (
                 <p className="va-a" aria-live="polite">
-                  <span>Советник:</span> {lastAnswer}
+                  <span>Альфред:</span> {lastAnswer}
                 </p>
               ) : null}
               {error ? <div className="va-notice error">{error}</div> : null}
@@ -363,6 +432,14 @@ function AdvisorPanel({ context, onClose, onClearContext }: { context?: VoiceCon
                   </>
                 )}
               </div>
+              {connected ? (
+                <form className="va-row" onSubmit={sendTyped}>
+                  <input aria-label="Или напишите вопрос Альфреду" value={typed} onChange={(e) => setTyped(e.target.value)} placeholder="Или напишите вопрос…" maxLength={600} autoComplete="off" style={{ flex: 1, minWidth: 0 }} />
+                  <button type="submit" className="va-btn" disabled={typed.trim().length < 2}>
+                    Отправить
+                  </button>
+                </form>
+              ) : null}
               <p className="va-fine">
                 {status.voice.provider} · {status.voice.model} · голос «{status.voice.voice}» (синтетический). Голос и найденные факты уходят в OpenAI на время разговора; разговор не записывается и не
                 сохраняется.
@@ -372,7 +449,7 @@ function AdvisorPanel({ context, onClose, onClearContext }: { context?: VoiceCon
             <div className="va-off">
               <p className="va-off-title">Голосовой AI не подключён</p>
               <p className="va-muted">
-                Живой разговор появится, когда администратор подключит голосовой сервис. Пока можно спросить советника текстом
+                Живой разговор появится, когда администратор подключит голосовой сервис. Пока можно спросить Альфреда текстом
                 {status.text.configured ? '.' : ' — без языковой модели будут показаны найденные записи без пересказа.'}
               </p>
               <button type="button" className="va-btn" onClick={() => setMode('text')}>
@@ -409,7 +486,7 @@ function AdvisorPanel({ context, onClose, onClearContext }: { context?: VoiceCon
             <ol>
               {turns.map((t) => (
                 <li key={t.id} className={`va-turn ${t.who}`}>
-                  <b>{t.who === 'user' ? 'Вы' : t.who === 'advisor' ? 'Советник' : 'Система'}:</b> {t.text}
+                  <b>{t.who === 'user' ? 'Вы' : t.who === 'advisor' ? 'Альфред' : 'Система'}:</b> {t.text}
                 </li>
               ))}
             </ol>
@@ -421,9 +498,9 @@ function AdvisorPanel({ context, onClose, onClearContext }: { context?: VoiceCon
   );
 }
 
-function SpeechIndicator({ state, muted }: { state: VoiceState; muted: boolean }) {
+function SpeechIndicator({ state, muted, level }: { state: VoiceState; muted: boolean; level: number }) {
   return (
-    <div className="va-meter" aria-hidden="true" data-state={muted ? 'muted' : state}>
+    <div className="va-meter" aria-hidden="true" data-state={muted ? 'muted' : state} style={{ ['--lvl' as string]: muted ? 0 : level.toFixed(2) }}>
       <i />
       <i />
       <i />
@@ -476,7 +553,7 @@ function TextMode({ status, language, context, onRefs, onTurn }: { status: Voice
       {reply ? (
         reply.answer ? (
           <div className="va-a">
-            <span>Советник ({reply.model}):</span> {reply.answer}
+            <span>Альфред ({reply.model}):</span> {reply.answer}
           </div>
         ) : (
           <div className="va-facts">

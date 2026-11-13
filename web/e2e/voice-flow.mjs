@@ -63,11 +63,11 @@ await as({ width: 1280, height: 860 }, async (page, micAsked) => {
     const org = me.memberships[0].organization;
     return (await fetch(`/api/v1/orgs/${org}/voice/status`, { headers: { authorization: `Bearer ${token}` } })).json();
   });
-  const fab = page.getByRole('button', { name: 'Спросить советника' });
+  const fab = page.getByRole('button', { name: 'Спросить Альфреда' });
   await fab.waitFor();
-  step('плавающая кнопка «Спросить советника» на экране');
+  step('плавающая кнопка «Спросить Альфреда» на экране');
   await fab.click();
-  const panel = page.getByRole('dialog', { name: 'Советник' });
+  const panel = page.getByRole('dialog', { name: 'Альфред' });
   await panel.waitFor();
   const box = await panel.boundingBox();
   if (!box || box.width > 420 || box.x < 800) fail(`на десктопе — боковая панель справа, а не ${JSON.stringify(box)}`);
@@ -105,7 +105,7 @@ await as({ width: 1280, height: 860 }, async (page, micAsked) => {
   await page.waitForFunction((h) => location.hash === h, first);
   step(`ссылка открывает запись ${first}`);
 
-  await page.getByRole('button', { name: /Закрыть панель советника/ }).click();
+  await page.getByRole('button', { name: /Закрыть панель Альфреда/ }).click();
   await fab.waitFor();
   if (micAsked()) fail('микрофон запрашивался без разговора');
   step('панель закрыта; микрофон ни разу не запрашивался');
@@ -115,11 +115,11 @@ await as({ width: 1280, height: 860 }, async (page, micAsked) => {
   await row.waitFor();
   const href = await row.getAttribute('href');
   await page.goto(`${BASE}/${href}`);
-  const tableBtn = page.getByRole('button', { name: /Спросить советника о вопросе №/ });
+  const tableBtn = page.getByRole('button', { name: /Спросить Альфреда о вопросе №/ });
   await tableBtn.waitFor();
   await tableBtn.click();
   await panel.getByText(/За круглым столом · вопрос №/).waitFor();
-  step(`за круглым столом ${href}: советник открывается с контекстом вопроса`);
+  step(`за круглым столом ${href}: Альфред открывается с контекстом вопроса`);
   await page.screenshot({ path: `${OUT}/03-round-table.png` });
 });
 
@@ -133,7 +133,7 @@ await as({ width: 375, height: 812 }, async (page) => {
   if (!hb || hb.height < 44) fail('кнопка в шапке меньше 44 px');
   if (!bell || hb.x < bell.x || hb.x + hb.width > 375 - 8) fail(`кнопка советника не справа в шапке: ${JSON.stringify({ hb, bell })}`);
   if (await page.locator('.va-fab').isVisible()) fail('пока шапка видна, вторая (плавающая) кнопка не нужна');
-  step('телефон: «Советник» в шапке справа, рядом с уведомлениями');
+  step('телефон: «Альфред» в шапке справа, рядом с уведомлениями');
   await page.screenshot({ path: `${OUT}/07-phone-header.png` });
 
   // After scrolling the header away, the floating button takes over above the tab bar.
@@ -153,7 +153,7 @@ await as({ width: 375, height: 812 }, async (page) => {
     await page.evaluate(() => window.scrollTo(0, 0));
   }
   await page.locator('.mobile-head .va-head-btn').click();
-  const panel = page.getByRole('dialog', { name: 'Советник' });
+  const panel = page.getByRole('dialog', { name: 'Альфред' });
   await panel.waitFor();
   // The sheet may run under the tab bar, but every tab must stay on top and clickable.
   const covered = await page.evaluate(() =>
@@ -164,9 +164,10 @@ await as({ width: 375, height: 812 }, async (page) => {
     }).length,
   );
   if (covered) fail(`нижний лист закрывает ${covered} кнопок панели разделов`);
-  const input = await panel.getByLabel(/Вопрос о ваших задачах/).boundingBox();
+  // The main control of the open mode (start a conversation, or the typed question) must stay above the tab bar.
+  const input = await panel.locator('.va-body .va-primary, .va-body #va-q, .va-off .va-btn').first().boundingBox();
   const tabBox = await page.locator('.tabbar').boundingBox();
-  if (!input || !tabBox || input.y + input.height > tabBox.y) fail('поле вопроса уходит под панель разделов');
+  if (!input || !tabBox || input.y + input.height > tabBox.y) fail('главная кнопка панели уходит под панель разделов');
   const wide = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
   if (wide) fail('горизонтальная прокрутка на телефоне');
   await page.locator('.tabbar a').first().click();

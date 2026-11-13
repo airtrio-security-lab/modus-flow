@@ -278,3 +278,41 @@ test('no simulation mode exists: the transport has no way to speak without a rea
   assert.ok(!/success:\s*true/.test(src), 'no default success for tools');
   assert.ok(!/api\.openai\.com|sk-|Bearer/.test(src), 'no provider address or key in the browser transport');
 });
+
+test('ready: the advisor speaks first; a typed question goes into the same live conversation', async () => {
+  let ready = 0;
+  const r = rig();
+  // onReady is wired through the events of a fresh transport for this test.
+  const t = createRealtimeTransport({
+    env: { getUserMedia: async () => ({ getTracks: () => r.tracks, getAudioTracks: () => r.tracks }), createPeer: () => { const p = new Peer(); r.peers.push(p); return p; }, createAudio: () => r.audio },
+    negotiate: async () => 'v=0 answer',
+    events: { onState: () => undefined, onError: () => undefined, onReady: () => ready++ },
+  });
+  assert.equal(t.sendText('рано'), false, 'nothing is sent before the line is open');
+  await t.start();
+  const ch = r.peers[0]!.channel;
+  ch.open();
+  assert.equal(ready, 1);
+  assert.ok(t.localStream(), 'the microphone stream is available for a level meter');
+  assert.equal(t.speakFirst('Поздоровайся'), true);
+  assert.deepEqual(ch.sent.at(-1), { type: 'response.create', response: { instructions: 'Поздоровайся' } });
+  ch.emit({ type: 'output_audio_buffer.started' });
+  assert.equal(t.sendText('  Что требует внимания?  '), true);
+  assert.deepEqual(ch.sent.slice(-4).map((m) => m.type), ['response.cancel', 'output_audio_buffer.clear', 'conversation.item.create', 'response.create'], 'a typed question interrupts the current answer');
+  const item = ch.sent.at(-2)!.item as { content: { type: string; text: string }[] };
+  assert.deepEqual(item.content, [{ type: 'input_text', text: 'Что требует внимания?' }]);
+  assert.equal(t.state(), 'thinking');
+  assert.equal(t.sendText('   '), false, 'an empty question is not sent');
+  t.stop();
+  assert.equal(t.localStream(), null, 'no stream after the end');
+  assert.equal(t.sendText('после конца'), false);
+});
+
+test('speech that could not be recognised is reported, not silently dropped', async () => {
+  const r = rig();
+  await r.t.start();
+  r.peers[0]!.channel.open();
+  r.peers[0]!.channel.emit({ type: 'conversation.item.input_audio_transcription.failed', error: { message: 'x' } });
+  assert.match(r.errors[0]![1], /не распознана/);
+  r.t.stop();
+});

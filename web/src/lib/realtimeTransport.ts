@@ -33,6 +33,8 @@ export interface TransportEvents {
   onToolCall?: (call: ToolCall) => Promise<unknown>;
   onError: (code: VoiceErrorCode, message: string) => void;
   onClosed?: (reason: string) => void;
+  /** The data channel is open: the provider can hear and answer from now on. */
+  onReady?: () => void;
 }
 
 // Minimal structural types of the browser objects used (no DOM lib needed).
@@ -200,6 +202,9 @@ export function createRealtimeTransport(opts: { negotiate: (offerSdp: string) =>
       case 'conversation.item.input_audio_transcription.completed':
         if (typeof msg.transcript === 'string' && msg.transcript.trim()) ev.onUserText?.(msg.transcript.trim());
         break;
+      case 'conversation.item.input_audio_transcription.failed':
+        ev.onError('provider', 'Речь не распознана. Повторите вопрос чуть громче или напишите его.');
+        break;
       case 'response.created':
         answerText = '';
         audioInResponse = false;
@@ -278,7 +283,9 @@ export function createRealtimeTransport(opts: { negotiate: (offerSdp: string) =>
         for (const t of stream.getAudioTracks()) pc.addTrack(t, stream);
         dc = pc.createDataChannel('oai-events');
         dc.onopen = () => {
-          if (!stopped && state === 'connecting') set('listening');
+          if (stopped) return;
+          if (state === 'connecting') set('listening');
+          ev.onReady?.();
         };
         dc.onclose = () => {
           if (!stopped) fail('connection_lost', 'Связь с голосовым сервисом прервалась. Нажмите «Переподключить».');
@@ -293,6 +300,32 @@ export function createRealtimeTransport(opts: { negotiate: (offerSdp: string) =>
       } catch (e) {
         return fail('connect_failed', (e as Error)?.message || 'Не удалось подключиться к голосовому сервису');
       }
+    },
+
+    /** The microphone stream, for a level meter on the page. Null before the microphone is granted and after the end. */
+    localStream(): StreamLike | null {
+      return stream;
+    },
+
+    /** A typed question in the same live conversation: answered by voice like a spoken one. */
+    sendText(text: string): boolean {
+      const t = text.trim();
+      if (stopped || !t || !dc || dc.readyState !== 'open') return false;
+      if (state === 'speaking') {
+        send({ type: 'response.cancel' });
+        send({ type: 'output_audio_buffer.clear' });
+      }
+      send({ type: 'conversation.item.create', item: { type: 'message', role: 'user', content: [{ type: 'input_text', text: t }] } });
+      send({ type: 'response.create' });
+      set('thinking');
+      return true;
+    },
+
+    /** Asks the model to speak first (a short greeting), with instructions for this one answer only. */
+    speakFirst(instructions: string): boolean {
+      if (stopped || !dc || dc.readyState !== 'open') return false;
+      send({ type: 'response.create', response: { instructions } });
+      return true;
     },
 
     setMuted(value: boolean): boolean {

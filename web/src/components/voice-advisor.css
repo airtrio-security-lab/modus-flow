@@ -90,6 +90,9 @@
 .va-meter[data-state='user_speaking'] i { background: var(--va-teal); opacity: 1; }
 .va-meter[data-state='speaking'] i { background: var(--va-gold); opacity: 1; }
 .va-meter[data-state='thinking'] i { background: var(--va-teal); opacity: 0.8; }
+/* While listening the bars follow the real microphone level (not decoration). */
+.va-meter[data-state='listening'] i { height: calc(8px + var(--lvl, 0) * 22px); }
+.va-meter[data-state='listening'] i:nth-child(2n) { height: calc(8px + var(--lvl, 0) * 16px); }
 .va-meter[data-state='speaking'] i:nth-child(2n),
 .va-meter[data-state='user_speaking'] i:nth-child(2n) { height: 18px; }
 .va-meter[data-state='speaking'] i:nth-child(3),

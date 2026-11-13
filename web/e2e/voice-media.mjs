@@ -48,8 +48,8 @@ async function open(browser, ctxOpts) {
   await page.goto(BASE);
   await signIn(page, person);
   await page.waitForSelector('.shell');
-  await page.getByRole('button', { name: 'Спросить советника' }).click();
-  const panel = page.getByRole('dialog', { name: 'Советник' });
+  await page.getByRole('button', { name: 'Спросить Альфреда' }).click();
+  const panel = page.getByRole('dialog', { name: 'Альфред' });
   await panel.getByRole('button', { name: /Начать разговор/ }).waitFor();
   return { ctx, page, panel, requests, bodies };
 }
@@ -106,7 +106,7 @@ async function open(browser, ctxOpts) {
   if (refused !== 404) fail(`инструмент без сессии: ${refused}`);
   step('вызов инструмента без живой сессии — 404');
 
-  await page.getByRole('button', { name: /Закрыть панель советника/ }).click();
+  await page.getByRole('button', { name: /Закрыть панель Альфреда/ }).click();
   const after = await page.evaluate(() => window.__streams.flatMap((s) => s.getTracks()).filter((t) => t.readyState !== 'ended').length);
   if (after) fail('после закрытия панели микрофон включён');
   step('панель закрыта — микрофон выключен');
