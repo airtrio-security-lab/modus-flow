@@ -48,7 +48,8 @@
     "demo:commonwealth": "node web/e2e/commonwealth-flow.mjs",
     "demo:cinematics": "node web/e2e/cinematics-flow.mjs",
     "demo:seamless": "node web/e2e/seamless-flow.mjs",
-    "demo:perf": "node web/e2e/perf-profile.mjs"
+    "demo:perf": "node web/e2e/perf-profile.mjs",
+    "demo:living": "node web/e2e/living-knowledge-flow.mjs"
   },
   "engines": {
     "node": ">=22"

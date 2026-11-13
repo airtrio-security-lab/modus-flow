@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ApiError, api, errorText, qs } from '../lib/api';
 import { date, dateTime } from '../lib/format';
 import { go } from '../lib/router';
@@ -6,6 +6,7 @@ import { useLoad, useSession } from '../lib/session';
 import { ErrorBox, Loading } from '../components/ui';
 import { ArchiveSeal, Crumbs, HALLS, HallHero, HallNavigation, KnowledgeProofBadge, KnowledgeTimeline, KnowledgeVolumeCard, Prose, ReadingSection, VolumeSkeleton, hallOf, type Level, type Status, type TimelineEvent, type VolumeRow } from '../components/halls';
 import { useWorldBack } from '../lib/useWorldBack';
+import { MethodUses, SolutionPath, type SolutionPathData } from '../components/SolutionPath';
 import './library.css';
 
 /**
@@ -42,6 +43,11 @@ interface Card {
 type Row = VolumeRow & { kind: Kind; visibility: string; updatedAt: string };
 interface ListData {
   items: Row[];
+  /** Exact numbers of what the reader may open, from the server (ADR-0041) — never counted from a loaded page. */
+  counts: Record<Level, number>;
+  total: number;
+  allHalls: number;
+  page: { limit: number; offset: number; next: number | null };
   roles: { archivist: boolean; approver: boolean; curator: boolean };
   note: string;
 }
@@ -75,7 +81,9 @@ interface View {
   versions: { version: number; title: string; card: Card; reason: string; author: string; at: string }[];
   transitions: { action: string; title: string; reason: string | null; actor: string; at: string; version: number }[];
   timeline: TimelineEvent[];
-  can: Partial<Record<ActionId | 'revise' | 'addSource' | 'addApplication', boolean>>;
+  /** «Путь решения» (ADR-0040): assembled by the server from recorded facts the reader may open. */
+  path?: SolutionPathData;
+  can: Partial<Record<ActionId | 'revise' | 'addSource' | 'addApplication' | 'apply', boolean>>;
   roles: { archivist: boolean; approver: boolean; curator: boolean };
 }
 type ArchivistAi =
@@ -162,8 +170,15 @@ const readHall = (): Level | 'all' => {
   const h = hashParams().get('hall');
   return h === 'chronicle' || h === 'library' || h === 'archive' ? h : 'all';
 };
-/** The server returns at most this many rows: the catalogue says so instead of passing a part for the whole. */
-const LIST_LIMIT = 200;
+const KIND_IDS = ['problem', 'decision', 'method', 'improvement', 'discovery', 'lesson', 'history'];
+const STATUS_IDS = ['active', 'needs_review', 'outdated'];
+const STATUS_LABEL: Record<string, string> = { active: 'Действует', needs_review: 'Требует проверки', outdated: 'Устарело' };
+const readOne = (name: string, allowed: string[]) => {
+  const v = hashParams().get(name) ?? '';
+  return allowed.includes(v) ? v : '';
+};
+/** One page of the catalogue; the rest comes by «Показать ещё» (ADR-0041). */
+const PAGE = 24;
 
 // ---------------------------------------------------------------------------
 // The library: three doors, one search
@@ -174,25 +189,27 @@ export function Library() {
   const [hall, setHall] = useState<Level | 'all'>(readHall);
   const [q, setQ] = useState(() => hashParams().get('q') ?? '');
   const [query, setQuery] = useState(() => q.trim());
-  const [kind, setKind] = useState('');
-  const [status, setStatus] = useState('');
+  const [kind, setKind] = useState(() => readOne('kind', KIND_IDS));
+  const [status, setStatus] = useState(() => readOne('status', STATUS_IDS));
   const search = useRef<HTMLInputElement>(null);
   useEffect(() => {
     const t = window.setTimeout(() => setQuery(q.trim()), 300);
     return () => window.clearTimeout(t);
   }, [q]);
-  // The address keeps the hall and the query, so a link opens the same catalogue.
+  // The address keeps the hall, the query and the filters, so a link opens the same catalogue.
   useEffect(() => {
     const p = new URLSearchParams();
     if (hall !== 'all') p.set('hall', hall);
     if (query) p.set('q', query);
+    if (kind) p.set('kind', kind);
+    if (status) p.set('status', status);
     const tail = p.toString();
     const next = `#/library${tail ? `?${tail}` : ''}`;
     // Only while the catalogue is the open screen: a person who has already gone back (the browser's
     // «Назад» right after entering) must not have the address rewritten under them.
     if (!/^#\/library(\?|$)/.test(location.hash)) return;
     if (location.hash !== next) history.replaceState(null, '', next);
-  }, [hall, query]);
+  }, [hall, query, kind, status]);
   // A link that leads here while the library is open — the archive on the map, a crumb — changes the hall too.
   useEffect(() => {
     const sync = () => {
@@ -200,16 +217,55 @@ export function Library() {
       setHall(readHall());
       const next = hashParams().get('q') ?? '';
       setQ((cur) => (cur.trim() === next ? cur : next));
+      setKind(readOne('kind', KIND_IDS));
+      setStatus(readOne('status', STATUS_IDS));
     };
     window.addEventListener('hashchange', sync);
     return () => window.removeEventListener('hashchange', sync);
   }, []);
-  const { data, error, loading, reload } = useLoad(
-    () => api<ListData>(`/orgs/${s.org}/knowledge${qs({ q: query || undefined, kind: kind || undefined, status: status || undefined })}`),
-    [s.org, query, kind, status],
-  );
-  const counts = useMemo(() => (data ? (Object.fromEntries(HALLS.map((h) => [h.id, data.items.filter((i) => i.level === h.id).length])) as Record<Level, number>) : null), [data]);
-  const shown = (data?.items ?? []).filter((i) => hall === 'all' || i.level === hall);
+  // The hall is a filter of the server like the others: the browser holds one page, not the library.
+  const params = (offset: number) => qs({ q: query || undefined, kind: kind || undefined, status: status || undefined, level: hall === 'all' ? undefined : hall, limit: PAGE, offset: offset || undefined });
+  const listKey = `${s.org}|${query}|${kind}|${status}|${hall}`;
+  const { data, error, loading, reload } = useLoad(() => api<ListData>(`/orgs/${s.org}/knowledge${params(0)}`), [s.org, query, kind, status, hall]);
+  // Further pages of the same search. A page that arrives after the search has changed is dropped.
+  const [more, setMore] = useState<{ key: string; items: Row[]; next: number | null } | null>(null);
+  const [moreBusy, setMoreBusy] = useState(false);
+  const [moreError, setMoreError] = useState<unknown>(null);
+  const keyNow = useRef(listKey);
+  keyNow.current = listKey;
+  useEffect(() => {
+    setMore(null);
+    setMoreError(null);
+  }, [listKey, data]);
+  const extra = more?.key === listKey ? more : null;
+  const shown = [...(data?.items ?? []), ...(extra?.items ?? [])];
+  const next = extra ? extra.next : (data?.page.next ?? null);
+  const showMore = async () => {
+    if (next === null || moreBusy) return;
+    const key = listKey;
+    setMoreBusy(true);
+    setMoreError(null);
+    try {
+      const r = await api<ListData>(`/orgs/${s.org}/knowledge${params(next)}`);
+      if (keyNow.current !== key) return;
+      // A record may move between two requests: nothing is shown twice.
+      const have = new Set([...(data?.items ?? []), ...(extra?.items ?? [])].map((i) => i.id));
+      setMore({ key, items: [...(extra?.items ?? []), ...r.items.filter((i) => !have.has(i.id))], next: r.page.next });
+    } catch (e) {
+      if (keyNow.current === key) setMoreError(e);
+    } finally {
+      setMoreBusy(false);
+    }
+  };
+  const counts = data?.counts ?? null;
+  const total = data?.total ?? 0;
+  const elsewhere = data && hall !== 'all' ? data.allHalls - data.counts[hall] : 0;
+  const active = [
+    hall !== 'all' ? `зал «${hallOf(hall).name}»` : '',
+    query ? `запрос «${query}»` : '',
+    kind ? `тип «${KINDS.find((k) => k.id === kind)?.label ?? kind}»` : '',
+    status ? `состояние «${STATUS_LABEL[status] ?? status}»` : '',
+  ].filter(Boolean);
   const curator = data?.roles.curator ?? (s.isLead || s.isAdmin || s.isArchivist);
   const filtered = !!(query || kind || status);
   const clear = () => {
@@ -251,7 +307,7 @@ export function Library() {
         }
       />
 
-      <HallNavigation hall={hall} counts={counts} total={data ? data.items.length : null} filtered={filtered} onChange={setHall} />
+      <HallNavigation hall={hall} counts={counts} total={data ? data.allHalls : null} filtered={filtered} onChange={setHall} />
 
       <section className="gc-search" aria-label="Поиск по библиотеке">
         <label htmlFor="lib-q" className="gc-search-label">
@@ -276,7 +332,7 @@ export function Library() {
           ) : null}
         </div>
         <p id="lib-q-hint" className="gc-hint">
-          Например: как сократить время пусконаладки, устранить повторные ошибки, улучшить процесс закупок. Поиск идёт по словам названия и карточки, во всех залах, среди знаний, доступных вам.
+          Например: как сократить время пусконаладки, устранить повторные ошибки, улучшить процесс закупок. Поиск идёт по словам названия и карточки и по номеру обращения-источника («№126») — в выбранном зале или во всех, только среди знаний, доступных вам. Это поиск по словам, а не по смыслу.
         </p>
         <div className="gc-filters">
           <div className="field">
@@ -334,16 +390,27 @@ export function Library() {
         {loading && !data ? <VolumeSkeleton /> : null}
         {data ? (
           <>
+            <h2 className="gc-result-title">{filtered ? 'Результаты поиска' : hall === 'all' ? 'Каталог' : hallOf(hall).name}</h2>
             <p className="gc-result" aria-live="polite">
-              {shown.length
-                ? filtered
-                  ? `Найдено: ${shown.length}${hall === 'all' ? '' : ` в зале «${hallOf(hall).name}»`}`
-                  : hall === 'all'
-                    ? `Доступно вам: ${shown.length}`
-                    : `В зале «${hallOf(hall).name}» доступно вам: ${shown.length}`
+              {total
+                ? `${filtered ? 'Найдено среди доступного вам' : 'Доступно вам'}: ${total}${hall === 'all' ? '' : ` в зале «${hallOf(hall).name}»`}.${shown.length < total ? ` Показано ${shown.length}.` : ''}`
                 : ''}
-              {data.items.length >= LIST_LIMIT ? ` Показаны первые ${LIST_LIMIT} записей — уточните запрос, чтобы увидеть остальные.` : ''}
             </p>
+            {active.length ? (
+              <p className="gc-active">
+                <span>Сейчас выбрано: {active.join(' · ')}.</span>{' '}
+                <button
+                  type="button"
+                  className="gc-active-clear"
+                  onClick={() => {
+                    clear();
+                    setHall('all');
+                  }}
+                >
+                  Очистить фильтры
+                </button>
+              </p>
+            ) : null}
             {shown.length ? (
               <ol className="gc-volumes">
                 {shown.map((r) => (
@@ -352,15 +419,27 @@ export function Library() {
                   </li>
                 ))}
               </ol>
-            ) : filtered ? (
+            ) : null}
+            {shown.length && next !== null ? (
+              <div className="gc-more">
+                {moreError ? <p className="gc-more-error" role="alert">Не удалось загрузить продолжение: {errorText(moreError)}</p> : null}
+                <button type="button" className="btn" onClick={() => void showMore()} disabled={moreBusy} aria-describedby="lib-more-left">
+                  {moreBusy ? 'Загружаем…' : moreError ? 'Повторить' : 'Показать ещё'}
+                </button>
+                <span id="lib-more-left" className="gc-hint">
+                  Осталось: {total - shown.length}
+                </span>
+              </div>
+            ) : null}
+            {shown.length ? null : filtered ? (
               <div className="gc-empty">
                 <p className="gc-empty-title">По вашему запросу среди доступных знаний ничего не найдено</p>
-                <p>{hall !== 'all' && data.items.length ? `В других залах по этому запросу есть записи: ${data.items.length}.` : 'Попробуйте другое слово или снимите фильтры.'}</p>
+                <p>{elsewhere ? `В других залах по этому запросу есть записи: ${elsewhere}.` : 'Попробуйте другое слово или снимите фильтры.'}</p>
                 <div className="row">
                   <button type="button" className="btn" onClick={clear}>
                     Очистить поиск
                   </button>
-                  {hall !== 'all' && data.items.length ? (
+                  {elsewhere ? (
                     <button type="button" className="btn quiet" onClick={() => setHall('all')}>
                       Искать во всех залах
                     </button>
@@ -774,6 +853,14 @@ export function KnowledgePage({ id }: { id: string }) {
             <b>Запись требует повторной проверки.</b> Что-то изменилось с момента утверждения; до проверки применяйте её с оглядкой. {why ?? ''}
           </p>
         ) : null}
+        {k.can.apply ? (
+          <div className="gc-apply">
+            <a className="btn primary" href={`#/new?method=${k.id}`}>
+              Применить этот метод
+            </a>
+            <span className="gc-hint">Откроется обычное обращение со ссылкой на это знание. Применение подтверждается результатом, а не нажатием.</span>
+          </div>
+        ) : null}
         <div className="gc-open-nav">
           <a href={`#/library?hall=${k.level}`}>К каталогу зала «{k.hall}»</a>
           <a href="#/kingdom">На карту Содружества</a>
@@ -925,6 +1012,8 @@ export function KnowledgePage({ id }: { id: string }) {
           {editing ? (
             <Revise k={k} onDone={() => { setEditing(false); void reload(); }} onCancel={() => setEditing(false)} />
           ) : (
+            <>
+            {k.path ? <SolutionPath path={k.path} historyId="hist-h" /> : null}
             <article className="gc-page" aria-label="Карточка знания">
               <ReadingSection no="01" title="Суть знания">
                 <h3 className="gc-sub">Принятое решение</h3>
@@ -1011,6 +1100,17 @@ export function KnowledgePage({ id }: { id: string }) {
                   <p className="gc-none">Метод пока не применялся на других обращениях.</p>
                 )}
                 {k.can.addApplication ? <AddApplication id={k.id} onDone={() => void reload()} /> : null}
+                <h3 className="gc-sub" id="uses-h">
+                  Обращения на основе этого знания
+                </h3>
+                <MethodUses uses={k.path?.uses ?? []} folded={k.path?.foldedUses ?? 0} />
+                {k.can.apply ? (
+                  <p>
+                    <a className="btn" href={`#/new?method=${k.id}`}>
+                      Применить этот метод
+                    </a>
+                  </p>
+                ) : null}
               </ReadingSection>
               <ReadingSection no="09" title="Доказательства и источники">
                 <h3 className="gc-sub">Доказательства</h3>
@@ -1055,6 +1155,7 @@ export function KnowledgePage({ id }: { id: string }) {
                 <p className="xs faint gc-page-foot">Знание Высшего Архива меняется только после запроса повторной проверки.</p>
               ) : null}
             </article>
+            </>
           )}
 
           <section className="gc-panel" aria-labelledby="chron-h">

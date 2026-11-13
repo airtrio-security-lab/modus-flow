@@ -1844,3 +1844,10 @@ dialog.cine::backdrop { background: rgba(5, 8, 12, 0.78); }
   :root:not([data-lite='on']) .page[data-arrive='world'] { animation: world-enter 200ms ease-out both; }
 }
 @keyframes world-enter { from { opacity: 0; } to { opacity: 1; } }
+
+/* «Применить этот метод» (ADR-0040): the knowledge an item is started from — on the form and on the item card. */
+.method-ref { display: grid; gap: 6px; justify-items: start; padding: 14px 16px; border: 1px solid var(--line-strong); border-left: 3px solid var(--accent); border-radius: var(--r-md); background: var(--surface); }
+.method-ref p { margin: 0; }
+.method-ref-kicker { font-size: var(--fs-xs); color: var(--ink-3); letter-spacing: 0.06em; text-transform: uppercase; }
+.method-ref-title { font-weight: 600; overflow-wrap: anywhere; }
+.method-ref .btn { min-height: 44px; }
