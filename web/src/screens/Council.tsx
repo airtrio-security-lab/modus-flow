@@ -9,6 +9,7 @@ import { STATUS } from '../lib/status';
 import { ESCALATION_REASONS, type CouncilEntry, type CouncilListRow, type CouncilRole, type CouncilSeat, type CouncilView, type Recommendation, type Stance } from '../lib/types';
 import { ErrorBox, Loading, PageHead, StatusChip } from '../components/ui';
 import { AdvisorPanel, advisorMethodLine, useAdvisorStatus } from '../components/Advisor';
+import { AskAdvisorAtTable } from '../components/VoiceAdvisor';
 import type { ExecutorView } from '../lib/types';
 import { CouncilTabs } from './Meetings';
 
@@ -206,6 +207,7 @@ export function RoundTable({ number }: { number: number }) {
         <a className="btn" href={`#/items/${it.number}`}>
           Карточка обращения
         </a>
+        <AskAdvisorAtTable number={it.number} />
         {s.isLead || s.isAdmin ? (
           <a className="btn primary" href={`#/meetings/new?idea=${it.number}&title=${encodeURIComponent(`Совет по обращению №${it.number}`)}`}>
             Созвать заседание с записью

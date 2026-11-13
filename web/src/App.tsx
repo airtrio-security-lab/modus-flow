@@ -28,6 +28,7 @@ import { MeetingPage, MeetingsList, NewMeeting } from './screens/Meetings';
 import { TitleChip, useTitles } from './components/Titles';
 import { Board } from './screens/Board';
 import { KnowledgePage, Library, NewKnowledge } from './screens/Library';
+import { VoiceAdvisorProvider } from './components/VoiceAdvisor';
 
 export function App() {
   const [me, setMe] = useState<Me | null>(null);
@@ -76,7 +77,9 @@ export function App() {
     );
   return (
     <SessionProvider me={me} onSignOut={signOut}>
-      <Shell />
+      <VoiceAdvisorProvider>
+        <Shell />
+      </VoiceAdvisorProvider>
     </SessionProvider>
   );
 }

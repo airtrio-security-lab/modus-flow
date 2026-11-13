@@ -6,6 +6,7 @@ import { demoConfigFromEnv } from './http/demo.ts';
 import { authenticatorFromEnv } from './http/authn.ts';
 import { isRemote, modelConfigFromEnv } from './modules/advisor-model.ts';
 import { transcribeConfigFromEnv } from './modules/transcribe.ts';
+import { voiceConfigFromEnv } from './modules/voice-realtime.ts';
 
 /**
  * MODUS FLOW platform API (v1). Runs alongside the legacy prototype
@@ -45,7 +46,10 @@ const advisorModel = modelConfigFromEnv(process.env);
 console.log(JSON.stringify({ level: 'info', advisor: advisorModel ? `${isRemote(advisorModel) ? 'CLOUD' : 'local'} model ${advisorModel.model} at ${advisorModel.url}${isRemote(advisorModel) ? ' — texts sent for analysis leave the company (ADR-0028)' : ''}` : 'rules only (no AI model connected)' }));
 const transcribeEngine = transcribeConfigFromEnv(process.env);
 console.log(JSON.stringify({ level: 'info', transcription: transcribeEngine ? `local engine ${transcribeEngine.model} at ${transcribeEngine.url}` : 'no engine (manual or prepared transcripts only)' }));
-const handler = createApp({ db, authenticator, staticDir, demo, advisorModel, transcribeEngine, log: (e) => console.log(JSON.stringify(e)) });
+// Live voice advisor (ADR-0042): off unless switched on explicitly; the key never leaves this process.
+const voice = voiceConfigFromEnv(process.env);
+console.log(JSON.stringify({ level: 'info', voice: voice ? `CLOUD OpenAI Realtime ${voice.model}, voice ${voice.voice}, ≤${voice.limits.maxSeconds}s — speech and facts leave the company during a conversation (ADR-0042)` : 'not connected (Голосовой AI не подключён)' }));
+const handler = createApp({ db, authenticator, staticDir, demo, advisorModel, transcribeEngine, voice, log: (e) => console.log(JSON.stringify(e)) });
 const server = createServer((req, res) => void handler(req, res));
 server.listen(port, host, () => console.log(JSON.stringify({ level: 'info', msg: `MODUS FLOW platform API on ${host}:${port}` })));
 
