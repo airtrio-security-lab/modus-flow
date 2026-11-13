@@ -2,7 +2,8 @@ import { z } from 'zod';
 import { AppError } from '../domain/errors.ts';
 import { ITEM_STATUSES } from '../domain/status.ts';
 import type { OrgActor } from '../domain/model.ts';
-import type { Database } from '../db/pool.ts';
+import { withTx, type Database } from '../db/pool.ts';
+import { orgTx } from './context.ts';
 import { CreateDraftInput } from './lab.ts';
 import { getIdea } from './ideas.ts';
 import { listInbox } from './notifications.ts';
@@ -125,11 +126,22 @@ async function search(deps: ToolDeps, actor: OrgActor, i: z.infer<typeof SearchI
 }
 
 async function mySummary(deps: ToolDeps, actor: OrgActor): Promise<ToolResult> {
-  const [inbox, assigned, councilRows, mtgs] = await Promise.all([
+  const [inbox, assigned, councilRows, mtgs, visibleOpen] = await Promise.all([
     listInbox(deps.db, actor),
     searchItems(deps.db, actor, { assigned: true, open: true, limit: 30 }) as Promise<Row[]>,
     council.listCouncil(deps.db, actor),
     meetings.listMeetings(deps.db, actor),
+    // Count the entire visible set, not a capped page of search results. The same RLS-backed
+    // read model and open-stage predicate as searchItems keep the totals within this person's rights.
+    withTx(deps.db, orgTx(actor), async (c) => {
+      const { rows } = await c.query<{ open: number; overdue: number }>(
+        `SELECT count(*)::integer AS open,
+                count(*) FILTER (WHERE o.overdue_first_response OR o.overdue_resolution)::integer AS overdue
+           FROM idea_overview o
+          WHERE o.organization_id = app_org_id() AND o.stage NOT IN ('closed', 'impact_verification')`,
+      );
+      return rows[0]!;
+    }),
   ]);
   const unread = inbox.filter((n) => !n.readAt);
   const decide = (councilRows as Row[]).filter((r) => r.iDecide);
@@ -137,8 +149,10 @@ async function mySummary(deps: ToolDeps, actor: OrgActor): Promise<ToolResult> {
   const upcoming = (mtgs as Row[]).filter((m) => !m.cancelledAt && !m.endedAt && m.scheduledAt && new Date(String(iso(m.scheduledAt))).getTime() > now - 3600_000).slice(0, 3);
   return {
     tool: 'get_my_summary',
-    found: unread.length + assigned.length + decide.length + upcoming.length,
+    found: Math.max(visibleOpen.open, unread.length + assigned.length + decide.length + upcoming.length),
     data: {
+      openItemsVisible: visibleOpen.open,
+      overdueItemsVisible: visibleOpen.overdue,
       unreadNotifications: unread.length,
       urgent: unread.filter((n) => n.urgent).slice(0, 6).map((n) => ({ message: cut(n.message, 200), ideaNumber: n.ideaNumber, createdAt: n.createdAt })),
       latest: unread.filter((n) => !n.urgent).slice(0, 4).map((n) => ({ message: cut(n.message, 200), ideaNumber: n.ideaNumber, createdAt: n.createdAt })),

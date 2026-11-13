@@ -294,7 +294,10 @@ test('ready: the advisor speaks first; a typed question goes into the same live 
   ch.open();
   assert.equal(ready, 1);
   assert.ok(t.localStream(), 'the microphone stream is available for a level meter');
-  assert.equal(t.speakFirst('Поздоровайся'), true);
+  assert.equal(t.speakFirst(), true);
+  assert.deepEqual(ch.sent.at(-1), { type: 'response.create' }, 'without instructions: the session instructions (the opening report) apply');
+  assert.equal(t.state(), 'thinking');
+  t.speakFirst('Поздоровайся');
   assert.deepEqual(ch.sent.at(-1), { type: 'response.create', response: { instructions: 'Поздоровайся' } });
   ch.emit({ type: 'output_audio_buffer.started' });
   assert.equal(t.sendText('  Что требует внимания?  '), true);

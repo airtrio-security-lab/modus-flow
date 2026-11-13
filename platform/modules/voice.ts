@@ -6,6 +6,10 @@ import { assertSdpOffer, createClientSecret, hangup, relaySdp, type VoiceConfig 
 import type { VoiceSession, VoiceSessionRegistry } from './voice-sessions.ts';
 import { realtimeToolSpecs, runVoiceTool, UNTRUSTED_NOTICE, type ToolDeps, type ToolResult, type VoiceRef } from './voice-tools.ts';
 import * as council from './council.ts';
+import { withTx } from '../db/pool.ts';
+import { orgTx } from './context.ts';
+import { addressFor, loadPreferences } from './notifications.ts';
+import { effectiveTitles } from './titles.ts';
 
 /**
  * «Спросить советника» — the company side of the voice advisor (ADR-0043): who the advisor is,
@@ -35,7 +39,7 @@ const ROLE = `Ты — Альфред, голосовой советник MODUS
 
 ФАКТЫ — ТОЛЬКО ИЗ ИНСТРУМЕНТОВ:
 - О задачах, обращениях, решениях, Советах, совещаниях и людях отвечай только по результатам инструментов MODUS FLOW этого разговора. Никогда не отвечай по памяти и не додумывай номера, имена, сроки и итоги.
-- Если инструмент вернул found: 0 или пустые поля, прямо скажи: «В доступных вам данных MODUS FLOW этого не нашлось».
+- Если инструмент поиска вернул found: 0 или пустые поля, прямо скажи: «В доступных вам данных MODUS FLOW этого не нашлось». У get_my_summary нулевые показатели — тоже факты: скажи, что открытых обращений или срочных дел нет.
 - Если инструмент вернул ошибку (нет доступа, не найдено, не поддерживается) — честно скажи это одной фразой.
 - ${UNTRUSTED_NOTICE}
 
@@ -59,14 +63,46 @@ const LANGUAGE = {
  * Instructions for one conversation. The council context, when given, is read with the employee's
  * own rights first (RLS): an item they cannot see makes the start fail with the same 404 as elsewhere.
  */
+/**
+ * How Alfred addresses the employee: only their own choice in «Как ко мне обращаться» or their game
+ * title — never a guess from a name (the same rule as royal messages, ADR-0016). «Деловой стиль» means
+ * no game address at all. A title changes the wording, never the rights.
+ */
+export async function voiceAddress(deps: ToolDeps, actor: OrgActor): Promise<string | null> {
+  return withTx(deps.db, orgTx(actor), async (c) => {
+    const prefs = await loadPreferences(c);
+    if (prefs.style === 'business') return null;
+    const base = addressFor(prefs.addressForm, (await effectiveTitles(c)).get(actor.membershipId) ?? null);
+    if (base === 'Милорд') return 'мой милорд';
+    if (base === 'Миледи') return 'моя миледи';
+    if (base === 'Коллега') return null;
+    return base;
+  });
+}
+
+function openingRule(address: string | null, councilNumber: number | null): string {
+  const addr = address ? `обратись «${address}»` : 'поздоровайся по-деловому, без игровых обращений';
+  if (councilNumber) {
+    return `ВСТУПЛЕНИЕ: когда разговор начинается, начни сам. Вызови get_council_brief с number=${councilNumber}. Затем 2–3 фразами: ${addr}; скажи, что ты Альфред и изучил вопрос №${councilNumber}; изложи суть и главный довод за и против; закончи: «Слушаю вас».`;
+  }
+  return `ВСТУПЛЕНИЕ: когда разговор начинается, начни сам — как дворецкий с утренним докладом. Вызови get_my_summary. Затем 2–3 фразами: ${addr}; скажи, сколько у вас открытых обращений (openItemsVisible) и сколько из них просрочено (overdueItemsVisible), «я изучил их — вот итог:» и назови главное — что ждёт решения сотрудника, его просроченное, срочные уведомления. Если ничего важного нет — так и скажи. Закончи: «Слушаю вас». Числа — только из ответа инструмента.`;
+}
+
 export async function buildInstructions(deps: ToolDeps, actor: OrgActor, input: z.infer<typeof VoiceSessionInput>): Promise<string> {
+  const address = await voiceAddress(deps, actor);
   const parts: string[] = [ROLE, LANGUAGE[input.language]];
+  parts.push(
+    address
+      ? `ОБРАЩЕНИЕ: обращайся к сотруднику «${address}» — как в играх, с уважением и без театральности: в первой фразе и изредка дальше, не в каждой реплике.`
+      : 'ОБРАЩЕНИЕ: сотрудник выбрал деловой стиль — без игровых обращений и титулов, на «вы».',
+  );
+  let councilNumber: number | null = null;
   if (input.context?.kind === 'council') {
     const c = (await council.getCouncil(deps.db, actor, input.context.number)) as unknown as { item: { number: number; title: string } };
-    parts.push(
-      `СЕЙЧАС: сотрудник за круглым столом Совета по обращению №${c.item.number}. Сначала вызови get_council_brief с number=${c.item.number} и опирайся на него.`,
-    );
+    councilNumber = c.item.number;
+    parts.push(`СЕЙЧАС: сотрудник за круглым столом Совета по обращению №${c.item.number}. Опирайся на get_council_brief с number=${c.item.number}.`);
   }
+  parts.push(openingRule(address, councilNumber));
   return parts.join('\n\n');
 }
 
@@ -237,6 +273,7 @@ export async function askText(deps: VoiceDeps, actor: OrgActor, input: z.infer<t
     // No model: the facts themselves, clearly labelled — never a template pretending to be AI.
     return { method: 'none' as const, answer: null, model: null, found, refs, facts, errors, note: 'Языковая модель не подключена: показаны найденные записи без пересказа ИИ.' };
   }
+  const address = await voiceAddress(deps, actor);
   let content = '';
   try {
     const res = await modelFetch(deps.textModel, deps.fetchImpl)(`${deps.textModel.url}/api/chat`, {
@@ -248,7 +285,7 @@ export async function askText(deps: VoiceDeps, actor: OrgActor, input: z.infer<t
         format: 'json',
         options: { temperature: 0 },
         messages: [
-          { role: 'system', content: `${ASK_SYSTEM}\n${LANGUAGE[input.language]}` },
+          { role: 'system', content: `${ASK_SYSTEM}\n${LANGUAGE[input.language]}\n${address ? `Начни ответ обращением «${address}».` : 'Без игровых обращений.'}` },
           { role: 'user', content: `<question>${input.question}</question>\n<facts>${JSON.stringify(facts)}</facts>` },
         ],
       }),

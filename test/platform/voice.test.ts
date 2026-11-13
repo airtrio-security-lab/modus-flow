@@ -170,6 +170,9 @@ test('SDP: validated before anything leaves the server, relayed once with the sh
   assert.match(sent.session.instructions, /ТОЛЬКО ИЗ ИНСТРУМЕНТОВ/);
   assert.match(sent.session.instructions, /Альфред/, 'the advisor is called Alfred');
   assert.match(sent.session.instructions, /ты не человек/);
+  assert.match(sent.session.instructions, /ВСТУПЛЕНИЕ/, 'Alfred opens with a report');
+  assert.match(sent.session.instructions, /get_my_summary/);
+  assert.match(sent.session.instructions, /openItemsVisible/);
   assert.match(sent.session.instructions, /қазақ/);
   assert.equal(sent.session.tools.length, TOOL_NAMES.length);
 
@@ -222,6 +225,9 @@ test('another organization’s items are not reachable: neither by search nor by
   const sid = mine.json.sessionId as string;
   const search = await tool(w.outsider, sid, 'search_items', { query: 'Склад' }, 'beta');
   assert.equal(search.json.found, 0, 'acme items are invisible from beta');
+  const summary = await tool(w.outsider, sid, 'get_my_summary', {}, 'beta');
+  assert.equal(summary.json.data.openItemsVisible, 0, 'summary counts never include another organization');
+  assert.equal(summary.json.data.overdueItemsVisible, 0);
   assert.equal((await tool(w.outsider, sid, 'get_item', { number: warehouse }, 'beta')).status, 404);
   // The outsider's session id used against acme, and an acme employee using the outsider's session.
   assert.equal((await tool(w.outsider, sid, 'get_item', { number: warehouse }, 'acme')).status, 404);
@@ -350,4 +356,51 @@ test('a private lab draft stays private: no voice tool reads it', async () => {
   assert.equal(r.json.found, 0);
   await end(w.maintainer, s.json.sessionId);
   await publishDraft(db, w.colleague.userId, d.id, { organization: 'acme' });
+});
+
+test('form of address: only the employee\'s own choice; business style has none; the opening report uses it', async () => {
+  const { ownerQuery: q } = await import('./support/db.ts');
+  const instr = async () => JSON.parse(calls.filter((c) => c.url.endsWith('/client_secrets')).at(-1)!.body).session.instructions as string;
+  const setPref = (form: string, style = 'royal') =>
+    q(db, `INSERT INTO notification_preferences (organization_id, membership_id, style, address_form) VALUES ($1, $2, $3, $4)
+            ON CONFLICT (organization_id, membership_id) DO UPDATE SET style = EXCLUDED.style, address_form = EXCLUDED.address_form`, [w.acmeId, w.colleague.membershipId, style, form]);
+  await setPref('milord');
+  let s = await start(w.colleague);
+  assert.match(await instr(), /обращайся к сотруднику «мой милорд»/);
+  assert.match(await instr(), /обратись «мой милорд»/);
+  await end(w.colleague, s.json.sessionId);
+  await setPref('milady');
+  s = await start(w.colleague);
+  assert.match(await instr(), /«моя миледи»/);
+  assert.doesNotMatch(await instr(), /милорд/, 'never the other form');
+  await end(w.colleague, s.json.sessionId);
+  await setPref('milord', 'business');
+  s = await start(w.colleague);
+  assert.match(await instr(), /деловой стиль — без игровых обращений/);
+  assert.doesNotMatch(await instr(), /милорд/);
+  await end(w.colleague, s.json.sessionId);
+
+  const t = await start(w.maintainer);
+  const summary = await tool(w.maintainer, t.json.sessionId, 'get_my_summary');
+  assert.equal(typeof summary.json.data.openItemsVisible, 'number', '«у нас N обращений» — a real count');
+  assert.equal(typeof summary.json.data.overdueItemsVisible, 'number');
+  await end(w.maintainer, t.json.sessionId);
+});
+
+test('opening report counts all visible open and overdue items, beyond the search result limit', async () => {
+  const s = await start(w.author);
+  assert.equal(s.status, 201);
+  const before = await tool(w.author, s.json.sessionId, 'get_my_summary');
+  const numbers: number[] = [];
+  for (let i = 0; i < 201; i++) {
+    const draft = await createDraft(db, w.author.userId, { ...fullDraft, title: `Проверка полной сводки ${i}` });
+    numbers.push((await publishDraft(db, w.author.userId, draft.id, { organization: 'acme' })).body.idea.number);
+  }
+  await ownerQuery(db, `UPDATE ideas SET first_response_due_at = now() - interval '1 minute'
+    WHERE organization_id = $1 AND number = ANY($2::integer[])`, [w.acmeId, numbers]);
+  const after = await tool(w.author, s.json.sessionId, 'get_my_summary');
+  assert.equal(after.json.data.openItemsVisible, before.json.data.openItemsVisible + 201);
+  assert.equal(after.json.data.overdueItemsVisible, before.json.data.overdueItemsVisible + 201);
+  assert.ok(after.json.found > 0);
+  await end(w.author, s.json.sessionId);
 });

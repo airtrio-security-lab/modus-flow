@@ -321,10 +321,14 @@ export function createRealtimeTransport(opts: { negotiate: (offerSdp: string) =>
       return true;
     },
 
-    /** Asks the model to speak first (a short greeting), with instructions for this one answer only. */
-    speakFirst(instructions: string): boolean {
+    /**
+     * Asks the model to speak first. Without `instructions` it follows the session instructions
+     * (note: instructions given here REPLACE the session ones for this answer).
+     */
+    speakFirst(instructions?: string): boolean {
       if (stopped || !dc || dc.readyState !== 'open') return false;
-      send({ type: 'response.create', response: { instructions } });
+      send(instructions ? { type: 'response.create', response: { instructions } } : { type: 'response.create' });
+      set('thinking');
       return true;
     },
 
