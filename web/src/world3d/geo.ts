@@ -18,6 +18,12 @@ export class Builder {
   ground = 0;
   /** Named places of a kit (the origin of a structure), for the building pins of the 3D town. */
   marks = new Map<string, THREE.Vector3>();
+  /** Hearths of a kit: where smoke may rise (ADR-0045) — the crown of a great yurt, the chimney of a hall. Decoration only. */
+  hearths: THREE.Vector3[] = [];
+  hearth(x = 0, y = 0, z = 0) {
+    this.hearths.push(new THREE.Vector3(x, y, z).applyMatrix4(this.stack[this.stack.length - 1]!));
+    return this;
+  }
 
   /** Remember where a named building stands: the given point in the current local frame. The first mark of a name wins. */
   mark(id: string, x = 0, y = 0, z = 0) {
@@ -323,7 +329,10 @@ export function hall(b: Builder, wall: MatKey, roof: MatKey, w: number, d: numbe
     }
   }
   if (o.door !== false) b.add('wood', box(1.6, 2.4, 0.2), w / 2 + 0.02, 0, 0, Math.PI / 2);
-  if (o.chimney) b.add(wall, box(0.9, roofH + 1.2, 0.9), -w / 4, h, d / 4);
+  if (o.chimney) {
+    b.add(wall, box(0.9, roofH + 1.2, 0.9), -w / 4, h, d / 4);
+    b.hearth(-w / 4, h + roofH + 1.3, d / 4);
+  }
 }
 
 /** A cloth banner on a pole; `mat` is the district's banner material. */
@@ -363,6 +372,8 @@ export function yurt(b: Builder, r: number, style: 'kazakh' | 'mongolia', o: { g
   b.add(kz ? 'wood' : 'red', cyl(crown, crown * 1.05, 0.28, 16), 0, wallH + roofH - 0.05, 0);
   if (kz) b.add(o.grand ? 'gold' : 'woodLight', lathe([[crown * 0.95, wallH + roofH + 0.2], [crown * 0.6, wallH + roofH + crown * 0.55], [0.05, wallH + roofH + crown * 0.7]], 12));
   else b.add('felt', cone(crown * 0.9, crown * 0.5, 12), 0, wallH + roofH + 0.2, 0);
+  // The fire of a great yurt burns under its crown.
+  if (o.grand) b.hearth(0, wallH + roofH + crown * 0.7 + 0.2, 0);
   // Door on +Z.
   const dw = Math.min(1.5, r * 0.34);
   const dh = wallH * 0.86;

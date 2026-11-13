@@ -116,6 +116,7 @@ export class World {
   private sun = new THREE.DirectionalLight(0xffe0bb, 3.1);
   /** Clouds, their shadows, light, birds, smoke (ADR-0044): weather over the city, never data. */
   readonly life: Life;
+  private hearths = new Map<string, THREE.Vector3[]>();
   private tier: (typeof TIERS)[Quality];
   private height: (x: number, z: number) => number = () => 0;
   private sites: Site[] = [];
@@ -331,6 +332,7 @@ export class World {
       if (!seen.has(id)) {
         this.drop(this.districtMesh.get(id)!);
         this.districtMesh.delete(id);
+        this.hearths.delete(id);
         this.districtKey.delete(id);
         changed = true;
       }
@@ -565,11 +567,27 @@ export class World {
     g.scale.setScalar(KIT_SCALE);
     g.name = d.id;
     g.updateMatrixWorld(true);
+    // Where smoke may rise in this district: at most two of the hearths its buildings have (ADR-0045).
+    this.hearths.set(d.id, b.hearths.slice(0, 2).map((v) => v.applyMatrix4(g.matrixWorld)));
     this.districtsGroup.add(g);
     this.districtMesh.set(d.id, g);
   }
 
+  /** The details of the living city follow the buildings that stand now: hearths, districts, the fountain, the river. */
+  private populateLife() {
+    const civ = new Map(this.input.districts.map((d) => [d.id, d.civ as string]));
+    const sites = this.sites.filter((s) => this.districtMesh.has(s.id));
+    this.life.details.populate({
+      districts: sites.map((s) => ({ x: s.x, y: s.y, z: s.z, civ: civ.get(s.id) ?? 'camelot' })),
+      hearths: sites.flatMap((s) => this.hearths.get(s.id) ?? []),
+      spout: this.plazaGroup.children.length ? new THREE.Vector3(this.plazaAt.x, GEO.centerY + 6.6, this.plazaAt.z) : null,
+      river: { r: GEO.gorgeR, width: GEO.gorgeW * 0.7, y: GEO.water },
+    });
+    this.dirty = true;
+  }
+
   private refreshSpots() {
+    this.populateLife();
     this.spots = [...this.centreSpots];
     for (const [id, g] of this.districtMesh) {
       const box3 = new THREE.Box3().setFromObject(g);

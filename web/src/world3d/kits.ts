@@ -31,6 +31,8 @@ function tent(b: Builder, r = 2.4) {
 function campfire(b: Builder) {
   ring(7, 0.7, (x, z) => b.add('rock', box(0.35, 0.3, 0.35), x, 0, z));
   b.add('fire', cone(0.4, 1, 6), 0, 0.1, 0);
+  // A fire in the open smokes too (ADR-0045).
+  b.hearth(0, 1, 0);
 }
 function scaffold(b: Builder, w: number, h: number) {
   for (const x of [-w / 2, w / 2]) for (const z of [-1, 1]) b.add('woodLight', cyl(0.1, 0.1, h, 5), x, 0, z);

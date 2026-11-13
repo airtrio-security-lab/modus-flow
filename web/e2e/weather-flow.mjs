@@ -76,6 +76,13 @@ try {
     await page.waitForFunction((t) => window.__world.life.snapshot().t > t + 1.5, a.t, { timeout: 60000, polling: 100 });
     const b = await world(page, (w) => w.life.snapshot());
     must(b.birdsVisible, 'птицы видны, пока движение включено');
+    // Details (ADR-0045): smoke over the hearths the buildings have, glints, mist, motes, the fountain.
+    const d0 = await world(page, (w) => w.life.details.snapshot());
+    must(d0.hearths >= 1 && d0.smoke === d0.hearths * 4 && d0.glints > 20 && d0.mist > 5 && d0.drops > 5, `детали разложены не целиком: ${JSON.stringify(d0)}`);
+    must(d0.motes > 0 && d0.motes % 12 === 0, 'у каждого района свои лепестки, листья или пыль');
+    await page.waitForFunction((t) => window.__world.life.snapshot().t > t + 1, b.t, { timeout: 60000, polling: 100 });
+    const d1 = await world(page, (w) => w.life.details.snapshot());
+    must(d1.mote.shown && d1.drop.shown && far(d0.drop, d1.drop) > 0.05 && far(d0.puff, d1.puff) > 0.02, `детали движутся: ${JSON.stringify({ d0, d1 })}`);
     must(far(a.bird, b.bird) > 0.5, `птицы летят: ${JSON.stringify({ a: a.bird, b: b.bird })}`);
     must(Math.hypot(a.shift.x - b.shift.x, a.shift.z - b.shift.z) > 2, 'тени облаков идут по земле');
     must(far(a.cloud, b.cloud) > 2, 'облака плывут по ветру');
@@ -109,6 +116,15 @@ try {
     await shot(page, '03-low-view-clouds-shafts');
     await at(200, { dist: 230, az: -0.5, pol: 1.16 });
     await shot(page, '04-palace');
+    // Details up close (ADR-0045): the fountain, a district with petals, a district with smoke, the gorge.
+    const near = (t, id, tweak) =>
+      world(page, (w, a) => { const d = a.civ ? w.input.districts.find((x) => a.civ.includes(x.civ)) : null; const v = w.viewOf(d ? d.id : a.id); if (!v) return false; w.live = true; w.clock = a.t; w.setView({ ...v, ...a.tweak }); w.renderNow(); return true; }, { t, ...id, tweak });
+    await near(31, { id: 'plaza' }, { dist: 62, pol: 1.12 });
+    await shot(page, '07-fountain');
+    if (await near(47, { civ: ['japan'] }, { dist: 105, pol: 1.2 })) await shot(page, '08-district-petals');
+    if (await near(52, { civ: ['kazakh', 'mongolia'] }, { dist: 110, pol: 1.2 })) await shot(page, '09-district-smoke');
+    await world(page, (w) => { w.live = true; w.clock = 64; w.setView({ x: 20, z: 150, dist: 130, az: 0.35, pol: 0.72 }); w.renderNow(); });
+    await shot(page, '10-gorge-mist-glints');
   });
   step('2. одно и то же время — одна и та же картина; снимки общего вида, низкого вида и дворца');
 
@@ -120,6 +136,8 @@ try {
     const b = await world(page, (w) => { w.renderNow(); return w.life.snapshot(); });
     must(a.t === 0 && b.t === 0, 'погода стоит на своей неподвижной картине');
     must(!a.birdsVisible && !b.birdsVisible, 'птицы скрыты: застывшая в воздухе птица хуже, чем её отсутствие');
+    const still = await world(page, (w) => w.life.details.snapshot());
+    must(!still.mote.shown && !still.drop.shown && still.puff.shown, `лепестки и брызги скрыты, дым стоит: ${JSON.stringify(still)}`);
     must(far(a.cloud, b.cloud) < 1e-6 && a.shift.x === b.shift.x, 'облака и тени не двигаются');
     const anim = await page.locator('.w3d-sun').evaluate((el) => ({ name: getComputedStyle(el).animationName, ms: getComputedStyle(el).animationDuration }));
     must(anim.name === 'none' || anim.ms === '0s', `свет в воздухе не мерцает: ${JSON.stringify(anim)}`);
@@ -131,6 +149,8 @@ try {
   await city(async (page) => {
     const a = await world(page, (w) => { w.renderNow(); return { live: w.live, life: w.life.snapshot(), stats: w.stats() }; });
     must(!a.live && a.life.t === 0 && !a.life.birdsVisible, 'в облегчённой графике погода неподвижна');
+    const none = await world(page, (w) => w.life.details.snapshot());
+    must(none.smoke + none.glints + none.mist + none.motes + none.drops === 0, `на нижней ступени деталей нет: ${JSON.stringify(none)}`);
     must(a.life.bodies === 0 && a.life.shafts === 0 && a.life.puffs === 0 && a.life.clouds >= 5, `на нижней ступени остаются только тени облаков: ${JSON.stringify(a.life)}`);
     must(a.stats.calls <= BUDGET.low.calls && a.stats.triangles <= BUDGET.low.triangles, `нижняя ступень вышла из бюджета: ${JSON.stringify(a.stats)}`);
     must(!(await page.locator('.w3d-sun').count()), 'на нижней ступени света поверх картины нет');

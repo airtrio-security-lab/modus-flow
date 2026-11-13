@@ -200,3 +200,83 @@ export function puffAt(k: number, n: number, t: number, out: Puff): Puff {
 }
 /** The fire of the camp: brightness around 1, never a flash. */
 export const flicker = (t: number) => 1 + Math.sin(t * 9.1) * 0.09 + Math.sin(t * 23.7 + 1.3) * 0.05;
+
+// ---------------------------------------------------------------------------
+// Details of a living city (ADR-0045): glints on the water, mist in the gorge, what the wind carries
+// through each district, the spray of the fountain. Decoration like the rest of this file: a function
+// of time alone, meaning nothing.
+// ---------------------------------------------------------------------------
+export interface Spot {
+  x: number;
+  y: number;
+  z: number;
+  /** Size now; 0 = not seen at this moment. */
+  s: number;
+  /** Turn round the vertical axis, radians. */
+  turn: number;
+}
+/**
+ * Glint `i` of `n` on the river that runs round the island at radius `r`: a spark of sun on a wave —
+ * it flares for a moment and is gone, each at its own time.
+ */
+export function glintAt(i: number, n: number, r: number, width: number, t: number, out: Spot): Spot {
+  const a = (i / n) * Math.PI * 2 + hash(i, 11) * 0.5;
+  const d = r + (hash(i, 12) - 0.5) * width;
+  out.x = Math.sin(a) * d;
+  out.z = Math.cos(a) * d;
+  out.y = 0;
+  const beat = Math.sin(t * (0.9 + hash(i, 13) * 0.9) + hash(i, 14) * 6.28);
+  out.s = beat > 0 ? beat ** 8 * (0.7 + hash(i, 15) * 0.9) : 0;
+  out.turn = hash(i, 16) * 3.14;
+  return out;
+}
+/** Bank of mist `i` of `n` in the gorge of radius `r`: lies low and creeps round the island, slower than a man walks. */
+export function mistAt(i: number, n: number, r: number, t: number, out: Spot): Spot {
+  const a = (i / n) * Math.PI * 2 + hash(i, 21) * 0.6 + t * 0.0035 * (i % 2 ? 1 : -0.6);
+  out.x = Math.sin(a) * r;
+  out.z = Math.cos(a) * r;
+  out.y = 2.5 + hash(i, 22) * 3 + Math.sin(t * 0.11 + i) * 0.5;
+  out.s = 0.75 + hash(i, 23) * 0.5 + Math.sin(t * 0.07 + i * 1.7) * 0.08;
+  out.turn = -a;
+  return out;
+}
+/** What the wind carries through a district: petals fall, leaves fall and spin, dust runs low over the ground. */
+export type Mote = 'petal' | 'leaf' | 'dust';
+/** How far from the middle of a district its motes are seen, metres. */
+export const MOTE_REACH = 36;
+/** Mote `i` of a district, relative to its middle, at time `t`. */
+export function moteAt(kind: Mote, i: number, t: number, out: Spot): Spot {
+  const px = (hash(i, 31) - 0.5) * 2 * MOTE_REACH;
+  const pz = (hash(i, 32) - 0.5) * 2 * MOTE_REACH;
+  if (kind === 'dust') {
+    // Dust runs with the wind and comes back from the other side; it is small where it turns round.
+    const run = ((t * 0.06 * (0.6 + hash(i, 33)) + hash(i, 34)) % 1 + 1) % 1;
+    out.x = (run - 0.5) * 2 * MOTE_REACH;
+    out.z = pz + Math.sin(t * 0.5 + i) * 1.2;
+    out.y = 0.6 + hash(i, 35) * 2.2 + Math.sin(t * 0.8 + i * 2.3) * 0.3;
+    out.s = Math.sin(run * Math.PI) * (0.6 + hash(i, 36) * 0.6);
+    out.turn = t * 0.4 + i;
+    return out;
+  }
+  const fall = ((t * (kind === 'petal' ? 0.05 : 0.065) * (0.7 + hash(i, 33) * 0.6) + hash(i, 34)) % 1 + 1) % 1;
+  const top = kind === 'petal' ? 13 : 17;
+  out.x = px + Math.sin(t * 0.7 + i * 1.9) * 1.6 + AMBIENT.wind.x * fall * 0.8;
+  out.z = pz + Math.cos(t * 0.6 + i * 1.3) * 1.6 + AMBIENT.wind.z * fall * 0.8;
+  out.y = 0.4 + (1 - fall) * top;
+  // Born small at the top, gone small at the ground.
+  out.s = Math.sin(fall * Math.PI) ** 0.5 * (0.7 + hash(i, 36) * 0.5);
+  out.turn = t * (kind === 'petal' ? 1.1 : 1.9) + i * 2.1;
+  return out;
+}
+/** Drop `i` of `n` of the fountain, relative to its spout: up, out and down into the bowl. */
+export function dropAt(i: number, n: number, t: number, out: Spot): Spot {
+  const life = ((t * 0.55 + i / n) % 1 + 1) % 1;
+  const a = i * 2.39996;
+  const reach = 1.2 + hash(i, 41) * 2.4;
+  out.x = Math.sin(a) * reach * life;
+  out.z = Math.cos(a) * reach * life;
+  out.y = 3.6 * 4 * life * (1 - life) - life * 4.6;
+  out.s = (1 - life * 0.55) * (0.7 + hash(i, 42) * 0.6);
+  out.turn = 0;
+  return out;
+}
