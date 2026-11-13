@@ -1851,3 +1851,8 @@ dialog.cine::backdrop { background: rgba(5, 8, 12, 0.78); }
 .method-ref-kicker { font-size: var(--fs-xs); color: var(--ink-3); letter-spacing: 0.06em; text-transform: uppercase; }
 .method-ref-title { font-weight: 600; overflow-wrap: anywhere; }
 .method-ref .btn { min-height: 44px; }
+
+/* ADR-0042: «Вклад» in the item passport — confirmed mark and the two-step confirmation. */
+.credit-line { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+.credit-confirmed { color: var(--green); font-weight: 600; }
+.credit-ask { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; flex-basis: 100%; }

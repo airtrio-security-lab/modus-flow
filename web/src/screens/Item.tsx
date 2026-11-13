@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState, type ReactNode } from 'react';
 import { ItemKingdom } from '../components/ItemKingdom';
 import { ProblemResolved } from '../components/ProblemResolved';
+import { ContributionLine } from '../components/ContributionCredit';
 import { EffectPanel, ItemContextPanel } from '../components/ProjectContext';
 import { EnvoyShortcut } from '../components/Audience';
 import { ItemOrigin } from '../components/ItemOrigin';
@@ -903,9 +904,7 @@ function Passport({ item, reload }: { item: IdeaDetail; reload: () => Promise<vo
             <Row k="Вклад">
               <ul className="plain">
                 {credits.map((c, i) => (
-                  <li key={i}>
-                    {c.member} <span className="faint">— {CREDIT[c.kind] ?? c.kind}</span>
-                  </li>
+                  <ContributionLine key={c.id ?? i} c={c} label={CREDIT[c.kind] ?? c.kind} number={item.number} reload={reload} />
                 ))}
               </ul>
             </Row>

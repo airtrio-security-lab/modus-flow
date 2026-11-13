@@ -7,6 +7,10 @@
  * вашего посла»; the operations director calls a council (scene «Вас приглашают…»), then cancels it
  * (a plain text notice, no scene). Nothing replays after a reload; watching changes nothing.
  *
+ * Part 1b (ADR-0042): the Great Round Table session starts («Великий Совет собран!» → «Войти в
+ * заседание»); the warehouse head confirms the storekeeper's contribution in the item passport, she
+ * sees «Ваш вклад признан»; no XP, no stage change.
+ *
  * Part 2 — controls and failures on FIXTURE notifications injected into the reader's own feed
  * (marked `fixture-`): «Сейчас», «Позже», «Пропустить», a batch with «Дальше» and only the next
  * scene preloaded, a missing and a broken video, sound blocked by the browser, «облегчённая
@@ -201,6 +205,90 @@ try {
   must(await quiet(page, 1500), '«Закрыть» ends the batch; the other cancellation stays in the inbox');
   step('Совет: приглашение → сцена → «Открыть заседание»; отмена → обычное текстовое уведомление без ролика; отменённое приглашение не проигрывается');
   await ctx.close();
+
+  // ---------------------------------------------------------------------------------------------
+  // Part 1b (ADR-0042, owner decisions 2026-11-13). «Великий Совет собран!» when the Great Round
+  // Table session starts; «Ваш вклад признан» when an item's lead confirms her contribution.
+  // ---------------------------------------------------------------------------------------------
+  {
+    const { ctx, page } = await device();
+    const passAny = async () => {
+      await page.waitForFunction(() => document.documentElement.dataset.cineChecked === '1', null, { timeout: 15000 });
+      for (let i = 0; i < 4; i++) {
+        const box = page.locator('dialog.cine[open], .cine-text');
+        if (!(await box.count())) return;
+        await box.getByRole('button', { name: /^(Пропустить|Позже|Закрыть)$/ }).first().click();
+        await box.first().waitFor({ state: 'detached', timeout: 5000 }).catch(() => undefined);
+      }
+    };
+    await signIn(page, storekeeper);
+    must(await quiet(page, 1500), 'a new device starts quiet');
+
+    // The Great Round Table: called (an invitation), everyone consents, the organizer starts the session.
+    await signIn(page, ops);
+    await passAny();
+    const great = await api(page, '/meetings', { method: 'POST', json: { title: 'Большой Круглый стол: приёмка у ворот', participants: [storeId], organizerConsent: true } });
+    await signIn(page, storekeeper);
+    await waitScene(page, '/cinematics/council-invitation.mp4');
+    await scene(page).getByRole('button', { name: 'Пропустить' }).click();
+    await api(page, `/meetings/${great.id}/consent`, { method: 'POST', json: { consent: 'given' } });
+    await api(page, `/meetings/${great.id}/attendance`, { method: 'POST', json: { attendance: 'confirmed' } });
+    must(await quiet(page, 2500), 'consenting and confirming attendance announce nothing: the session has not started');
+    await signIn(page, ops);
+    await passAny();
+    await api(page, `/meetings/${great.id}/recording/start`, { method: 'POST', json: {} });
+    await signIn(page, storekeeper);
+    await waitScene(page, '/cinematics/great-council-gathered.mp4');
+    const g = await scene(page).innerText();
+    must(g.length > 0, 'the server headline is shown');
+    await shot(page, '10-great-council-gathered');
+    await page.waitForFunction(() => document.querySelector('dialog.cine[open] video')?.ended, null, { timeout: 15000 });
+    await scene(page).getByRole('button', { name: 'Войти в заседание' }).click();
+    await page.waitForFunction((id) => location.hash === `#/meetings/${id}`, great.id);
+    await page.reload();
+    await page.waitForSelector('.shell');
+    must(await quiet(page, 2500), 'it plays once');
+    step('Большой Круглый стол: приглашение → согласие (сцены нет) → организатор начал заседание → «Великий Совет собран!» → «Войти в заседание»; один раз');
+
+    // A contribution of the storekeeper, confirmed by the lead of the item in the passport.
+    const lead = by('Начальник склада');
+    await signIn(page, lead);
+    await passAny();
+    let target = null;
+    for (let n = 1; n <= 40 && !target; n++) {
+      const it = await api(page, `/ideas/${n}`).catch(() => null);
+      const c = it?.contributions?.find((x) => x.member === storekeeper.name && x.canConfirm);
+      if (c) target = { n, c };
+    }
+    must(target, 'the warehouse head leads an item with a recorded contribution of the storekeeper');
+    const stageBefore = (await api(page, `/ideas/${target.n}`)).stage;
+    await signIn(page, storekeeper);
+    const xpBefore = JSON.stringify((await api(page, '/me/contribution')).items.map((x) => [x.number, x.xp]));
+    await signIn(page, lead);
+    await passAny();
+    await page.goto(`${BASE}/#/items/${target.n}`);
+    const line = page.locator('.credit-line', { hasText: storekeeper.name });
+    await line.getByRole('button', { name: 'Подтвердить вклад' }).click();
+    must(await line.innerText().then((t) => t.includes('Отменить нельзя')), 'confirming asks once more: it cannot be undone');
+    await shot(page, '11-confirm-contribution');
+    await line.getByRole('button', { name: 'Да, подтвердить' }).click();
+    await line.locator('.credit-confirmed').waitFor({ timeout: 10000 });
+    must((await page.locator('.credit-line', { hasText: storekeeper.name }).getByRole('button', { name: 'Подтвердить вклад' }).count()) === 0, 'no second confirmation');
+    await signIn(page, storekeeper);
+    await waitScene(page, '/cinematics/contribution-recognized.mp4');
+    must((await scene(page).innerText()).includes(String(target.n)) || (await scene(page).innerText()).length > 0, 'the server words');
+    await shot(page, '12-contribution-recognized');
+    await page.waitForFunction(() => document.querySelector('dialog.cine[open] video')?.ended, null, { timeout: 15000 });
+    await scene(page).getByRole('button', { name: 'Открыть обращение' }).click();
+    await page.waitForFunction((n) => location.hash === `#/items/${n}`, target.n);
+    const mine = page.locator('.credit-line', { hasText: storekeeper.name });
+    await mine.locator('.credit-confirmed').waitFor({ timeout: 10000 });
+    must((await mine.getByRole('button').count()) === 0, 'the contributor cannot confirm anything about her own contribution');
+    must(JSON.stringify((await api(page, '/me/contribution')).items.map((x) => [x.number, x.xp])) === xpBefore, 'no XP from a confirmation');
+    must((await api(page, `/ideas/${target.n}`)).stage === stageBefore, 'no stage change from a confirmation');
+    step('вклад: ведущий подтверждает вклад кладовщика в паспорте (второй шаг: «отменить нельзя») → у неё «Ваш вклад признан» → «Открыть обращение», отметка «подтверждён»; XP и стадия не изменились');
+    await ctx.close();
+  }
 
   // ---------------------------------------------------------------------------------------------
   // Part 2. Controls and failures on fixture notifications (the reader's own feed + one fixture).

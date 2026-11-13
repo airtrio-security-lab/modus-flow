@@ -172,8 +172,16 @@ export async function getIdea(db: Database, actor: OrgActor, number: number) {
       [idea.id],
     );
     const contributions = await c.query(
-      `SELECT c.kind, c.status, c.source_type, c.source_id, e.display_name AS member, c.created_at
+      `SELECT c.kind, c.status, c.source_type, c.source_id, e.display_name AS member, c.created_at,
+              c.id, c.membership_id AS "membershipId", c.confirmed_at AS "confirmedAt", ce.display_name AS "confirmedBy",
+              -- ADR-0042: what the reader may confirm here (the database checks the same rules again).
+              (c.status = 'recorded' AND c.kind <> 'authorship' AND c.membership_id <> app_membership_id()
+                AND app_membership_id() IN (i.maintainer_membership_id, i.decision_owner_membership_id)
+                AND (c.source_type <> 'verification'
+                     OR EXISTS (SELECT 1 FROM verifications v WHERE v.id = c.source_id AND v.status = 'completed'))) AS "canConfirm"
          FROM contributions c JOIN employees e ON e.membership_id = c.membership_id
+         JOIN ideas i ON i.id = c.idea_id
+         LEFT JOIN employees ce ON ce.membership_id = c.confirmed_by_membership_id
         WHERE c.idea_id = $1 ORDER BY c.created_at, c.id`,
       [idea.id],
     );

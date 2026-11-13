@@ -174,6 +174,12 @@ export interface Contribution {
   status: 'recorded' | 'confirmed' | 'revoked';
   member: string;
   created_at: string;
+  /** ADR-0042: who confirmed it and when; whether the reader may confirm it (decided by the server). */
+  id?: string;
+  membershipId?: string;
+  confirmedAt?: string | null;
+  confirmedBy?: string | null;
+  canConfirm?: boolean;
 }
 export interface Attachment {
   id: string;
@@ -283,6 +289,9 @@ export interface MeetingInvite {
   consent: 'pending' | 'given' | 'declined';
   cancelled: boolean;
   cancelReason: string | null;
+  /** ADR-0042: the session is over; when its recording started. */
+  ended?: boolean;
+  recordingStartedAt?: string | null;
 }
 export interface Notification {
   id: string;

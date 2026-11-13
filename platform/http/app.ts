@@ -274,6 +274,8 @@ export function createApp(config: AppConfig) {
   step('/implementer', wf.ImplementerInput, (a, n, i, _p, k) => wf.assignImplementer(db, a, n, i, k));
   step('/implementation', wf.CompleteImplementationInput, (a, n, i, _p, k) => wf.completeImplementation(db, a, n, i, k));
   step('/attribution/decline', z.object({}).strict(), (a, n, _i, _p, k) => wf.declineAttribution(db, a, n, k));
+  // ADR-0042: the item's lead confirms someone else's recorded contribution; the contributor is told once.
+  step(`/contributions/(?<contribution>${UUID})/confirm`, z.object({}).strict(), (a, n, _i, p, k) => wf.confirmContribution(db, a, n, p.contribution!, k));
 
   route('POST', `${IDEA}/attachments`, async (ctx) => {
     const actor = await org(ctx);

@@ -145,6 +145,7 @@ lost, everyone sees the stage, the owner sees what needs attention. Migrations 0
 | POST | `…/ideas/:number/implementer` | after a merge decision, by the leads |
 | POST | `…/ideas/:number/implementation` | `{report}`; implementer (not an originator) or a lead → `implemented` |
 | POST | `…/ideas/:number/attribution/decline` | the person recorded as "raised by" declines the credit |
+| POST | `…/ideas/:number/contributions/:id/confirm` | `{}`; the item's maintainer or decision owner confirms someone else's recorded contribution (not authorship; a verification only once completed); the contributor gets `contribution_confirmed` once; no XP (ADR-0042) |
 | POST/GET | `…/ideas/:number/attachments[/:id]` | raw body, `Content-Type`, `X-File-Name` (URL-encoded); ≤ 5 MB, ≤ 10 per item; signature must match type |
 | GET | `/api/v1/orgs/:org/directory` | departments, categories, active members, settings (full members only) |
 | GET/POST | `/api/v1/orgs/:org/routing-rules`, `POST …/:id/active` | org_admin writes; rules are deactivated, never deleted |

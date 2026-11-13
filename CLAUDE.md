@@ -11,7 +11,7 @@
 - `src/`, `public/`, `test/*.test.js` — старый прототип (не трогать без нужды)
 - `platform/` — платформа v1: PostgreSQL + RLS, TypeScript без сборки (ADR-0005)
 - `web/` — UI (Phase 3), e2e-сценарии в `web/e2e/`
-- `docs/adr/` — все решения (0001–0041), `docs/architecture/`, `docs/audit/`
+- `docs/adr/` — все решения (0001–0042), `docs/architecture/`, `docs/audit/`
 - `scripts/demo-local.sh` — локальное демо (`--ai`, `--dataset`)
 
 ## Команды

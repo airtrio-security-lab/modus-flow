@@ -683,3 +683,39 @@ export function declineAttribution(db: Database, actor: OrgActor, number: number
     return { number: idea.number, raisedBy: null };
   });
 }
+
+// ---------------------------------------------------------------------------
+// Confirming a contribution (ADR-0042): «Ваш вклад признан»
+// ---------------------------------------------------------------------------
+/**
+ * The item's maintainer or decision owner confirms a recorded contribution of someone else: a review,
+ * a co-authored revision, a completed verification, a negative result, an implementation, a question
+ * raised. Authorship is not confirmed (it is a fact of registration). The database checks the same
+ * rules (RLS, CHECK, migration 0023); the contributor is told once. No XP, no stage, no rights.
+ */
+export function confirmContribution(db: Database, actor: OrgActor, number: number, contributionId: string, key?: string) {
+  return mutate(db, actor, number, `contribution.confirm:${contributionId}`, {}, key, async (c, idea) => {
+    const { rows } = await c.query<{ id: string; membership_id: string; kind: string; status: string; source_type: string; source_id: string }>(
+      'SELECT id, membership_id, kind, status, source_type, source_id FROM contributions WHERE id = $1 AND idea_id = $2',
+      [contributionId, idea.id],
+    );
+    const k = rows[0];
+    if (!k) throw notFound('Вклад не найден');
+    authorize(actor, 'contribution.confirm', accessFacts(idea), { contributorMembershipId: k.membership_id });
+    if (k.status === 'confirmed') throw conflict('Вклад уже подтверждён');
+    if (k.status === 'revoked') throw conflict('Вклад отозван и не подтверждается');
+    if (k.kind === 'authorship') throw new AppError('validation_failed', 'Авторство — факт регистрации, его не подтверждают');
+    if (k.source_type === 'verification') {
+      const v = await c.query<{ status: string }>('SELECT status FROM verifications WHERE id = $1', [k.source_id]);
+      if (v.rows[0]?.status !== 'completed') throw new AppError('validation_failed', 'Вклад в проверку подтверждают после её завершения');
+    }
+    const done = await c.query<{ confirmed_at: Date }>(
+      `UPDATE contributions SET status = 'confirmed', confirmed_by_membership_id = $2, confirmed_at = clock_timestamp()
+        WHERE id = $1 RETURNING confirmed_at`,
+      [k.id, actor.membershipId],
+    );
+    await log(c, actor, 'contribution.confirmed', 'contribution', k.id, { idea: idea.number, kind: k.kind });
+    await c.query('SELECT app_notify_contribution($1)', [k.id]);
+    return { id: k.id, kind: k.kind, status: 'confirmed', confirmedAt: done.rows[0]!.confirmed_at };
+  });
+}
