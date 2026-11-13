@@ -350,6 +350,7 @@ export function createApp(config: AppConfig) {
   route('GET', `${ORG}/ideas/(?<number>\\d+)/dataset`, async (ctx) => ({ status: 200, body: await datasetMod.datasetOfItem(db, await org(ctx), Number(ctx.params.number)) }));
   route('GET', `${ORG}/people`, async (ctx) => ({ status: 200, body: await district.searchPeople(db, await org(ctx), district.PeopleQuery.parse(queryObject(ctx.query)).q) }));
   // ---- «Путь Посла» (0020, ADR-0032): read only; XP is written by the database ----
+  route('GET', `${IDEA}/resolution`, async (ctx) => ({ status: 200, body: await envoy.problemResolution(db, await org(ctx), Number(ctx.params.number)) }));
   route('GET', `${ORG}/me/envoy`, async (ctx) => ({ status: 200, body: await envoy.myEnvoy(db, await org(ctx)) }));
   route('GET', `${ORG}/people/(?<id>${UUID})/envoy`, async (ctx) => ({ status: 200, body: await envoy.envoyOf(db, await org(ctx), ctx.params.id!) }));
   route('GET', `${ORG}/me/contribution`, async (ctx) => ({ status: 200, body: await progress.myContribution(db, await org(ctx)) }));
@@ -494,6 +495,8 @@ export function createApp(config: AppConfig) {
   json('POST', `/meetings/(?<id>${UUID})/cancel`, meetings.CancelInput, (a, i, p) => meetings.cancel(db, a, p.id!, i));
   json('POST', `/meetings/(?<id>${UUID})/participants`, meetings.ParticipantInput, (a, i, p) => meetings.setParticipant(db, a, p.id!, i));
   route('GET', `${IDEA}/origin`, async (ctx) => ({ status: 200, body: await meetings.itemOrigin(db, await org(ctx), NumberParam.parse(ctx.params.number)) }));
+  // «Проблема решена» (0021, ADR-0035): the person whose question it is confirms, after the implementation.
+  step('/resolution', envoy.ResolutionInput, (a, n, i, _p, k) => envoy.confirmResolution(db, a, n, i, k));
   step('/effect', progress.EffectInput, (a, n, i, _p, k) => progress.approveEffect(db, a, n, i, k));
 
   // ---- «Наследие Королевства» (0012, ADR-0017): chronicle, library, higher archive ----

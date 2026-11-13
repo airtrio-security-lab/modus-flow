@@ -1,9 +1,13 @@
-import { forbidden, notFound } from '../domain/errors.ts';
+import { z } from 'zod';
+import { AppError, conflict, forbidden, notFound } from '../domain/errors.ts';
 import type { OrgActor } from '../domain/model.ts';
 import { civilization } from '../domain/civilizations.ts';
 import { ENVOY_EVENTS, ENVOY_NO_XP, ENVOY_RANKS, awardText, envoyRankFor, envoyRankName, rankUpText, type EnvoyEventKind, type EnvoyRankInfo } from '../domain/envoy.ts';
 import { withTx, type Client, type Database } from '../db/pool.ts';
 import { orgTx } from './context.ts';
+import { audit } from './audit.ts';
+import { hashRequest, idempotent } from './idempotency.ts';
+import { loadIdea } from './ideas.ts';
 
 /**
  * «Путь Посла» (ADR-0032): read side. The ledger (envoy_xp_awards) and the rank-ups are written only by
@@ -199,4 +203,56 @@ export async function myEnvoy(db: Database, actor: OrgActor): Promise<EnvoyCard 
 
 export async function envoyOf(db: Database, actor: OrgActor, membershipId: string): Promise<EnvoyCard> {
   return withTx(db, orgTx(actor), (c) => loadEnvoy(c, actor, membershipId));
+}
+
+// ---------------------------------------------------------------------------
+// «Проблема решена» (ADR-0035): the person whose question it is confirms, after a confirmed implementation.
+// The database checks the same rules again (0021) and writes the +5 itself; this service only asks.
+// ---------------------------------------------------------------------------
+export const ResolutionInput = z.object({}).strict();
+
+async function resolutionState(c: Client, actor: OrgActor, number: number) {
+  const idea = await loadIdea(c, number);
+  const implemented = (await c.query('SELECT 1 FROM xp_awards WHERE idea_id = $1 AND kind = $2', [idea.id, 'implementation'])).rowCount! > 0;
+  const done = (
+    await c.query<{ at: Date; by: string }>(
+      `SELECT r.created_at AS at, e.display_name AS by FROM problem_resolutions r
+         JOIN employees e ON e.membership_id = r.confirmed_by_membership_id WHERE r.idea_id = $1`,
+      [idea.id],
+    )
+  ).rows[0];
+  const owner = idea.raised_by_membership_id ?? idea.author_membership_id;
+  const xp = (await eventXp(c)).resolution;
+  return {
+    idea,
+    owner,
+    body: {
+      number: idea.number,
+      applies: idea.kind === 'problem',
+      implemented,
+      confirmed: done ? { at: done.at.toISOString(), by: done.by } : null,
+      canConfirm: idea.kind === 'problem' && implemented && !done && actor.membershipId === owner,
+      xp,
+    },
+  };
+}
+
+export function problemResolution(db: Database, actor: OrgActor, number: number) {
+  return withTx(db, orgTx(actor), async (c) => (await resolutionState(c, actor, number)).body);
+}
+
+export function confirmResolution(db: Database, actor: OrgActor, number: number, input: z.infer<typeof ResolutionInput>, key?: string) {
+  return withTx(db, orgTx(actor), async (c) => {
+    const locked = await loadIdea(c, number, true); // one confirmation per item at a time
+    return idempotent(c, actor.userId, `problem.resolve:${locked.id}`, key, hashRequest(input), async () => {
+      const { idea, owner, body } = await resolutionState(c, actor, number);
+      if (idea.kind !== 'problem') throw new AppError('validation_failed', 'Решение подтверждается только для обращения-проблемы');
+      if (actor.membershipId !== owner) throw forbidden('Подтверждает тот, чей это вопрос: автор или сотрудник, от чьего имени записано обращение');
+      if (!body.implemented) throw conflict('Подтвердить решение можно после подтверждённого внедрения');
+      if (body.confirmed) throw conflict('Решение проблемы по этому обращению уже подтверждено');
+      await c.query('INSERT INTO problem_resolutions (organization_id, idea_id, confirmed_by_membership_id) VALUES ($1, $2, $3)', [actor.orgId, idea.id, actor.membershipId]);
+      await audit(c, { orgId: actor.orgId, actorUserId: actor.userId, action: 'problem.resolution_confirmed', entityType: 'idea', entityId: idea.id, data: { idea: idea.number } });
+      return { status: 201, body: (await resolutionState(c, actor, number)).body };
+    });
+  });
 }

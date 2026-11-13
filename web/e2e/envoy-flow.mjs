@@ -181,6 +181,23 @@ try {
   await a.shot('04-my-envoy');
   step('после входа: «…ранга Доверенного посланника!» один раз, все послы сотрудницы в ранге III, «Мой посол» со ступенями и заслугами');
 
+  // ---- 4b. «Проблема решена?» — her problem №2 is implemented: only she confirms it, once, +5 ----
+  await a.hash('#/items/2');
+  const ask = a.page.locator('.problem-resolve');
+  await ask.waitFor({ timeout: 8000 });
+  const xpBefore = (await a.ok('GET', '/me/envoy')).xp;
+  await ask.getByRole('button', { name: 'Да, проблема решена' }).click();
+  await a.page.locator('.problem-resolved').waitFor({ timeout: 8000 });
+  must((await a.page.locator('.problem-resolved').innerText()).includes('подтвердил(а), что проблема решена'), 'the confirmation is shown on the item');
+  const afterResolve = await a.ok('GET', '/me/envoy');
+  must(afterResolve.xp === xpBefore + 5 && afterResolve.history.some((h) => h.text === '+5 XP — автор подтвердил, что проблема по обращению №2 решена'), 'the envoy gets +5 with its basis');
+  must((await a.call('POST', '/ideas/2/resolution', {})).status === 409, 'a second confirmation is refused');
+  await a.shot('04b-problem-resolved');
+  const other = await open(itLead);
+  must((await other.call('POST', '/ideas/2/resolution', {})).status === 403 || (await other.call('GET', '/ideas/2/resolution')).body.canConfirm === false, 'nobody else confirms it for her');
+  await other.ctx.close();
+  step('«Проблема решена?»: автор подтвердила решение по №2 — послу +5 XP один раз, другим подтверждать нельзя');
+
   // ---- 5. The map: new attire; an envoy walks along its road only when the server says it moved ----
   await a.hash('#/kingdom');
   const walker = a.page.locator(`.realm-envoy:has(a[href="#/items/${n}"])`);

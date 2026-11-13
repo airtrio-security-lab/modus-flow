@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState, type ReactNode } from 'react';
 import { ItemKingdom } from '../components/ItemKingdom';
+import { ProblemResolved } from '../components/ProblemResolved';
 import { EffectPanel, ItemContextPanel } from '../components/ProjectContext';
 import { EnvoyShortcut } from '../components/Audience';
 import { ItemOrigin } from '../components/ItemOrigin';
@@ -90,6 +91,7 @@ export function ItemPage({ number }: { number: number }) {
         <Signal status={item.status} />
         <p className="now">{nowLine(item)}</p>
         <ItemKingdom item={item} />
+        <ProblemResolved item={item} />
         <EffectPanel effect={item.effect} implemented={item.status === 'implemented'} />
         <ItemContextPanel item={item} onChanged={() => void reload()} />
         {item.status === 'implemented' ? (

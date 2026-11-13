@@ -126,7 +126,12 @@ try {
     await expectText(page, 'Отчёт отправлен');
     await page.getByRole('button', { name: 'Отметить как реализовано' }).click();
     await page.getByLabel('Что внедрено').fill('Термоголовка заменена, пустых листов нет');
-    await page.locator('form.composer').getByRole('button', { name: 'Отметить как реализовано' }).click();
+    // Wait for the server's answer: «реализовано» is already on the page in the button's own label,
+    // so a text match alone could close the page while the request is still in flight.
+    await Promise.all([
+      page.waitForResponse((r) => r.request().method() === 'POST' && r.url().endsWith(`/ideas/${number}/implementation`) && r.status() === 201),
+      page.locator('form.composer').getByRole('button', { name: 'Отметить как реализовано' }).click(),
+    ]);
     await expectText(page, 'Реализовано');
   });
   step('решение принято, исполнитель отчитался, обращение реализовано');

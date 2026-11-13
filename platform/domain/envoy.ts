@@ -31,12 +31,12 @@ export const DEFAULT_ENVOY_THRESHOLDS = [0, 20, 60, 140, 280, 500, 800] as const
 export type EnvoyEventKind = 'resolution' | 'implementation' | 'effect';
 
 /**
- * Confirmed events and their starting XP (mirrors organizations.envoy_xp_*). `enabled: false` means
- * nothing writes it: the current model has no verifiable «problem resolved» event apart from an
- * implementation, so it waits for the owner's decision (ADR-0032).
+ * Confirmed events and their starting XP (mirrors organizations.envoy_xp_*). «Problem resolved»: the
+ * owner decided (ADR-0035) — a problem, after its implementation was confirmed, is confirmed as resolved
+ * by the person whose question it is; once per item.
  */
 export const ENVOY_EVENTS: Record<EnvoyEventKind, { xp: number; enabled: boolean; label: string }> = {
-  resolution: { xp: 5, enabled: false, label: 'проблема подтверждённо решена' },
+  resolution: { xp: 5, enabled: true, label: 'автор подтвердил, что проблема решена' },
   implementation: { xp: 20, enabled: true, label: 'подтверждено внедрение' },
   effect: { xp: 30, enabled: true, label: 'подтверждён измеримый положительный эффект' },
 };
@@ -94,5 +94,6 @@ export const rankUpText = (rank: number) => `Ваш посол достиг ра
 
 /** One ledger line as a sentence with its basis: «+20 XP — подтверждено внедрение обращения №126». */
 export function awardText(kind: EnvoyEventKind, xp: number, number: number): string {
+  if (kind === 'resolution') return `+${xp} XP — автор подтвердил, что проблема по обращению №${number} решена`;
   return `+${xp} XP — ${ENVOY_EVENTS[kind].label} обращения №${number}`;
 }

@@ -87,7 +87,8 @@ test('rank table: I at 0, thresholds 20/60/140/280/500/800, VII is the top, the 
   assert.deepEqual([envoyRankFor(900).next, envoyRankFor(900).progress, envoyRankFor(900).name], [null, 1, 'Посол Великого Содружества']);
   assert.equal(rankUpText(4), 'Ваш посол достиг ранга Герольда!');
   assert.equal(awardText('implementation', 20, 126), '+20 XP — подтверждено внедрение обращения №126');
-  assert.equal(ENVOY_EVENTS.resolution.enabled, false, '+5 «problem resolved» waits for the owner: no verifiable event yet');
+  assert.equal(ENVOY_EVENTS.resolution.enabled, true, '+5 «problem resolved»: confirmed by the author (owner decision, ADR-0035)');
+  assert.equal(awardText('resolution', 5, 7), '+5 XP — автор подтвердил, что проблема по обращению №7 решена');
 });
 
 test('the starting rank is always I «Гонец», with no invented history', async () => {
@@ -349,4 +350,59 @@ test('another organization sees neither the envoys nor the history of this one',
   assert.ok(!theirs.envoys.some((e) => e.sender === 'Кирилл Демо'));
   const raw = await asUser(w.outsider, 'SELECT count(*)::int AS n FROM envoy_rank_ups');
   assert.equal(raw.rows[0].n, 0);
+});
+
+// ---------------------------------------------------------------------------
+// «Проблема решена» — подтверждает автор (ADR-0035)
+// ---------------------------------------------------------------------------
+async function problemImplemented(who: P, title: string, extra: Record<string, unknown> = {}) {
+  const n = (await submit(db, who, { kind: 'problem', title, departmentId: f.departments.sklad, ...extra })).body.item.number;
+  await wf.decide(db, f.head.actor, n, { outcome: 'merge', rationale: 'Устраним на складе своими силами', implementer: w.colleague.membershipId });
+  await wf.completeImplementation(db, w.colleague.actor, n, { report: 'Устранено, проверили на смене' });
+  return n;
+}
+
+test('«problem resolved»: +5 once, only by the person whose question it is, only after a confirmed implementation', async () => {
+  const p = await person(db, w.acmeId, 'Светлана Проблемная', ['employee'], 'Склад');
+  const n = (await submit(db, p, { kind: 'problem', title: 'Сканер у ворот гаснет на морозе', departmentId: f.departments.sklad })).body.item.number;
+  await assert.rejects(envoy.confirmResolution(db, p.actor, n, {}), codes('conflict'), 'not before the implementation is confirmed');
+  await wf.decide(db, f.head.actor, n, { outcome: 'merge', rationale: 'Купим чехлы с подогревом', implementer: w.colleague.membershipId });
+  await assert.rejects(envoy.confirmResolution(db, p.actor, n, {}), codes('conflict'), 'a decision is not an implementation');
+  await wf.completeImplementation(db, w.colleague.actor, n, { report: 'Чехлы надеты на все сканеры' });
+  // Nobody else says it for the author: not the implementer, the lead, the decision owner or a colleague.
+  for (const other of [w.colleague, f.head, w.maintainer, w.admin]) await assert.rejects(envoy.confirmResolution(db, other.actor, n, {}), codes('forbidden'));
+  await assert.rejects(asUser(f.head, `INSERT INTO problem_resolutions (organization_id, idea_id, confirmed_by_membership_id) SELECT organization_id, id, $1 FROM ideas WHERE number = $2`, [f.head.membershipId, n]), 'the database refuses it too');
+  const state = await envoy.problemResolution(db, p.actor, n);
+  assert.deepEqual([state.applies, state.implemented, state.canConfirm, state.confirmed], [true, true, true, null]);
+  const key = 'resolve-key-1';
+  const first = await envoy.confirmResolution(db, p.actor, n, {}, key);
+  assert.deepEqual((await envoy.confirmResolution(db, p.actor, n, {}, key)).body, first.body, 'the same key replays, nothing new');
+  await assert.rejects(envoy.confirmResolution(db, p.actor, n, {}), codes('conflict'), 'a second confirmation is refused');
+  assert.deepEqual((await awardsOf(n)).map((a) => [a.kind, a.xp, a.membership_id]), [['implementation', 20, p.membershipId], ['resolution', 5, p.membershipId]]);
+  const me = await envoy.myEnvoy(db, p.actor);
+  assert.equal(me.xp, 25);
+  assert.ok(me.history.some((h) => h.text === `+5 XP — автор подтвердил, что проблема по обращению №${n} решена`));
+  assert.equal(await castleXp(n), 100, 'the castle gets nothing extra for it');
+  await assert.rejects(ownerQuery(db, 'DELETE FROM problem_resolutions'), 'append-only');
+  const seen = await envoy.problemResolution(db, w.colleague.actor, n);
+  assert.deepEqual([seen.canConfirm, seen.confirmed?.by], [false, 'Светлана Проблемная']);
+});
+
+test('«problem resolved» never for an idea, a rejected or closed problem; on behalf — the colleague confirms', async () => {
+  const idea = await implemented(w.author, 'Идея, а не проблема');
+  await assert.rejects(envoy.confirmResolution(db, w.author.actor, idea, {}), codes('validation_failed'));
+  const p = await person(db, w.acmeId, 'Рустам Отклонённый', ['employee'], 'Склад');
+  const rejected = (await submit(db, p, { kind: 'problem', title: 'Шумит вентилятор в бытовке', departmentId: f.departments.sklad })).body.item.number;
+  await wf.decide(db, f.head.actor, rejected, { outcome: 'reject', rationale: 'Вентилятор заменят по плану в декабре' });
+  await assert.rejects(envoy.confirmResolution(db, p.actor, rejected, {}), codes('conflict'));
+  const closed = (await submit(db, p, { kind: 'problem', title: 'Дубликат про вентилятор', departmentId: f.departments.sklad })).body.item.number;
+  await wf.decide(db, f.head.actor, closed, { outcome: 'close', rationale: 'Дубликат обращения про вентилятор' });
+  await assert.rejects(envoy.confirmResolution(db, p.actor, closed, {}), codes('conflict'));
+  assert.equal(await envoyXp(p), 0);
+  // Raised on behalf: the colleague who had the problem confirms, not the person who typed it in.
+  const worker = await person(db, w.acmeId, 'Айдана Со Слов', ['employee'], 'Склад');
+  const n = await problemImplemented(w.maintainer, 'Нет перчаток нужного размера', { raisedBy: worker.membershipId, sourceChannel: 'meeting' });
+  await assert.rejects(envoy.confirmResolution(db, w.maintainer.actor, n, {}), codes('forbidden'));
+  await envoy.confirmResolution(db, worker.actor, n, {});
+  assert.deepEqual((await awardsOf(n)).map((a) => [a.kind, a.membership_id]), [['implementation', worker.membershipId], ['resolution', worker.membershipId]]);
 });
