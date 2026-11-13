@@ -72,7 +72,19 @@ export interface AppConfig {
 export interface DemoPersonas {
   organization: string;
   organizationName: string;
-  personas: { userId: string; name: string; title: string; department: string; hint: string }[];
+  personas: {
+    userId: string;
+    name: string;
+    title: string;
+    department: string;
+    hint: string;
+    /** Optional, for the sign-in screen only (written by the demo seed); never read to grant access. */
+    gameTitle?: string | null;
+    titleRank?: string | null;
+    civilization?: string | null;
+    castleId?: string | null;
+    roles?: string[];
+  }[];
 }
 
 interface Ctx {

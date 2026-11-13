@@ -11,6 +11,7 @@
  * Needs a freshly seeded demo database and the demo server (scripts/demo-local.sh --fresh).
  */
 import { chromium } from 'playwright';
+import { signIn as pickCharacter } from './sign-in.mjs';
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, readFileSync, readdirSync, renameSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
@@ -67,7 +68,7 @@ async function signIn(person, text) {
   await page.goto(BASE);
   await page.evaluate(() => { try { localStorage.setItem('modus.lite', '0'); localStorage.setItem('modus.howto.hidden', '1'); } catch {} });
   await page.goto(BASE);
-  await page.getByRole('button', { name: new RegExp(person.name) }).click();
+  await pickCharacter(page, person);
   await page.waitForSelector('.shell');
   if (text) await caption(text);
   await pause(800);

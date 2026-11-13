@@ -8,7 +8,7 @@ the service worker caches the shell only, never API responses.
 
 | Route | Who | What it answers |
 |---|---|---|
-| sign-in | everyone | Demo only: pick a fictional employee. **Imitation of SSO**; production uses OIDC (ADR-0009) |
+| sign-in | everyone | «Вход в Королевство»: demo only — pick a fictional character (one of the seeded demo accounts; game title, real job, department, rights from roles), confirm, short skippable entrance; owner/regent start on the Kingdom, heads of departments on their castle. **Imitation of SSO, labelled DEMO**; without `MODUS_DEMO_LOGIN` the server answers 404 and the screen lists nobody; production uses OIDC (ADR-0009) |
 | `#/` Мои обращения | everyone | What I raised (or what was recorded from my words), its stage, and what is waiting for my answer |
 | `#/new` Новое обращение | everyone | Problem or idea in plain words; topic and department; similar existing items while typing; «записываю со слов коллеги» (channel, colleague, note); files |
 | `#/board` Доска (канбан) | everyone | Columns are the five author-facing stages (Новые, Рассмотрение, Решение, Реализация, Итог). Dragging a card (or «Перевести» on touch / keyboard) opens the workflow step that move means: take over, decide with a reason and implementer, reject / close with a reason, confirm implementation. Backward moves and moves the rules forbid are explained, never applied silently. «Мне / Все», topic filter; finished items older than 14 days folded |

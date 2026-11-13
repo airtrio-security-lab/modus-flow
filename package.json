@@ -30,6 +30,7 @@
     "demo:seed": "node platform/cli/seed-modus-demo.ts",
     "demo:start": "node platform/cli/demo-start.ts",
     "demo:e2e": "node web/e2e/demo-flow.mjs",
+    "demo:login": "node web/e2e/login-flow.mjs",
     "demo:kingdom": "node web/e2e/kingdom-flow.mjs",
     "demo:record": "node web/e2e/record-demo.mjs",
     "demo:advisor": "node web/e2e/advisor-flow.mjs",

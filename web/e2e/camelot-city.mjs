@@ -4,6 +4,7 @@
  * BASE and PERSONAS may override defaults.
  */
 import { chromium } from 'playwright';
+import { signIn } from './sign-in.mjs';
 import { readFileSync } from 'node:fs';
 import { schematic } from './schematic.mjs';
 
@@ -20,7 +21,7 @@ async function session(viewport) {
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
   await page.goto(BASE);
-  await page.getByRole('button', { name: new RegExp(admin.name) }).click();
+  await signIn(page, admin);
   await page.waitForSelector('.shell');
   return { ctx, page, errors };
 }

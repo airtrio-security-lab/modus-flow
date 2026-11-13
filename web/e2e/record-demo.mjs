@@ -6,6 +6,7 @@
  *   npm run demo:record      → .demo/kingdom-demo.webm (+ .mp4 if ffmpeg is installed)
  */
 import { chromium } from 'playwright';
+import { signIn as pickCharacter } from './sign-in.mjs';
 import { readFileSync, mkdirSync, renameSync, readdirSync, rmSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { join } from 'node:path';
@@ -43,7 +44,7 @@ async function signIn(person, text) {
   await page.goto(BASE);
   await caption(text);
   await pause(900);
-  await page.getByRole('button', { name: new RegExp(person.name) }).click();
+  await pickCharacter(page, person);
   await page.waitForSelector('.shell');
   await caption(text);
 }

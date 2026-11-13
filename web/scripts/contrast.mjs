@@ -42,5 +42,25 @@ for (const [name, t] of [['light', light], ['dark', dark]]) {
     }
   }
 }
+
+// The Kingdom sign-in screen keeps its own dusk palette (src/components/kingdom-login.css).
+const klCss = readFileSync(new URL('../src/components/kingdom-login.css', import.meta.url), 'utf8');
+const klBlock = klCss.match(/^\.kl \{([\s\S]*?)\n\}/m);
+if (!klBlock) throw new Error('token block not found: .kl');
+const kl = Object.fromEntries([...klBlock[1].matchAll(/--([\w-]+):\s*(#[0-9a-fA-F]{6})/g)].map((x) => [x[1], x[2]]));
+const KL_PAIRS = [
+  ['kl-ink', 'kl-bg', 4.5], ['kl-ink', 'kl-panel', 4.5], ['kl-ink', 'kl-card', 4.5], ['kl-ink', 'kl-card-on', 4.5],
+  ['kl-ink-2', 'kl-panel', 4.5], ['kl-ink-2', 'kl-card', 4.5], ['kl-ink-2', 'kl-card-on', 4.5],
+  ['kl-gold', 'kl-panel', 4.5], ['kl-gold', 'kl-card', 4.5], ['kl-gold', 'kl-card-on', 4.5], ['kl-gold-ink', 'kl-gold', 4.5],
+  ['kl-mark', 'kl-card', 3], ['kl-gold-line', 'kl-panel', 3], ['kl-teal', 'kl-panel', 3],
+];
+for (const [fg, bg, min] of KL_PAIRS) {
+  if (!kl[fg] || !kl[bg]) throw new Error(`sign-in token missing: --${kl[fg] ? bg : fg}`);
+  const r = ratio(kl[fg], kl[bg]);
+  if (r < min) {
+    failed++;
+    console.error(`✗ sign-in: --${fg} on --${bg} = ${r.toFixed(2)} < ${min}`);
+  }
+}
 if (failed) process.exit(1);
-console.log(`✓ contrast: ${PAIRS.length * 2} token pairs pass (light and dark)`);
+console.log(`✓ contrast: ${PAIRS.length * 2} token pairs pass (light and dark), ${KL_PAIRS.length} on the sign-in screen`);

@@ -11,6 +11,7 @@
  * WebGL here is SwiftShader (software): frame times printed at the end are NOT those of a real GPU or phone.
  */
 import { chromium } from 'playwright';
+import { signIn } from './sign-in.mjs';
 import { readFileSync } from 'node:fs';
 
 const BASE = process.env.BASE ?? 'http://localhost:3100';
@@ -44,7 +45,7 @@ async function as(person, fn, opts = DESK, init) {
     localStorage.setItem('modus.w3d.quality', 'low');
   });
   await page.reload();
-  await page.getByRole('button', { name: new RegExp(person.name) }).click();
+  await signIn(page, person);
   await page.waitForSelector('.shell');
   try {
     return await fn(page);

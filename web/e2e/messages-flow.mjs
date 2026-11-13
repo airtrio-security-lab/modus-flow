@@ -8,6 +8,7 @@
  * Needs a freshly seeded demo database and the demo server:   npm run demo:messages
  */
 import { chromium } from 'playwright';
+import { signIn } from './sign-in.mjs';
 import { readFileSync } from 'node:fs';
 import { schematic } from './schematic.mjs';
 
@@ -32,7 +33,7 @@ async function as(person, fn, viewport = { width: 1280, height: 900 }) {
   page.on('pageerror', (e) => errors.push(e.message));
   await page.goto(BASE);
   await page.evaluate(() => { try { localStorage.setItem('modus.howto.hidden', '1'); } catch {} });
-  await page.getByRole('button', { name: new RegExp(person.name) }).click();
+  await signIn(page, person);
   await page.waitForSelector('.shell');
   try {
     return await fn(page);

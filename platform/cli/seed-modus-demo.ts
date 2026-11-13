@@ -2,7 +2,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import { createDatabase, withAdminTx, type Database } from '../db/pool.ts';
 import { saveMyProfile } from '../modules/advisor.ts';
-import { assignTitle, saveTitleChoices } from '../modules/titles.ts';
+import { assignTitle, listTitles, saveTitleChoices } from '../modules/titles.ts';
 import { createMeeting, setConsent } from '../modules/meetings.ts';
 import * as legacy from '../modules/legacy.ts';
 import { savePreferences } from '../modules/notifications.ts';
@@ -485,12 +485,29 @@ async function main() {
     reason: 'Записано по итогам решения',
   });
 
+  // For the demo sign-in screen (shown before sign-in, so it cannot ask the API): the game title as the
+  // title registry computes it, the district style, the castle and the real roles. Decoration and
+  // a start page only — the server never reads these fields to grant anything.
+  const titles = new Map((await listTitles(db, owner)).titles.map((t) => [t.membershipId, t]));
+  const castleOf = new Map<string, string>([
+    ['Руководство', D.mgmt], ['Продажи', D.sales], ['Закупки', D.purchasing], ['Проектирование', D.design],
+    ['Сервис', D.service], ['Пусконаладка', D.pnr], ['Склад и логистика', D.warehouse], ['ИТ-разработка', D.it],
+  ]);
+  // Roles as stored now (the admin granted some after creation, e.g. the archivist).
+  const storedRoles = new Map(
+    (await withAdminTx(db, (c) => c.query<{ id: string; roles: string[] }>('SELECT id, roles FROM memberships WHERE organization_id = $1', [orgId]))).rows.map((r) => [r.id, r.roles]),
+  );
   const personas = [owner, ops, whHead, salesHead, itLead, storekeeper, engineer, archivistBase, sysAdmin, itAnalyst, itDev].map((p) => ({
     userId: p.userId,
     name: p.name,
     title: p.title,
     department: p.department,
     hint: p.persona ?? p.title,
+    gameTitle: titles.get(p.membershipId)?.title ?? null,
+    titleRank: titles.get(p.membershipId)?.rank ?? null,
+    civilization: titles.get(p.membershipId)?.civilization ?? null,
+    castleId: castleOf.get(p.department) ?? null,
+    roles: storedRoles.get(p.membershipId) ?? p.roles,
   }));
   await mkdir(dirname(personasPath), { recursive: true });
   await writeFile(personasPath, JSON.stringify({ organization: ORG_SLUG, organizationName: ORG_NAME, personas }, null, 2));
