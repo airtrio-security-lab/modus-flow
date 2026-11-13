@@ -1789,7 +1789,7 @@ dialog, .sheet, .transcript, .protocol > .panel:first-child, .w3d-results, .w3d-
 @keyframes env-in { from { opacity: 0; transform: scale(1.06); } to { opacity: 1; transform: none; } }
 .w3d-envoy-rank { font-size: 0.72rem; font-weight: 700; padding: 0 5px; border-radius: 999px; background: rgba(212, 165, 49, 0.22); color: inherit; font-variant-numeric: tabular-nums; }
 .audience-envoy { display: grid; place-items: center; }
-/* «The Living Envoy» (ADR-0034) */
+/* «The Living Envoy» (ADR-0036) */
 .envoy-hero { flex: none; display: grid; place-items: end center; padding: 8px 10px 0; border-radius: var(--r-md); background: radial-gradient(circle at 50% 70%, var(--amber-tint), transparent 70%); }
 .envoy-ladder li.is-locked .env-portrait { opacity: 0.32; filter: grayscale(1); }
 .envoy-merits { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; }

@@ -146,7 +146,7 @@ export function Kingdom() {
     };
   }, [reload]);
 
-  // A rank-up was just recorded for the viewer: redraw every envoy of theirs in the new attire (ADR-0034).
+  // A rank-up was just recorded for the viewer: redraw every envoy of theirs in the new attire (ADR-0036).
   useEffect(() => {
     const again = () => void reload();
     window.addEventListener('modus:envoy-rank', again);
@@ -1003,7 +1003,7 @@ function HallMark({ c, at, L, color, onEnter }: { c: Castle; at: Pt; L: Layout; 
 }
 
 /**
- * An envoy on the map (ADR-0032, ADR-0034): the sender's ONE envoy — rank and attire of the person,
+ * An envoy on the map (ADR-0032, ADR-0036): the sender's ONE envoy — rank and attire of the person,
  * state of the item from the server (в пути / ожидает ответа / принят). A red pennant beside it:
  * a deadline has passed. A gold halo: yours.
  */

@@ -2,7 +2,7 @@ import { CIV_STYLES, MOTION_WORDS, envoyRankName, outfit, outfitWords, type Envo
 import { EnvoyFigure } from './EnvoyFigure';
 
 /**
- * EnvoyAvatar (owner brief «The Living Envoy», ADR-0034): the ONE envoy of a person — the same rank and
+ * EnvoyAvatar (owner brief «The Living Envoy», ADR-0036): the ONE envoy of a person — the same rank and
  * the same attire wherever it is drawn. It takes only what the server reported: the confirmed rank, the
  * civilization of the person's department and the state of the item it carries.
  *

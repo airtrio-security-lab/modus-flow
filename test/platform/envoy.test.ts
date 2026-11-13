@@ -295,7 +295,7 @@ test('the map shows each envoy with its sender, rank and style; nothing else of 
 });
 
 // ---------------------------------------------------------------------------
-// «The Living Envoy» (ADR-0034): one employee — one envoy, whatever the number of items.
+// «The Living Envoy» (ADR-0036): one employee — one envoy, whatever the number of items.
 // ---------------------------------------------------------------------------
 test('five items of one employee: one XP profile, and all five envoys wear the same confirmed rank', async () => {
   const p = await person(db, w.acmeId, 'Нурия Пятерых', ['employee'], 'Склад');

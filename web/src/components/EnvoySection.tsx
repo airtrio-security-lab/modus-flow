@@ -6,7 +6,7 @@ import { EnvoyAvatar, avatarWords } from './EnvoyAvatar';
 import { roman } from './EnvoyRankUp';
 
 /**
- * «Мой посол» / «Посол» on the person card (ADR-0032, ADR-0034). One person — one envoy: the rank and
+ * «Мой посол» / «Посол» on the person card (ADR-0032, ADR-0036). One person — one envoy: the rank and
  * the attire are those of the person, the same on every item on the map. Everything is computed by the
  * server from confirmed events; every line names its basis and links to the item. Looking at the seven
  * stages opens nothing and awards nothing: future stages stay «ещё не достигнут».
