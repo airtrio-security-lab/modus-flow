@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { Details } from './details';
 import { AMBIENT, birdAt, cloudAt, cloudField, flicker, flocks, puffAt, shadowShift, type Bird, type Cloud, type CloudPlace, type Flock, type Puff } from './ambient';
 
 /**
@@ -38,6 +39,8 @@ diffuseColor.rgb *= 1.0 - uLifeShade * texture2D(uLifeCloud, (vLifeXZ - uLifeShi
 
 export class Life {
   readonly group = new THREE.Group();
+  /** Smoke over the hearths, glints, mist, motes, the fountain (ADR-0045); none of it on the lowest tier. */
+  readonly details: Details;
   /** Shared by every patched material: one write a frame moves every shadow, banner and treetop. */
   private uniforms = {
     uLifeTime: { value: 0 },
@@ -81,6 +84,8 @@ export class Life {
     this.field = cloudField(this.plan.clouds);
     this.uniforms.uLifeCloud.value = shadowTexture(this.field);
     this.group.name = 'life';
+    this.details = new Details(tier !== 'low');
+    this.group.add(this.details.group);
 
     // Clouds: soft lumps, one instance each. Drawn twice: first only into the depth buffer, then the colour
     // where the depth matches — so the lumps of one cloud make one translucent body, not a pile of discs.
@@ -214,8 +219,9 @@ export class Life {
   }
 
   /** The picture at time `t` seconds. `camera` is used only to keep a cloud from filling the screen. */
-  update(t: number, camera: THREE.Camera) {
+  update(t: number, camera: THREE.Camera, moving = true) {
     this.shown = t;
+    this.details.update(t, moving);
     this.birds.visible = true;
     this.uniforms.uLifeTime.value = t;
     shadowShift(t, this.sun, this.groundY, this.shift);
@@ -300,7 +306,7 @@ export class Life {
 
   /** Motion is off: the layer stands at t = 0 and the birds are hidden. The camera still matters — a cloud never fills the view. */
   rest(camera: THREE.Camera) {
-    this.update(0, camera);
+    this.update(0, camera, false);
     this.birds.visible = false;
   }
   /** True while the layer shows anything but its resting picture. */
@@ -339,6 +345,7 @@ export class Life {
       mat.dispose();
       mesh.dispose();
     }
+    this.details.dispose();
     this.uniforms.uLifeCloud.value?.dispose();
     if (this.fire) this.fire.emissiveIntensity = this.fireBase;
   }

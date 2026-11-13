@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { FEEL, Feel, easeInOutCubic, easeOutBack, easeOutCubic } from '../../web/src/world3d/feel.ts';
 import { BUDGET, read } from '../../web/src/world3d/budget.ts';
-import { AMBIENT, birdAt, cloudAt, cloudField, flicker, flocks, hash, puffAt, shadowShift } from '../../web/src/world3d/ambient.ts';
+import { AMBIENT, MOTE_REACH, birdAt, cloudAt, cloudField, dropAt, flicker, flocks, glintAt, hash, mistAt, moteAt, puffAt, shadowShift } from '../../web/src/world3d/ambient.ts';
 
 /**
  * The 3D city (ADR-0030) without a browser or a database. The response layer: every movement ends
@@ -225,4 +225,52 @@ test('smoke is born and dissolves at nothing, and the fire never flashes', () =>
     }
   assert.ok(top > 0.8, 'in between it is a visible puff');
   for (let t = 0; t < 30; t += 0.01) assert.ok(Math.abs(flicker(t) - 1) < 0.15, 'the fire flickers within 15%');
+});
+
+// ---------------------------------------------------------------------------
+// Details of the living city (ADR-0045)
+// ---------------------------------------------------------------------------
+test('details are a function of time: glints stay on the river, mist in the gorge, motes inside their district', () => {
+  const a = { x: 0, y: 0, z: 0, s: 0, turn: 0 };
+  const b = { x: 0, y: 0, z: 0, s: 0, turn: 0 };
+  let lit = 0;
+  for (let t = 0; t < 120; t += 0.25)
+    for (let i = 0; i < 44; i++) {
+      glintAt(i, 44, 166, 18, t, a);
+      assert.deepEqual({ ...a }, { ...glintAt(i, 44, 166, 18, t, b) });
+      const r = Math.hypot(a.x, a.z);
+      assert.ok(r >= 166 - 9.01 && r <= 166 + 9.01, 'a glint never leaves the water');
+      assert.ok(a.s >= 0 && a.s < 1.7);
+      if (a.s > 0.05) lit++;
+    }
+  assert.ok(lit / (480 * 44) < 0.35, 'glints are sparks, not a lit river: most of the time a glint is dark');
+  assert.ok(lit > 0);
+  for (let t = 0; t < 600; t += 7)
+    for (let i = 0; i < 12; i++) {
+      mistAt(i, 12, 166, t, a);
+      assert.ok(Math.abs(Math.hypot(a.x, a.z) - 166) < 1e-6 && a.y > 1 && a.y < 7 && a.s > 0.5 && a.s < 1.5);
+    }
+  for (const kind of ['petal', 'leaf', 'dust'] as const)
+    for (let t = 0; t < 300; t += 0.5)
+      for (let i = 0; i < 12; i++) {
+        moteAt(kind, i, t, a);
+        assert.ok(Math.abs(a.x) <= MOTE_REACH + 6 && Math.abs(a.z) <= MOTE_REACH + 6, `${kind} stays in its district`);
+        assert.ok(a.y > 0 && a.y < 19 && a.s >= 0 && a.s < 1.3);
+        moteAt(kind, i, t + 1 / 60, b);
+        // Where a mote starts again it is of no size: the jump back is never seen.
+        if (Math.hypot(b.x - a.x, b.y - a.y, b.z - a.z) > 2) assert.ok(a.s < 0.2 || b.s < 0.2, `${kind} jumps only while unseen`);
+      }
+});
+
+test('the fountain throws its drops up and into the bowl, never over the plaza', () => {
+  const a = { x: 0, y: 0, z: 0, s: 0, turn: 0 };
+  let top = -1e9;
+  for (let t = 0; t < 30; t += 0.05)
+    for (let i = 0; i < 18; i++) {
+      dropAt(i, 18, t, a);
+      assert.ok(Math.hypot(a.x, a.z) < 3.7, 'the bowl of the fountain is 5.8 m wide: a drop lands inside it');
+      assert.ok(a.y < 2.8 && a.y > -5 && a.s > 0.2);
+      top = Math.max(top, a.y);
+    }
+  assert.ok(top > 1, 'drops rise above the spout before they fall');
 });
