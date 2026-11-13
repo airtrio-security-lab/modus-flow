@@ -242,12 +242,12 @@ try {
   await b.page.waitForFunction(() => location.hash.startsWith('#/library'), null, { timeout: 30000 });
   await b.page.locator('#lib-q').fill(`контрольный список ${RUN}`);
   // The search is debounced: wait for the answer of the server to this very query.
-  await b.page.waitForFunction(() => /Найдено среди доступного вам: \d+/.test(document.querySelector('.gc-result')?.textContent ?? ''), null, { timeout: 15000 });
+  await b.page.waitForFunction(() => /Найдено: \d+/.test(document.querySelector('.gc-result')?.textContent ?? ''), null, { timeout: 15000 });
   const found = b.page.locator('.gc-volumes a', { hasText: METHOD }).first();
   await found.waitFor({ timeout: 15000 });
   const result = await b.page.locator('.gc-result').innerText();
   const listed = await b.call('GET', `/knowledge?q=${encodeURIComponent(`контрольный список ${RUN}`)}`);
-  must(result.includes(`Найдено среди доступного вам: ${listed.total}`) && listed.items.some((i) => i.title === METHOD), `the catalogue states the server's exact number: ${result} / ${listed.total}`);
+  must(result.includes(`Найдено: ${listed.total}`) && listed.items.some((i) => i.title === METHOD), `the catalogue states the server's exact number: ${result} / ${listed.total}`);
   must(/[?&]q=/.test(await b.page.evaluate(() => location.hash)), 'the query is kept in the address');
   await b.shot('04-method-found-in-the-library');
   step('12. другой сотрудник пришёл с карты и нашёл метод поиском по Библиотеке');

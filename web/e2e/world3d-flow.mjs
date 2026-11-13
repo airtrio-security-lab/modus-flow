@@ -359,6 +359,14 @@ try {
       const pins = [...document.querySelectorAll('.town3d-pin')];
       return pins.length === 8 && pins.every((e) => e.style.visibility === 'visible' && e.dataset.compact === 'no');
     }, null, { timeout: 60000 });
+    // The town turns slowly and a lifted name rides a 140 ms transition of its stem: the names are compared
+    // on a frame where no stem is in transition (two frames with the same stem heights).
+    await page.waitForFunction(() => {
+      const now = [...document.querySelectorAll('.town3d-pin-stem')].map((e) => Math.round(e.getBoundingClientRect().height)).join('|');
+      const same = window.__stems === now;
+      window.__stems = now;
+      return same;
+    }, null, { timeout: 15000, polling: 'raf' });
     const plates = await page.locator('.town3d-pin-name').evaluateAll((els) => els.map((e) => e.getBoundingClientRect()).map((r) => [r.left, r.top, r.right, r.bottom]));
     for (let i = 0; i < plates.length; i++)
       for (let j = i + 1; j < plates.length; j++) {

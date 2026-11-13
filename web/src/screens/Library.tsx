@@ -226,7 +226,11 @@ export function Library() {
   // The hall is a filter of the server like the others: the browser holds one page, not the library.
   const params = (offset: number) => qs({ q: query || undefined, kind: kind || undefined, status: status || undefined, level: hall === 'all' ? undefined : hall, limit: PAGE, offset: offset || undefined });
   const listKey = `${s.org}|${query}|${kind}|${status}|${hall}`;
-  const { data, error, loading, reload } = useLoad(() => api<ListData>(`/orgs/${s.org}/knowledge${params(0)}`), [s.org, query, kind, status, hall]);
+  const { data: answer, error, reload } = useLoad(async () => ({ key: listKey, list: await api<ListData>(`/orgs/${s.org}/knowledge${params(0)}`) }), [s.org, query, kind, status, hall]);
+  // The answer to ANOTHER search is never shown under this one: while the new page is on its way the
+  // catalogue shows that it is loading, not the records of the hall the person has just left.
+  const data = answer?.key === listKey ? answer.list : null;
+  const roles = answer?.list.roles ?? null;
   // Further pages of the same search. A page that arrives after the search has changed is dropped.
   const [more, setMore] = useState<{ key: string; items: Row[]; next: number | null } | null>(null);
   const [moreBusy, setMoreBusy] = useState(false);
@@ -266,7 +270,7 @@ export function Library() {
     kind ? `тип «${KINDS.find((k) => k.id === kind)?.label ?? kind}»` : '',
     status ? `состояние «${STATUS_LABEL[status] ?? status}»` : '',
   ].filter(Boolean);
-  const curator = data?.roles.curator ?? (s.isLead || s.isAdmin || s.isArchivist);
+  const curator = roles?.curator ?? (s.isLead || s.isAdmin || s.isArchivist);
   const filtered = !!(query || kind || status);
   const clear = () => {
     setQ('');
@@ -387,13 +391,13 @@ export function Library() {
 
       <section className="gc-catalogue" aria-label="Каталог знаний">
         {error ? <ErrorBox error={error} retry={() => void reload()} /> : null}
-        {loading && !data ? <VolumeSkeleton /> : null}
+        {!data && !error ? <VolumeSkeleton /> : null}
         {data ? (
           <>
             <h2 className="gc-result-title">{filtered ? 'Результаты поиска' : hall === 'all' ? 'Каталог' : hallOf(hall).name}</h2>
             <p className="gc-result" aria-live="polite">
               {total
-                ? `${filtered ? 'Найдено среди доступного вам' : 'Доступно вам'}: ${total}${hall === 'all' ? '' : ` в зале «${hallOf(hall).name}»`}.${shown.length < total ? ` Показано ${shown.length}.` : ''}`
+                ? `${filtered ? 'Найдено' : 'Доступно вам'}: ${total}${hall === 'all' ? '' : ` в зале «${hallOf(hall).name}»`}.${shown.length < total ? ` Показано ${shown.length}.` : ''}`
                 : ''}
             </p>
             {active.length ? (
