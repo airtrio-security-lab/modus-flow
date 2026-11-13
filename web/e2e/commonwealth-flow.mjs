@@ -11,6 +11,7 @@
  * SHOTS=<dir> saves the pictures; WebGL here is SwiftShader, so the 3D pictures say nothing about speed.
  */
 import { chromium } from 'playwright';
+import { signIn } from './sign-in.mjs';
 import { mkdirSync, readFileSync } from 'node:fs';
 
 const BASE = process.env.BASE ?? 'http://localhost:3100';
@@ -53,7 +54,7 @@ async function as(person, fn, { viewport = { width: 1280, height: 900 }, view = 
   const page = await ctx.newPage();
   page.on('pageerror', (e) => errors.push(e.message));
   await page.goto(BASE);
-  await page.getByRole('button', { name: new RegExp(person.name) }).click();
+  await signIn(page, person);
   await page.waitForSelector('.shell');
   try {
     return await fn(page);

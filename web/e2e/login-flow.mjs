@@ -62,7 +62,7 @@ try {
     await page.screenshot({ path: `${SHOTS}/login-${w}.png` });
     await page.locator('.kl-card', { hasText: people[2].name }).click();
     const small = await page.evaluate(() =>
-      [...document.querySelectorAll('.kl-card, .kl-all, .kl-enter')].filter((e) => {
+      [...document.querySelectorAll('.kl-card, .kl-all, .kl-enter, .kl-card-enter, .kl-features button')].filter((e) => {
         const r = e.getBoundingClientRect();
         return r.height < 44 || r.width < 44;
       }).length,
@@ -87,7 +87,8 @@ try {
   // 4. Keyboard only: Tab to the characters, arrows choose, Tab to the button, Enter signs in.
   {
     const { ctx, page } = await open({ width: 1280, height: 900 });
-    for (let i = 0; i < 10; i++) {
+    await page.mouse.click(5, 5); // focus the page itself (the picture there is not interactive)
+    for (let i = 0; i < 15; i++) {
       await page.keyboard.press('Tab');
       if (await page.evaluate(() => document.activeElement?.getAttribute('name') === 'persona')) break;
     }
@@ -97,15 +98,13 @@ try {
     const ring = await page.evaluate(() => getComputedStyle(document.activeElement.closest('.kl-card')).boxShadow);
     if (!ring || ring === 'none') fail('keyboard: no visible focus on the card');
     await page.screenshot({ path: `${SHOTS}/login-keyboard.png` });
-    let onButton = false;
-    for (let i = 0; i < 4 && !onButton; i++) {
-      await page.keyboard.press('Tab');
-      onButton = await page.evaluate(() => document.activeElement?.classList.contains('kl-enter'));
-    }
-    if (!onButton) fail('keyboard: «Войти в Королевство» not reachable');
+    // The selected card carries its own «Войти как …» right after it.
+    await page.keyboard.press('Tab');
+    const label = await page.evaluate(() => (document.activeElement?.classList.contains('kl-card-enter') ? document.activeElement.textContent : null));
+    if (!label || !label.includes(picked.split(' ')[0])) fail(`keyboard: the card's enter button not next (${label})`);
     await page.keyboard.press('Enter');
     await page.waitForSelector('.shell');
-    step(`keyboard: Tab → ↓ (${picked}) → Tab → Enter`);
+    step(`keyboard: Tab → ↓ (${picked}) → Tab «${label.trim()}» → Enter`);
     await ctx.close();
   }
 
@@ -131,17 +130,21 @@ try {
   // 6. Entrance animation: shown with full graphics and skippable; nothing without a choice.
   {
     const { ctx, page } = await open({ width: 1440, height: 900 }, { lite: '0' });
-    await page.getByRole('button', { name: /^Войти в Королевство/ }).click();
-    if (!(await page.getByText('Сначала выберите персонажа').count())) fail('no hint without a choice');
-    await page.locator('.kl-card').first().click();
-    await page.getByRole('button', { name: /^Войти в Королевство/ }).click();
+    // The first character is ready: the main button works with one tap and names who enters.
+    const cta = page.getByRole('button', { name: /^Войти в Королевство/ });
+    if (!(await cta.textContent()).includes(people[0].name)) fail('main button does not name the ready character');
+    for (const f of ['Идеи', 'Совместные', 'Развитие']) {
+      await page.locator('.kl-features button', { hasText: f }).click();
+      if (!(await page.locator('#kl-feature-text').isVisible())) fail(`feature «${f}» shows nothing`);
+    }
+    await cta.click();
     await page.locator('.kl-gate').waitFor();
     await page.waitForTimeout(350);
     await page.screenshot({ path: `${SHOTS}/login-gate.png` });
     const t0 = Date.now();
     await page.getByRole('button', { name: 'Пропустить' }).click();
     await page.waitForSelector('.shell');
-    step(`entrance shown and skipped (${Date.now() - t0} ms to the app)`);
+    step(`features open; one tap enters; entrance shown and skipped (${Date.now() - t0} ms to the app)`);
     await ctx.close();
   }
 

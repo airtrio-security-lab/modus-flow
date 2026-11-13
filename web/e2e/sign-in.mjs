@@ -13,6 +13,7 @@ export async function signIn(page, person) {
     await page.locator('.kl-all-list button', { hasText: person.name }).first().click();
   }
   await page.getByRole('button', { name: /^Войти в Королевство/ }).click();
-  const skip = page.getByRole('button', { name: 'Пропустить' });
+  // Only the entrance's own «Пропустить»: scenes after sign-in have their own skip buttons.
+  const skip = page.locator('.kl-gate').getByRole('button', { name: 'Пропустить' });
   await skip.click({ timeout: 1500 }).catch(() => undefined);
 }

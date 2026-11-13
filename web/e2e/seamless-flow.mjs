@@ -8,6 +8,7 @@
  * WebGL here is SwiftShader (software): this scenario checks positions, not speed.
  */
 import { chromium } from 'playwright';
+import { signIn } from './sign-in.mjs';
 import { mkdirSync, readFileSync } from 'node:fs';
 
 const BASE = process.env.BASE ?? 'http://localhost:3100';
@@ -52,7 +53,7 @@ async function as(person, fn, { viewport = { width: 1280, height: 800 }, view = 
   const page = await ctx.newPage();
   page.on('pageerror', (e) => errors.push(e.message));
   await page.goto(BASE);
-  await page.getByRole('button', { name: new RegExp(person.name) }).click();
+  await signIn(page, person);
   await page.waitForSelector('.shell');
   try {
     return await fn(page);
@@ -192,7 +193,7 @@ try {
     await page.evaluate(() => (location.hash = '#/me'));
     await hashIs(page, /^#\/me/);
     await page.getByRole('button', { name: 'Сменить сотрудника' }).first().click();
-    await page.getByRole('button', { name: new RegExp(storekeeper.name) }).waitFor();
+    await page.locator('.kl-card').first().waitFor(); // back on the sign-in screen
     must((await stored(page)) === null, 'signing out clears the remembered place');
     step('смена сотрудника очищает запомненное место');
   });

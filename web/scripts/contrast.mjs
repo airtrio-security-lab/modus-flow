@@ -53,6 +53,7 @@ const KL_PAIRS = [
   ['kl-ink-2', 'kl-panel', 4.5], ['kl-ink-2', 'kl-card', 4.5], ['kl-ink-2', 'kl-card-on', 4.5],
   ['kl-gold', 'kl-panel', 4.5], ['kl-gold', 'kl-card', 4.5], ['kl-gold', 'kl-card-on', 4.5], ['kl-gold-ink', 'kl-gold', 4.5],
   ['kl-mark', 'kl-card', 3], ['kl-gold-line', 'kl-panel', 3], ['kl-teal', 'kl-panel', 3],
+  ['kl-rank-teal', 'kl-card', 4.5], ['kl-rank-red', 'kl-card', 4.5], ['kl-rank-orange', 'kl-card', 4.5], ['kl-rank-olive', 'kl-card', 4.5], ['kl-gold', 'kl-bg', 4.5],
 ];
 for (const [fg, bg, min] of KL_PAIRS) {
   if (!kl[fg] || !kl[bg]) throw new Error(`sign-in token missing: --${kl[fg] ? bg : fg}`);

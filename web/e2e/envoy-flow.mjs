@@ -14,6 +14,7 @@
  * UI uses, as the people who have those rights; everything new is checked on the screen.
  */
 import { chromium } from 'playwright';
+import { signIn } from './sign-in.mjs';
 import { mkdirSync, readFileSync } from 'node:fs';
 import { schematic } from './schematic.mjs';
 
@@ -40,7 +41,7 @@ async function open(person, { viewport = { width: 1280, height: 860 }, lite = tr
   await page.goto(BASE);
   await page.evaluate((l) => { try { localStorage.setItem('modus.lite', l ? '1' : '0'); localStorage.setItem('modus.howto.hidden', '1'); } catch {} }, lite);
   await page.goto(BASE);
-  await page.getByRole('button', { name: new RegExp(person.name) }).click();
+  await signIn(page, person);
   await page.waitForSelector('.shell');
   const call = (method, path, body) =>
     page.evaluate(async ({ method, path, body }) => {
