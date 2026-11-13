@@ -116,6 +116,10 @@ function checkScene(dev, f, label) {
     must(b.height >= 44, `${tag}: «${b.text}» is ${Math.round(b.height)} px high`);
     must(b.left >= 0 && b.right <= f.vw + 0.5 && b.top >= 0 && b.bottom <= f.vh + 0.5, `${tag}: «${b.text}» is outside the screen`);
   }
+  // No two controls overlap (the sound switch rides on the picture on phones).
+  for (const [i, a] of f.buttons.entries())
+    for (const b of f.buttons.slice(i + 1))
+      must(a.right <= b.left || b.right <= a.left || a.bottom <= b.top || b.bottom <= a.top, `${tag}: «${a.text}» overlaps «${b.text}»`);
 }
 
 try {
@@ -241,6 +245,7 @@ try {
           }, scene[0], { timeout: 20000 });
         checkScene(dev, await sceneFacts(page), `${scene[0]} (${motion === 'reduce' ? 'кадр' : 'видео'}, во время показа)`);
         if (motion !== 'reduce') await page.waitForFunction(() => document.querySelector('dialog.cine[open] video')?.ended, null, { timeout: 15000 });
+        await page.waitForTimeout(400); // the buttons change with a short colour transition
         checkScene(dev, await sceneFacts(page), `${scene[0]} (после показа)`);
         await shot(page, `${scene[0]}-${slug(dev.name)}${motion === 'reduce' ? '-still' : ''}`);
         if (i === 0) {
