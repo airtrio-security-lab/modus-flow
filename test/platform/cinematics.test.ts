@@ -95,8 +95,12 @@ test('one event, one scene; one scene, one meaning; similar files are not reused
   assert.notEqual(BY_EVENT.idea_merged!.scene, BY_EVENT.implemented!.scene);
   assert.notEqual(BY_EVENT.knowledge_in_library!.scene, BY_EVENT.knowledge_archived!.scene);
   assert.ok(!('verification_completed' in BY_EVENT), 'a completed field check is not announced as success');
-  for (const e of ['meeting_started', 'contribution_confirmed', 'idea_published']) assert.ok(!(e in BY_EVENT), `${e}: no scene without a verified event`);
-  assert.ok(NOT_CONNECTED.some((n) => n.file.startsWith('15_')), 'the Great Council scene is not tied to an invitation');
+  for (const e of ['meeting_started', 'idea_published']) assert.ok(!(e in BY_EVENT), `${e}: no scene without a verified event`);
+  // Owner decision 2026-11-13 (ADR-0042): 15 follows the session start, never the invitation.
+  assert.equal(BY_EVENT.meeting_recording_started!.scene, 'great-council-gathered');
+  assert.notEqual(BY_EVENT.meeting_called!.scene, 'great-council-gathered');
+  assert.equal(BY_EVENT.contribution_confirmed!.scene, 'contribution-recognized');
+  assert.ok(!NOT_CONNECTED.some((n) => n.file.startsWith('04_') || n.file.startsWith('15_')), '04 and 15 are connected now');
 });
 
 test('the confirmed fact picks the scene and the place to go after it', () => {
@@ -112,6 +116,8 @@ test('the confirmed fact picks the scene and the place to go after it', () => {
     [note('deadline_soon', { urgent: true }), 'notification', '#/items/7'],
     [note('council_handoff', { urgent: true }), 'notification', '#/items/7'],
     [note('meeting_cancelled', { meetingId: 'mt2', meeting: { cancelled: true } }), null, '#/meetings/mt2'],
+    [note('contribution_confirmed'), 'contribution-recognized', '#/items/7'],
+    [note('meeting_recording_started', { meetingId: 'mt3', meeting: { cancelled: false, council: 'great', attendance: 'confirmed', ended: false, recordingStartedAt: ago(5) } }), 'great-council-gathered', '#/meetings/mt3'],
   ];
   for (const [n, scene, href] of cases) {
     const c = cueForNote(n)!;
@@ -121,7 +127,42 @@ test('the confirmed fact picks the scene and the place to go after it', () => {
     assert.equal(c.title, n.headline, `${n.event}: the words are the server's`);
     assert.equal(c.text, n.message);
   }
-  for (const e of ['comment_added', 'status_report', 'castle_xp', 'verification_completed', 'idea_rejected', 'contribution_confirmed']) assert.equal(cueForNote(note(e)), null, `${e}: inbox only`);
+  for (const e of ['comment_added', 'status_report', 'castle_xp', 'verification_completed', 'idea_rejected', 'honor_board_recognition']) assert.equal(cueForNote(note(e)), null, `${e}: inbox only`);
+});
+
+test('«Великий Совет собран!»: only the Great Round Table, only while it is on, only for a participant who did not decline', () => {
+  type M = NonNullable<NoteIn['meeting']>;
+  const on: M = { cancelled: false, council: 'great', attendance: 'confirmed', ended: false, recordingStartedAt: ago(30) };
+  const rec = (m: Partial<M> | null, extra: Partial<NoteIn> = {}) =>
+    note('meeting_recording_started', { meetingId: 'mt', meeting: m === null ? null : { ...on, ...m }, ...extra });
+  const c = cueForNote(rec({}))!;
+  assert.equal(c.scene!.id, 'great-council-gathered');
+  assert.equal(c.linkLabel, 'Войти в заседание');
+  assert.equal(c.at, Date.parse(on.recordingStartedAt!), 'the time of the session start, not of the row');
+  for (const [why, n] of [
+    ['a small council', rec({ council: 'small' })],
+    ['cancelled', rec({ cancelled: true })],
+    ['already over', rec({ ended: true })],
+    ['the reader declined', rec({ attendance: 'declined' })],
+    ['no access any more', rec(null, { meetingClosed: true })],
+    ['no meeting data', rec(null)],
+  ] as const) assert.equal(cueForNote(n), null, why);
+  // It is true for a session's day, not for the three days of the general window.
+  assert.equal(plan({ ...base, since: NOW - 72 * 3600_000, notes: [rec({ recordingStartedAt: ago(11 * 60) })] }).show.length, 1);
+  assert.equal(plan({ ...base, since: NOW - 72 * 3600_000, notes: [rec({ recordingStartedAt: ago(13 * 60) }, { createdAt: ago(13 * 60) })] }).show.length, 0);
+  // A participant who comes in while it is on sees it first: the session waits for no one.
+  const first = plan({ ...base, notes: [note('assigned', { urgent: true }), rec({}), note('contribution_confirmed')] }).show;
+  assert.deepEqual(first.map((x) => x.scene!.id), ['great-council-gathered', 'assignment', 'contribution-recognized']);
+});
+
+test('«Ваш вклад признан»: the contributor\'s own confirmed contribution; a celebration that asks nothing', () => {
+  const c = cueForNote(note('contribution_confirmed'))!;
+  assert.equal(c.scene!.id, 'contribution-recognized');
+  assert.equal(c.scene!.kind, 'celebration');
+  assert.equal(c.href, '#/items/7');
+  assert.match(BY_EVENT.contribution_confirmed!.guard, /XP не начисляется/);
+  assert.equal(cueForNote(note('contribution_confirmed', { readAt: ago(1) })) !== null, true, 'the cue exists; plan() skips read rows');
+  assert.equal(plan({ ...base, notes: [note('contribution_confirmed', { readAt: ago(1) })] }).show.length, 0);
 });
 
 test('an invitation to a cancelled or no longer accessible meeting is not announced', () => {

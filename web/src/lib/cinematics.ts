@@ -26,6 +26,8 @@ export type SceneId =
   | 'envoy-sent'
   | 'envoy-arrived'
   | 'envoy-accepted'
+  | 'contribution-recognized'
+  | 'great-council-gathered'
   | 'notification';
 
 export interface Scene {
@@ -72,6 +74,10 @@ export const SCENES: Readonly<Record<SceneId, Scene>> = {
   'envoy-sent': scene('envoy-sent', 4.96, 'Ваш посол отправлен!', 'individual', '13_envoy_sent.mp4', '73216e5ce2456a64e6de41661bcc6d63f521c6b24f953e58e28467d0910cd8ce'),
   'envoy-arrived': scene('envoy-arrived', 4.96, 'Милорд, к вам прибыл посол!', 'individual', '11_envoy_arrived.mp4', '0d4fe63db0553664dbe3a3da54190bdec85063b3b346caf8372e0fe771169a4b', { address: 'milord' }),
   'envoy-accepted': scene('envoy-accepted', 4.96, 'Король принял вашего посла.', 'individual', '08_implementation_approved.mp4', 'a7fae23dd31593c077d10b2a4af4e10983edf50e5fcbb38c59c2141ecb02e041'),
+  // Owner decisions 2026-11-13 (ADR-0042): 04 follows the new confirmation of a contribution; 15 the
+  // start of a Great Round Table session, for a participant who comes in while it is on.
+  'contribution-recognized': scene('contribution-recognized', 3.92, 'Ваш вклад признан.', 'celebration', '04_contribution_recognized.mp4', 'd09e107478b8412140bc716d3c2af4e256cf06a0263e781a7ee873a06f85a3a1'),
+  'great-council-gathered': scene('great-council-gathered', 4.96, 'Великий Совет собран!', 'individual', '15_great_council_gathered.mp4', '4ded4f416c94cc9c19c8ca8dc9de18b3d64b0d3eb56fa3ce1b5805d68fb8ab79'),
   notification: scene('notification', 4.96, 'К вам пришло уведомление. Хотите посмотреть сейчас?', 'prompt', '16_notification_variant_a.mp4', 'fd126bbd16632835a229d2168f18cc441500342ae14660acf4ea28c0232e41e8'),
 };
 
@@ -89,6 +95,8 @@ export const BY_EVENT: Readonly<Record<string, { scene: SceneId; guard: string }
   implemented: { scene: 'implementation-completed', guard: 'Исполнитель сообщил, что изменение внедрено (стадия «проверка эффекта»); эффект ещё не подтверждён' },
   knowledge_in_library: { scene: 'knowledge-in-library', guard: 'Знание принято в Библиотеку решений; это не Высший Архив' },
   knowledge_archived: { scene: 'knowledge-archived', guard: 'Знание утверждено в Высший Архив' },
+  contribution_confirmed: { scene: 'contribution-recognized', guard: 'Ведущий или ответственный за решение подтвердил вклад читателя (не авторство; проверку — после её завершения); XP не начисляется' },
+  meeting_recording_started: { scene: 'great-council-gathered', guard: 'Организатор Большого Круглого стола включил запись — все участники согласились, заседание идёт; читатель — участник, не отказался, заседание не завершено. Малый совет — без сцены' },
 };
 
 /** A real event with no verified video: an ordinary text notice, never a borrowed scene. */
@@ -99,16 +107,16 @@ export const TEXT_ONLY: readonly string[] = ['meeting_cancelled'];
  * event that exists and an owner decision (ADR-0037, «Вопросы владельцу»).
  */
 export const NOT_CONNECTED: readonly { file: string; voice: string; reason: string }[] = [
-  { file: '04_contribution_recognized.mp4', voice: 'Ваш вклад признан.', reason: 'Событие contribution_confirmed объявлено, но сервер его нигде не создаёт' },
   { file: '06_proposal_under_review.mp4', voice: 'Предложение на рассмотрение.', reason: 'Автору не приходит отдельное событие «обращение взято на рассмотрение»' },
   { file: '09_knowledge_library_alt.mp4', voice: 'Решение внесено в библиотеку.', reason: 'Второй вариант для knowledge_in_library; одно событие — одна сцена' },
-  { file: '15_great_council_gathered.mp4', voice: 'Великий Совет собран!', reason: 'Нет проверенного серверного факта «заседание началось»; приглашение им не является' },
   { file: '17_notification_variant_b.mp4', voice: 'К вам пришло уведомление. Хотите посмотреть сейчас?', reason: 'Второй вариант общего уведомления; выбран вариант A' },
 ];
 
 /** What the person sees first when several facts arrive together: what asks them to act. */
 const PRIORITY: Readonly<Record<SceneId | 'text', number>> = {
   'council-invitation': 100,
+  // The session is on now: come in.
+  'great-council-gathered': 97,
   assignment: 95,
   'changes-requested': 90,
   'envoy-arrived': 85,
@@ -116,6 +124,7 @@ const PRIORITY: Readonly<Record<SceneId | 'text', number>> = {
   notification: 70,
   'implementation-approved': 60,
   'implementation-completed': 58,
+  'contribution-recognized': 57,
   'castle-level-up': 56,
   'envoy-accepted': 54,
   'knowledge-archived': 52,
@@ -127,6 +136,8 @@ const PRIORITY: Readonly<Record<SceneId | 'text', number>> = {
 export const FRESH_MS = 72 * 3600 * 1000;
 /** At most this many scenes follow one another; the rest wait in «Уведомления». */
 export const BATCH = 3;
+/** «Великий Совет собран!» announces a session that is on; past this it is history even if never closed. */
+export const SESSION_MS = 12 * 3600 * 1000;
 
 // ---------------------------------------------------------------------------
 // Input: the reader's own server data, as the web app already receives it.
@@ -140,7 +151,13 @@ export interface NoteIn {
   ideaNumber: number | null;
   meetingId: string | null;
   knowledgeId: string | null;
-  meeting: { cancelled: boolean } | null;
+  meeting: {
+    cancelled: boolean;
+    council?: 'small' | 'great';
+    attendance?: 'pending' | 'confirmed' | 'declined';
+    ended?: boolean;
+    recordingStartedAt?: string | null;
+  } | null;
   meetingClosed: boolean;
   createdAt: string;
   readAt: string | null;
@@ -167,6 +184,8 @@ export interface Cue {
   priority: number;
   /** For audiences: the key of the existing SVG scene, so it does not play the same fact again. */
   audienceId?: string;
+  /** A shorter window than FRESH_MS for facts that are only true for a while (a session that is on). */
+  freshMs?: number;
 }
 
 const link = (n: Pick<NoteIn, 'ideaNumber' | 'meetingId' | 'knowledgeId' | 'event'>): { href: string; linkLabel: string } => {
@@ -186,6 +205,13 @@ export function cueForNote(n: NoteIn): Cue | null {
     // An invitation to a meeting that has since been cancelled, or that the reader may no longer
     // open, is not announced: the cancellation (or nothing) is the current fact.
     if (n.event === 'meeting_called' && (!n.meeting || n.meeting.cancelled || n.meetingClosed)) return null;
+    if (n.event === 'meeting_recording_started') {
+      // Only the Great Round Table, only while it is on, only for a participant who did not decline.
+      const m = n.meeting;
+      if (!m || n.meetingClosed || m.council !== 'great' || m.cancelled || m.ended || m.attendance === 'declined') return null;
+      const started = m.recordingStartedAt ? Date.parse(m.recordingStartedAt) : at;
+      return { ...base, at: Number.isFinite(started) ? started : at, scene: SCENES[own.scene], priority: PRIORITY[own.scene], freshMs: SESSION_MS, linkLabel: 'Войти в заседание' };
+    }
     return { ...base, scene: SCENES[own.scene], priority: PRIORITY[own.scene] };
   }
   if (TEXT_ONLY.includes(n.event)) return { ...base, scene: null, priority: PRIORITY.text };
@@ -274,7 +300,7 @@ export function plan(input: {
   style: 'royal' | 'business';
 }): { show: Cue[]; batched: Cue[] } {
   if (input.style === 'business') return { show: [], batched: [] };
-  const fresh = (c: Cue) => Number.isFinite(c.at) && c.at > input.since && input.now - c.at <= FRESH_MS && !(c.key in input.ledger.seen);
+  const fresh = (c: Cue) => Number.isFinite(c.at) && c.at > input.since && input.now - c.at <= (c.freshMs ?? FRESH_MS) && !(c.key in input.ledger.seen);
   const cues = [
     ...input.notes.filter((n) => !n.readAt).map(cueForNote),
     ...input.audiences.map((a) => cueForAudience(a, { membershipId: input.membershipId, currentKing: input.currentKing })),

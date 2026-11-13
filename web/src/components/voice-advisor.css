@@ -1,0 +1,193 @@
+/* «Спросить советника» (ADR-0043): the Kingdom palette — dark graphite, muted gold, blue-green.
+   Tokens are local to the advisor and checked by web/scripts/contrast.mjs. */
+.va,
+.va-fab,
+.va-head-btn {
+  --va-bg: #121519;
+  --va-panel: #181c21;
+  --va-card: #20252c;
+  --va-ink: #ece6d8;
+  --va-ink-2: #b6ae9f;
+  --va-gold: #cfb27a;
+  --va-gold-ink: #17130b;
+  --va-teal: #5bbfb1;
+  --va-red: #f0948a;
+  --va-field: #7f868d;
+  --va-line: rgba(207, 178, 122, 0.22);
+}
+
+.va-fab {
+  position: fixed;
+  right: max(16px, env(safe-area-inset-right));
+  bottom: calc(20px + env(safe-area-inset-bottom));
+  z-index: 40;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 48px;
+  padding: 0 18px 0 14px;
+  border-radius: 999px;
+  border: 1px solid var(--va-line);
+  background: var(--va-panel);
+  color: var(--va-gold);
+  font: 600 var(--fs-sm, 0.875rem) / 1 var(--font, system-ui);
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.28);
+  cursor: pointer;
+}
+.va-fab:hover { background: var(--va-card); }
+.va-fab:focus-visible { outline: 2px solid var(--va-teal); outline-offset: 2px; }
+
+.va {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 70;
+  width: min(400px, 100vw);
+  display: flex;
+  flex-direction: column;
+  background: var(--va-bg);
+  color: var(--va-ink);
+  border-left: 1px solid var(--va-line);
+  box-shadow: -10px 0 30px rgba(0, 0, 0, 0.3);
+  font-family: var(--font, system-ui);
+  outline: none;
+  padding-top: env(safe-area-inset-top);
+}
+.va h2 { margin: 0; font-size: var(--fs-lg, 1.25rem); color: var(--va-gold); letter-spacing: 0.01em; }
+.va h3 { margin: 0 0 6px; font-size: var(--fs-sm, 0.875rem); color: var(--va-gold); }
+.va p { margin: 0; }
+.va a { color: var(--va-teal); }
+
+.va-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; padding: 16px 16px 10px; border-bottom: 1px solid var(--va-line); }
+.va-sub { color: var(--va-ink-2); font-size: var(--fs-xs, 0.8125rem); margin-top: 2px; }
+.va-icon { min-width: 44px; min-height: 44px; border: 0; background: transparent; color: var(--va-ink-2); font-size: 26px; line-height: 1; cursor: pointer; border-radius: 8px; }
+.va-icon:hover { color: var(--va-ink); background: var(--va-card); }
+.va-link { border: 0; background: none; padding: 0; color: var(--va-teal); text-decoration: underline; cursor: pointer; font: inherit; }
+.va-link:disabled { color: var(--va-ink-2); text-decoration: none; cursor: default; }
+
+.va-tabs { display: flex; align-items: center; gap: 4px; padding: 8px 12px; border-bottom: 1px solid var(--va-line); }
+.va-tabs [role='tab'] { min-height: 44px; padding: 0 14px; border: 0; border-radius: 8px; background: transparent; color: var(--va-ink-2); font: 600 var(--fs-sm, 0.875rem) var(--font, system-ui); cursor: pointer; }
+.va-tabs [role='tab'][aria-selected='true'] { background: var(--va-card); color: var(--va-gold); }
+.va-tabs [role='tab']:disabled { opacity: 0.55; cursor: default; }
+.va-rec { margin-left: auto; font-size: var(--fs-xs, 0.8125rem); padding: 12px 4px; }
+
+.va-body { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 14px; padding-bottom: calc(16px + env(safe-area-inset-bottom)); }
+.va-muted { color: var(--va-ink-2); font-size: var(--fs-sm, 0.875rem); }
+.va-fine { color: var(--va-ink-2); font-size: var(--fs-xs, 0.8125rem); line-height: 1.45; }
+.va-notice { padding: 10px 12px; border-radius: 8px; background: var(--va-card); font-size: var(--fs-sm, 0.875rem); }
+.va-notice.error { color: var(--va-red); border: 1px solid rgba(240, 148, 138, 0.35); }
+.va-ok { color: var(--va-teal); font-size: var(--fs-sm, 0.875rem); }
+
+.va-stage { display: flex; align-items: center; gap: 14px; padding: 14px; border-radius: 12px; background: var(--va-panel); border: 1px solid var(--va-line); }
+.va-state { font-weight: 600; font-size: var(--fs-md, 1rem); }
+.va-clock { color: var(--va-ink-2); font-weight: 400; font-variant-numeric: tabular-nums; font-size: var(--fs-sm, 0.875rem); }
+
+/* Speech indicator: five quiet bars. Teal while listening, gold while answering. */
+.va-meter { display: flex; align-items: center; gap: 4px; height: 32px; width: 44px; flex: none; }
+.va-meter i { display: block; width: 5px; height: 8px; border-radius: 3px; background: var(--va-ink-2); opacity: 0.6; }
+.va-meter[data-state='listening'] i,
+.va-meter[data-state='user_speaking'] i { background: var(--va-teal); opacity: 1; }
+.va-meter[data-state='speaking'] i { background: var(--va-gold); opacity: 1; }
+.va-meter[data-state='thinking'] i { background: var(--va-teal); opacity: 0.8; }
+/* While listening the bars follow the real microphone level (not decoration). */
+.va-meter[data-state='listening'] i { height: calc(8px + var(--lvl, 0) * 22px); }
+.va-meter[data-state='listening'] i:nth-child(2n) { height: calc(8px + var(--lvl, 0) * 16px); }
+.va-meter[data-state='speaking'] i:nth-child(2n),
+.va-meter[data-state='user_speaking'] i:nth-child(2n) { height: 18px; }
+.va-meter[data-state='speaking'] i:nth-child(3),
+.va-meter[data-state='user_speaking'] i:nth-child(3) { height: 26px; }
+@media (prefers-reduced-motion: no-preference) {
+  :root:not([data-lite='on']) .va-meter[data-state='speaking'] i,
+  :root:not([data-lite='on']) .va-meter[data-state='user_speaking'] i { animation: va-bar 0.9s ease-in-out infinite alternate; }
+  :root:not([data-lite='on']) .va-meter i:nth-child(2) { animation-delay: 0.15s; }
+  :root:not([data-lite='on']) .va-meter i:nth-child(3) { animation-delay: 0.3s; }
+  :root:not([data-lite='on']) .va-meter i:nth-child(4) { animation-delay: 0.45s; }
+  :root:not([data-lite='on']) .va-meter[data-state='thinking'] i { animation: va-pulse 1.4s ease-in-out infinite; }
+}
+@keyframes va-bar { from { transform: scaleY(0.45); } to { transform: scaleY(1); } }
+@keyframes va-pulse { 0%, 100% { opacity: 0.35; } 50% { opacity: 1; } }
+
+.va-q, .va-a { font-size: var(--fs-sm, 0.875rem); line-height: 1.5; padding: 10px 12px; border-radius: 10px; background: var(--va-panel); }
+.va-q span, .va-a span { color: var(--va-ink-2); font-weight: 600; margin-right: 4px; }
+.va-a { border-left: 3px solid var(--va-gold); }
+
+.va-controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end; }
+.va-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.va-primary, .va-btn, .va-danger {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  min-height: 44px; padding: 0 16px; border-radius: 10px; cursor: pointer; text-decoration: none;
+  font: 600 var(--fs-sm, 0.875rem) var(--font, system-ui);
+}
+.va-primary { background: var(--va-gold); color: var(--va-gold-ink); border: 1px solid var(--va-gold); }
+.va-primary:disabled { opacity: 0.55; cursor: default; }
+.va-btn { background: var(--va-card); color: var(--va-ink); border: 1px solid var(--va-line); }
+.va-btn:disabled { opacity: 0.5; cursor: default; }
+.va-btn[aria-pressed='true'] { border-color: var(--va-teal); color: var(--va-teal); }
+.va-danger { background: transparent; color: var(--va-red); border: 1px solid rgba(240, 148, 138, 0.5); }
+.va :is(button, a, select, input):focus-visible { outline: 2px solid var(--va-teal); outline-offset: 2px; }
+
+.va-lang { display: flex; flex-direction: column; gap: 4px; font-size: var(--fs-xs, 0.8125rem); color: var(--va-ink-2); }
+.va select, .va input {
+  min-height: 44px; padding: 0 10px; border-radius: 10px; border: 1px solid var(--va-field);
+  background: var(--va-panel); color: var(--va-ink); font: var(--fs-sm, 0.875rem) var(--font, system-ui);
+}
+.va-text form { display: flex; flex-direction: column; gap: 6px; }
+.va-text input { flex: 1; min-width: 0; }
+.va-text { display: flex; flex-direction: column; gap: 10px; }
+
+.va-off { display: flex; flex-direction: column; gap: 10px; align-items: flex-start; padding: 14px; border-radius: 12px; background: var(--va-panel); border: 1px dashed var(--va-line); }
+.va-off-title { font-weight: 700; color: var(--va-gold); }
+
+.va-card { padding: 12px; border-radius: 12px; background: var(--va-card); border: 1px solid var(--va-line); display: flex; flex-direction: column; gap: 8px; font-size: var(--fs-sm, 0.875rem); }
+.va-refs ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.va-refs a { display: block; padding: 10px 8px; border-radius: 8px; text-decoration: none; color: var(--va-ink); font-size: var(--fs-sm, 0.875rem); }
+.va-refs a:hover { background: var(--va-card); }
+.va-ref-kind { color: var(--va-teal); font-variant-numeric: tabular-nums; margin-right: 4px; }
+.va-history summary { cursor: pointer; color: var(--va-ink-2); font-size: var(--fs-sm, 0.875rem); min-height: 44px; display: flex; align-items: center; }
+.va-history ol { list-style: none; margin: 0 0 8px; padding: 0; display: flex; flex-direction: column; gap: 6px; font-size: var(--fs-sm, 0.875rem); }
+.va-turn.user b { color: var(--va-teal); }
+.va-turn.advisor b { color: var(--va-gold); }
+.va-turn.system { color: var(--va-ink-2); }
+
+.va-table-btn { display: inline-flex; align-items: center; gap: 6px; }
+
+/* Phone header: the advisor on the right, next to the bell (hidden on desktop with the header). */
+.va-head-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  min-height: 44px; padding: 0 14px 0 10px; border-radius: 999px;
+  border: 1px solid var(--va-gold); background: var(--va-panel); color: var(--va-gold);
+  font: 600 var(--fs-sm, 0.875rem) / 1 var(--font, system-ui); cursor: pointer;
+}
+.va-head-btn:active { background: var(--va-card); }
+.mobile-head .row { flex-wrap: nowrap; }
+/* The narrowest phones: a round microphone button, the name stays for screen readers (aria-label). */
+@media (max-width: 370px) {
+  .va-head-btn { width: 44px; padding: 0; justify-content: center; flex: none; }
+  .va-head-btn span { display: none; }
+}
+.va-head-btn:focus-visible { outline: 2px solid var(--va-teal); outline-offset: 2px; }
+
+/* Phone: the button sits above the tab bar; the panel is a bottom sheet that leaves the tab bar free. */
+@media (max-width: 860px) {
+  .va-fab { bottom: calc(90px + env(safe-area-inset-bottom)); padding: 0 16px 0 12px; }
+  /* The header button is on screen: one way to call the advisor at a time. */
+  .va-fab.is-head-visible { display: none; }
+  /* The sheet runs under the tab bar (which stays on top, z-index 10): no gap, the tab bar stays usable. */
+  .va {
+    top: auto;
+    left: 0;
+    width: 100vw;
+    bottom: 0;
+    z-index: 9;
+    max-height: min(78vh, calc(100dvh - 56px));
+    padding-bottom: calc(78px + env(safe-area-inset-bottom));
+    border-left: 0;
+    border-top: 1px solid var(--va-line);
+    border-radius: 16px 16px 0 0;
+    box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.35);
+    padding-top: 0;
+  }
+  .va-body { padding-bottom: 16px; }
+  .va-rec { display: none; }
+}

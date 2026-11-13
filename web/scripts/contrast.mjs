@@ -44,5 +44,46 @@ for (const [name, t] of [['light', light], ['dark', dark]]) {
     }
   }
 }
+
+// The Kingdom sign-in screen keeps its own dusk palette (src/components/kingdom-login.css).
+const klCss = readFileSync(new URL('../src/components/kingdom-login.css', import.meta.url), 'utf8');
+const klBlock = klCss.match(/^\.kl \{([\s\S]*?)\n\}/m);
+if (!klBlock) throw new Error('token block not found: .kl');
+const kl = Object.fromEntries([...klBlock[1].matchAll(/--([\w-]+):\s*(#[0-9a-fA-F]{6})/g)].map((x) => [x[1], x[2]]));
+const KL_PAIRS = [
+  ['kl-ink', 'kl-bg', 4.5], ['kl-ink', 'kl-panel', 4.5], ['kl-ink', 'kl-card', 4.5], ['kl-ink', 'kl-card-on', 4.5],
+  ['kl-ink-2', 'kl-panel', 4.5], ['kl-ink-2', 'kl-card', 4.5], ['kl-ink-2', 'kl-card-on', 4.5],
+  ['kl-gold', 'kl-panel', 4.5], ['kl-gold', 'kl-card', 4.5], ['kl-gold', 'kl-card-on', 4.5], ['kl-gold-ink', 'kl-gold', 4.5],
+  ['kl-mark', 'kl-card', 3], ['kl-gold-line', 'kl-panel', 3], ['kl-teal', 'kl-panel', 3],
+  ['kl-rank-teal', 'kl-card', 4.5], ['kl-rank-red', 'kl-card', 4.5], ['kl-rank-orange', 'kl-card', 4.5], ['kl-rank-olive', 'kl-card', 4.5], ['kl-gold', 'kl-bg', 4.5],
+];
+for (const [fg, bg, min] of KL_PAIRS) {
+  if (!kl[fg] || !kl[bg]) throw new Error(`sign-in token missing: --${kl[fg] ? bg : fg}`);
+  const r = ratio(kl[fg], kl[bg]);
+  if (r < min) {
+    failed++;
+    console.error(`✗ sign-in: --${fg} on --${bg} = ${r.toFixed(2)} < ${min}`);
+  }
+}
+// «Спросить советника» keeps the Kingdom palette in its own block (src/components/voice-advisor.css, ADR-0043).
+const vaCss = readFileSync(new URL('../src/components/voice-advisor.css', import.meta.url), 'utf8');
+const vaBlock = vaCss.match(/^\.va,\n[^{]*\{([\s\S]*?)\n\}/m);
+if (!vaBlock) throw new Error('token block not found: .va');
+const va = Object.fromEntries([...vaBlock[1].matchAll(/--([\w-]+):\s*(#[0-9a-fA-F]{6})/g)].map((x) => [x[1], x[2]]));
+const VA_PAIRS = [
+  ['va-ink', 'va-bg', 4.5], ['va-ink', 'va-panel', 4.5], ['va-ink', 'va-card', 4.5],
+  ['va-ink-2', 'va-bg', 4.5], ['va-ink-2', 'va-panel', 4.5], ['va-ink-2', 'va-card', 4.5],
+  ['va-gold', 'va-bg', 4.5], ['va-gold', 'va-panel', 4.5], ['va-gold', 'va-card', 4.5], ['va-gold-ink', 'va-gold', 4.5],
+  ['va-teal', 'va-bg', 4.5], ['va-teal', 'va-panel', 4.5], ['va-teal', 'va-card', 4.5],
+  ['va-red', 'va-bg', 4.5], ['va-red', 'va-card', 4.5], ['va-field', 'va-panel', 3],
+];
+for (const [fg, bg, min] of VA_PAIRS) {
+  if (!va[fg] || !va[bg]) throw new Error(`advisor token missing: --${va[fg] ? bg : fg}`);
+  const r = ratio(va[fg], va[bg]);
+  if (r < min) {
+    failed++;
+    console.error(`✗ advisor: --${fg} on --${bg} = ${r.toFixed(2)} < ${min}`);
+  }
+}
 if (failed) process.exit(1);
-console.log(`✓ contrast: ${PAIRS.length * 2} token pairs pass (light and dark)`);
+console.log(`✓ contrast: ${PAIRS.length * 2} token pairs pass (light and dark), ${KL_PAIRS.length} on the sign-in screen, ${VA_PAIRS.length} in the advisor`);

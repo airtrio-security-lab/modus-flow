@@ -52,7 +52,7 @@ export function parseRange(header: string | undefined, size: number): { start: n
   return { start, end };
 }
 
-const PAGE_CSP = [
+export const PAGE_CSP = [
   "default-src 'self'",
   "script-src 'self'",
   "style-src 'self' 'unsafe-inline'",

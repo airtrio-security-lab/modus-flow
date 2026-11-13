@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
 import { mkdirSync } from 'node:fs';
+import { signIn } from './sign-in.mjs';
 
 const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
 const page = await browser.newPage({ viewport: { width: 390, height: 844 }, reducedMotion: 'reduce' });
@@ -11,7 +12,7 @@ page.on('pageerror', e => errors.push(e.message));
 try {
   await page.addInitScript(() => { localStorage.setItem('modus.kingdom.view', '3d'); localStorage.setItem('modus.w3d.quality', 'low'); localStorage.setItem('modus.w3d.hint', '1'); });
   await page.goto(process.env.BASE ?? 'http://127.0.0.1:5173');
-  await page.getByRole('button', { name: /Ерлан Касымов/ }).click();
+  await signIn(page, { name: 'Ерлан Касымов' });
   await page.locator('.shell').waitFor();
   let expected;
   for (const width of [375, 565, 768, 880, 1024, 1440]) {
@@ -50,6 +51,17 @@ try {
   assert(camera.y >= 65, 'Landscape: camera controls overlap header');
   if (shots) await page.screenshot({ path: `${shots}/landscape-kingdom.png` });
   await page.setViewportSize({ width: 375, height: 812 });
+  await page.locator('.w3d-top').getByRole('button', { name: 'Спросить Альфреда', exact: true }).click();
+  await page.locator('.va').waitFor();
+  const advisorBox = await page.locator('.va').boundingBox();
+  const dockBox = await page.locator('.tabbar').boundingBox();
+  assert(advisorBox.y + advisorBox.height <= dockBox.y, 'Advisor covers the dock');
+  const advisorHit = await page.locator('.va-icon').evaluate(el => {
+    const r = el.getBoundingClientRect();
+    return el.contains(document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2));
+  });
+  assert(advisorHit, 'City covers advisor close button');
+  await page.locator('.va-icon').click();
   await page.locator('.w3d-top summary[aria-label="Все разделы"]').click();
   await page.locator('.w3d-top .section-menu nav a[href="#/library"]').click();
   await page.locator('.gc').waitFor();

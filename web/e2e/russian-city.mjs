@@ -3,6 +3,7 @@
  * Uses a demo admin, switches one district to Russia and restores its prior style.
  */
 import { chromium } from 'playwright';
+import { signIn } from './sign-in.mjs';
 import { readFileSync } from 'node:fs';
 import { schematic } from './schematic.mjs';
 
@@ -29,7 +30,7 @@ async function api(method, path, body) {
 }
 try {
   await page.goto(BASE);
-  await page.getByRole('button', { name: new RegExp(admin.name) }).click();
+  await signIn(page, admin);
   await page.waitForSelector('.shell');
   await page.goto(BASE + '/#/kingdom');
   // The demo already has a Russian district; take one of another style, so the switch and the restore are real.

@@ -54,8 +54,8 @@
    "voice_large_v3": "Ваш вклад признан.",
    "voice_small": "Ваш вклад признан.",
    "speech_ends_at": 2.54,
-   "decision": "not connected",
-   "reason": "Событие contribution_confirmed объявлено, но сервер его нигде не создаёт"
+   "decision": "connected as contribution-recognized",
+   "reason": "Решение владельца 2026-11-13: событие contribution_confirmed создано там, где вклад подтверждают (ведущий или ответственный за решение), ADR-0042"
   },
   {
    "file": "05_castle_level_up.mp4",
@@ -186,8 +186,8 @@
    "voice_large_v3": "Великий Совет собран!",
    "voice_small": "Великий Совет Собран",
    "speech_ends_at": 2.24,
-   "decision": "not connected",
-   "reason": "Нет проверенного серверного факта «заседание началось»; приглашение им не является"
+   "decision": "connected as great-council-gathered",
+   "reason": "Решение владельца 2026-11-13: начало заседания Большого Круглого стола (запись включена, все согласились) — участнику, который заходит, пока заседание идёт; ADR-0042"
   },
   {
    "file": "16_notification_variant_a.mp4",
@@ -406,6 +406,47 @@
     "height": 1280,
     "seconds": 4.96
    }
+  },
+  {
+   "id": "contribution-recognized",
+   "trigger": "notification:contribution_confirmed",
+   "source": "04_contribution_recognized.mp4",
+   "voice": "Ваш вклад признан.",
+   "voice_web_check": "Ваш вклад признан.",
+   "web": {
+    "file": "cinematics/contribution-recognized.mp4",
+    "poster": "cinematics/contribution-recognized.jpg",
+    "bytes": 533195,
+    "sha256": "a6843c9316fc65656e3a47c11920765a0ffb2db1752b0fb3a1eb3817baa36e1d",
+    "width": 720,
+    "height": 1280,
+    "seconds": 3.92
+   }
+  },
+  {
+   "id": "great-council-gathered",
+   "trigger": "notification:meeting_recording_started (council = great, not ended, not declined, ≤ 12 h)",
+   "source": "15_great_council_gathered.mp4",
+   "voice": "Великий Совет собран!",
+   "voice_web_check": "Великий Совет Собран",
+   "web": {
+    "file": "cinematics/great-council-gathered.mp4",
+    "poster": "cinematics/great-council-gathered.jpg",
+    "bytes": 1294599,
+    "sha256": "9b1b7794ed746b941332e4d9fc04bee83bc0eaf1c8d989474b30632a06a45f76",
+    "width": 720,
+    "height": 1280,
+    "seconds": 4.96
+   }
   }
- ]
+ ],
+ "ownerDecisions": {
+  "date": "2026-11-13",
+  "items": [
+   "04 → contribution_confirmed (new server event, ADR-0042)",
+   "15 → start of a Great Round Table session",
+   "01: the owner listens to the first word himself",
+   "10 instead of 09, 16 instead of 17 — confirmed"
+  ]
+ }
 }

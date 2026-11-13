@@ -144,6 +144,10 @@ button, summary, .btn { -webkit-tap-highlight-color: transparent; }
 .w3d-sheet { max-height: calc(100% - 205px); }
 .w3d-stats { border-radius: 16px; }
 .w3d-cta { border-radius: 14px; }
+.va-fab { z-index: 66; }
+.shell:has(.w3d) ~ .va-fab { bottom: calc(108px + env(safe-area-inset-bottom)); }
+.w3d-top .va-head-btn { width: 44px; padding: 0; justify-content: center; flex: none; }
+.w3d-top .va-head-btn span { display: none; }
 
 @media (max-width: 1100px) {
   .experience-copy { width: 76%; }
@@ -152,6 +156,9 @@ button, summary, .btn { -webkit-tap-highlight-color: transparent; }
   .metric-icon { left: 14px; }
 }
 @media (max-width: 900px) {
+  .va-fab { bottom: calc(108px + env(safe-area-inset-bottom)); }
+  .va-fab.is-head-visible { display: none; }
+  .va { inset: auto 12px calc(102px + env(safe-area-inset-bottom)); z-index: 64; width: auto; max-height: min(70dvh, calc(100dvh - 160px)); padding: 0; border: 1px solid var(--va-line); border-radius: 18px; }
   .shell { grid-template-columns: minmax(0, 1fr); }
   .rail { display: none; }
   .main { padding: 0 20px calc(116px + env(safe-area-inset-bottom)); }
@@ -187,6 +194,8 @@ button, summary, .btn { -webkit-tap-highlight-color: transparent; }
   .envoy-rankup, .cinema-toast { bottom: calc(110px + env(safe-area-inset-bottom)); }
 }
 @media (max-width: 560px) {
+  .mobile-head .va-head-btn { width: 44px; padding: 0; justify-content: center; flex: none; }
+  .mobile-head .va-head-btn span { display: none; }
   .main { padding-inline: 16px; }
   .experience-hero { min-height: 330px; padding: 27px 22px 64px; border-radius: 20px; }
   .experience-copy { width: 100%; }

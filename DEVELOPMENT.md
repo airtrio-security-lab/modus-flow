@@ -72,6 +72,7 @@ npm run demo:seed        # fresh database only: 16 items in every status, castle
 npm run web:build        # builds web/dist
 npm run demo:start       # API as modus_api + web app + demo sign-in; refuses NODE_ENV=production
 npm run demo:e2e         # optional: Playwright walks through the main scenario
+npm run demo:login       # optional: the Kingdom sign-in — every character, 390/768/1440 px, keyboard, 200 % text, screenshots in .demo/shots
 npm run demo:kingdom     # optional, on a fresh seed: the 90-second kingdom scenario (Council → XP → level → rating)
 npm run demo:advisor     # optional, on a fresh seed: protocol → confirmed items → executor suggestion (rules, no AI; ADR-0013)
 npm run demo:meeting     # optional, on a fresh seed: council meeting with consent, recording, prepared transcript, findings, confirmation (ADR-0014)

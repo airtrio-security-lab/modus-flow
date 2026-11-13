@@ -19,6 +19,7 @@ import { W3dDiag, diagWanted } from '../components/W3dDiag';
 import { HERALDRY, envoyState } from './Kingdom';
 import { SectionMenu } from '../components/Experience';
 import { Icon } from '../components/icons';
+import { AdvisorHeadButton } from '../components/VoiceAdvisor';
 
 /**
  * «3D-город» (ADR-0026): the commonwealth as a real-time scene with a dark game HUD. Everything
@@ -942,6 +943,7 @@ function Hud({ k, onMode, onPick, onItem, onPerson }: { k: KingdomData; onMode: 
         {s.unread ? <i>{s.unread > 99 ? '99+' : s.unread}</i> : null}
       </a>
       <SectionMenu />
+      <AdvisorHeadButton />
       <a className="w3d-user" href="#/me">
         <b>{s.me.displayName}</b>
       </a>
