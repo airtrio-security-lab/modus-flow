@@ -45,11 +45,6 @@ const STATE_LABEL: Record<VoiceState, string> = {
   ended: 'Разговор завершён',
   error: 'Нет связи',
 };
-/** Said once the line is open: the employee hears at once that the sound works. */
-const GREETING: Record<VoiceLanguage, string> = {
-  ru: 'Скажи одной короткой фразой, без инструментов: «Здравствуйте, я Альфред, советник MODUS FLOW. Слушаю вас.» И жди вопроса.',
-  kk: 'Бір қысқа сөйлеммен, құралсыз айт: «Сәлеметсіз бе, мен Альфред, MODUS FLOW кеңесшісімін. Тыңдап тұрмын.» Сосын сұрақты күт.',
-};
 const LIVE: VoiceState[] = ['requesting_mic', 'connecting', 'listening', 'user_speaking', 'thinking', 'speaking'];
 
 interface Ctx {
@@ -294,7 +289,9 @@ function AdvisorPanel({ context, onClose, onClearContext }: { context?: VoiceCon
         },
         onError: (_code, message) => setError(message),
         onReady: () => {
-          t.speakFirst(GREETING[language]);
+          // Alfred opens with his report (the «ВСТУПЛЕНИЕ» of the session instructions, built on the
+          // server with the employee's own form of address): the employee hears at once that sound works.
+          t.speakFirst();
         },
         onClosed: () => {
           // Any end — error, lost connection, the employee — frees the server session at once.

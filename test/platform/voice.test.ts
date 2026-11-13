@@ -170,6 +170,9 @@ test('SDP: validated before anything leaves the server, relayed once with the sh
   assert.match(sent.session.instructions, /ТОЛЬКО ИЗ ИНСТРУМЕНТОВ/);
   assert.match(sent.session.instructions, /Альфред/, 'the advisor is called Alfred');
   assert.match(sent.session.instructions, /ты не человек/);
+  assert.match(sent.session.instructions, /ВСТУПЛЕНИЕ/, 'Alfred opens with a report');
+  assert.match(sent.session.instructions, /get_my_summary/);
+  assert.match(sent.session.instructions, /openItemsVisible/);
   assert.match(sent.session.instructions, /қазақ/);
   assert.equal(sent.session.tools.length, TOOL_NAMES.length);
 
@@ -350,4 +353,33 @@ test('a private lab draft stays private: no voice tool reads it', async () => {
   assert.equal(r.json.found, 0);
   await end(w.maintainer, s.json.sessionId);
   await publishDraft(db, w.colleague.userId, d.id, { organization: 'acme' });
+});
+
+test('form of address: only the employee\'s own choice; business style has none; the opening report uses it', async () => {
+  const { ownerQuery: q } = await import('./support/db.ts');
+  const instr = async () => JSON.parse(calls.filter((c) => c.url.endsWith('/client_secrets')).at(-1)!.body).session.instructions as string;
+  const setPref = (form: string, style = 'royal') =>
+    q(db, `INSERT INTO notification_preferences (organization_id, membership_id, style, address_form) VALUES ($1, $2, $3, $4)
+            ON CONFLICT (organization_id, membership_id) DO UPDATE SET style = EXCLUDED.style, address_form = EXCLUDED.address_form`, [w.acmeId, w.colleague.membershipId, style, form]);
+  await setPref('milord');
+  let s = await start(w.colleague);
+  assert.match(await instr(), /обращайся к сотруднику «мой милорд»/);
+  assert.match(await instr(), /обратись «мой милорд»/);
+  await end(w.colleague, s.json.sessionId);
+  await setPref('milady');
+  s = await start(w.colleague);
+  assert.match(await instr(), /«моя миледи»/);
+  assert.doesNotMatch(await instr(), /милорд/, 'never the other form');
+  await end(w.colleague, s.json.sessionId);
+  await setPref('milord', 'business');
+  s = await start(w.colleague);
+  assert.match(await instr(), /деловой стиль — без игровых обращений/);
+  assert.doesNotMatch(await instr(), /милорд/);
+  await end(w.colleague, s.json.sessionId);
+
+  const t = await start(w.maintainer);
+  const summary = await tool(w.maintainer, t.json.sessionId, 'get_my_summary');
+  assert.equal(typeof summary.json.data.openItemsVisible, 'number', '«у нас N обращений» — a real count');
+  assert.equal(typeof summary.json.data.overdueItemsVisible, 'number');
+  await end(w.maintainer, t.json.sessionId);
 });

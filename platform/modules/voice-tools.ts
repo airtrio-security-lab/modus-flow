@@ -125,11 +125,13 @@ async function search(deps: ToolDeps, actor: OrgActor, i: z.infer<typeof SearchI
 }
 
 async function mySummary(deps: ToolDeps, actor: OrgActor): Promise<ToolResult> {
-  const [inbox, assigned, councilRows, mtgs] = await Promise.all([
+  const [inbox, assigned, councilRows, mtgs, visibleOpen] = await Promise.all([
     listInbox(deps.db, actor),
     searchItems(deps.db, actor, { assigned: true, open: true, limit: 30 }) as Promise<Row[]>,
     council.listCouncil(deps.db, actor),
     meetings.listMeetings(deps.db, actor),
+    // «У нас N обращений»: the open items this employee can see (RLS), not the whole company.
+    searchItems(deps.db, actor, { open: true, limit: 200 }) as Promise<Row[]>,
   ]);
   const unread = inbox.filter((n) => !n.readAt);
   const decide = (councilRows as Row[]).filter((r) => r.iDecide);
@@ -139,6 +141,8 @@ async function mySummary(deps: ToolDeps, actor: OrgActor): Promise<ToolResult> {
     tool: 'get_my_summary',
     found: unread.length + assigned.length + decide.length + upcoming.length,
     data: {
+      openItemsVisible: visibleOpen.length >= 200 ? '200+' : visibleOpen.length,
+      overdueItemsVisible: visibleOpen.filter((r) => r.overdueFirstResponse || r.overdueResolution).length,
       unreadNotifications: unread.length,
       urgent: unread.filter((n) => n.urgent).slice(0, 6).map((n) => ({ message: cut(n.message, 200), ideaNumber: n.ideaNumber, createdAt: n.createdAt })),
       latest: unread.filter((n) => !n.urgent).slice(0, 4).map((n) => ({ message: cut(n.message, 200), ideaNumber: n.ideaNumber, createdAt: n.createdAt })),
