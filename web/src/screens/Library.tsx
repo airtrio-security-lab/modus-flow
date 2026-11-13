@@ -5,6 +5,7 @@ import { go } from '../lib/router';
 import { useLoad, useSession } from '../lib/session';
 import { ErrorBox, Loading } from '../components/ui';
 import { ArchiveSeal, Crumbs, HALLS, HallHero, HallNavigation, KnowledgeProofBadge, KnowledgeTimeline, KnowledgeVolumeCard, Prose, ReadingSection, VolumeSkeleton, hallOf, type Level, type Status, type TimelineEvent, type VolumeRow } from '../components/halls';
+import { useWorldBack } from '../lib/useWorldBack';
 import './library.css';
 
 /**
@@ -168,6 +169,7 @@ const LIST_LIMIT = 200;
 // The library: three doors, one search
 // ---------------------------------------------------------------------------
 export function Library() {
+  const worldBack = useWorldBack();
   const s = useSession();
   const [hall, setHall] = useState<Level | 'all'>(readHall);
   const [q, setQ] = useState(() => hashParams().get('q') ?? '');
@@ -236,8 +238,8 @@ export function Library() {
             >
               Найти знание
             </button>
-            <a className="btn quiet" href="#/kingdom">
-              Вернуться в Содружество
+            <a className="btn quiet" href={worldBack?.href ?? "#/kingdom"}>
+              {worldBack?.label ?? "Вернуться в Содружество"}
             </a>
           </>
         }
@@ -680,6 +682,7 @@ const PROOF_NOTE: Record<Level, string> = {
 };
 
 export function KnowledgePage({ id }: { id: string }) {
+  const worldBack = useWorldBack();
   const s = useSession();
   const { data: k, error, loading, reload } = useLoad(() => api<View>(`/orgs/${s.org}/knowledge/${id}`), [s.org, id]);
   const [helper, setHelper] = useState<Helper | null>(null);
@@ -701,8 +704,8 @@ export function KnowledgePage({ id }: { id: string }) {
               <a className="btn" href="#/library">
                 К каталогу библиотеки
               </a>
-              <a className="btn quiet" href="#/kingdom">
-                Вернуться в Содружество
+              <a className="btn quiet" href={worldBack?.href ?? "#/kingdom"}>
+                {worldBack?.label ?? "Вернуться в Содружество"}
               </a>
             </div>
           </div>

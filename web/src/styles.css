@@ -1827,3 +1827,19 @@ dialog.cine::backdrop { background: rgba(5, 8, 12, 0.78); }
 .cine-text .cine-copy { padding: 16px; }
 .cine-text .cine-eyebrow { color: var(--accent-ink); }
 @media (max-width: 900px) { .cine-text { bottom: calc(76px + env(safe-area-inset-bottom)); } }
+
+/* ---- Seamless world (ADR-0038): the way back into the city and the short entrance ---- */
+.world-return {
+  display: inline-flex; align-items: center; gap: 8px; min-height: 44px; margin-bottom: 8px; padding: 0 14px 0 10px;
+  border: 1px solid var(--line-strong); border-radius: 999px; background: var(--surface); color: var(--ink);
+  font-size: var(--fs-sm); font-weight: 600; text-decoration: none; max-width: 100%; overflow-wrap: anywhere;
+}
+.world-return:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+@media (hover: hover) { .world-return:hover { border-color: var(--accent); } }
+.w3d-plate[data-returned='yes'] { border-color: var(--w-gold); box-shadow: 0 0 0 3px rgba(217, 186, 124, 0.35); }
+/* Opacity only: a transform here would re-anchor the full-screen city and every fixed panel inside the page. */
+@media (prefers-reduced-motion: no-preference) {
+  :root:not([data-lite='on']) .page[data-arrive='building'] { animation: world-enter 260ms ease-out both; }
+  :root:not([data-lite='on']) .page[data-arrive='world'] { animation: world-enter 200ms ease-out both; }
+}
+@keyframes world-enter { from { opacity: 0; } to { opacity: 1; } }

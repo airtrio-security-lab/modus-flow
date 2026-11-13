@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { api, getToken, setToken } from './lib/api';
 import { useRoute } from './lib/router';
 import { SessionProvider, useSession } from './lib/session';
@@ -30,6 +30,8 @@ import { Board } from './screens/Board';
 import { KnowledgePage, Library, NewKnowledge } from './screens/Library';
 import { EnvoyRankUp } from './components/EnvoyRankUp';
 import { CinematicHost } from './components/CinematicNotification';
+import { clearWorldContext, worldRoute, writeWorldContext } from './lib/worldReturn';
+import { useWorldBack } from './lib/useWorldBack';
 
 export function App() {
   const [me, setMe] = useState<Me | null>(null);
@@ -59,6 +61,8 @@ export function App() {
   const signOut = useCallback(() => {
     setToken(null);
     setMe(null);
+    // The next person on this device starts from the ordinary view of the world (ADR-0038).
+    clearWorldContext();
     location.hash = '';
     setState('signed-out');
   }, []);
@@ -181,6 +185,29 @@ function Shell() {
   }, [routeKey]);
   const online = useOnline();
 
+  // Seamless world (ADR-0038). Leaving a world screen for a working one remembers where to come back
+  // to; the camera and the selection are kept by the world screens themselves. Coming back by the link,
+  // by the browser's «Назад» or by the navigation all lead to the same restored place.
+  const who = useMemo(() => ({ org: s.org, member: s.membershipId }), [s.org, s.membershipId]);
+  const lastHash = useRef(location.hash);
+  const [arrive, setArrive] = useState<'building' | 'world' | null>(null);
+  useEffect(() => {
+    const was = worldRoute(lastHash.current);
+    const now = worldRoute(location.hash);
+    if (lastHash.current === location.hash) return;
+    lastHash.current = location.hash;
+    if (was && !now) {
+      writeWorldContext(who, { from: was });
+      setArrive('building');
+    } else if (!was && now) {
+      writeWorldContext(who, { from: null });
+      setArrive('world');
+    } else setArrive(null);
+  }, [routeKey, who]);
+  const back = useWorldBack();
+  // The Great Library's catalogue has this link in its own header.
+  const showBack = back && !worldRoute(location.hash) && !(head === 'library' && !route[1]);
+
   // Mobile tab bar: Королевство, Обращения | «+» | Совет, Профиль. Notifications: the bell in the header.
   const pickTab = (h: string) => nav.find((n) => n.href === h);
   const left = ['#/kingdom', '#/'].map(pickTab).filter((n): n is NavItem => !!n);
@@ -263,7 +290,12 @@ function Shell() {
             </a>
           </div>
         </div>
-        <div className="page">
+        <div className="page" data-arrive={arrive ?? undefined} onAnimationEnd={(e) => (e.target === e.currentTarget ? setArrive(null) : undefined)}>
+          {showBack ? (
+            <a className="world-return" href={back.href}>
+              <span aria-hidden="true">←</span> {back.label}
+            </a>
+          ) : null}
           {subnav ? (
             <nav className="subnav" aria-label={subnav === gameTabs ? s.realmName : 'Обращения'}>
               {subnav.map((t) => (

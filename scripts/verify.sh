@@ -23,7 +23,7 @@ npm run -s check
 
 if [ "$mode" = quick ]; then
   step "модульные тесты без базы"
-  node --test test/platform/domain.test.ts test/platform/world3d.test.ts test/platform/envoy-outfits.test.ts test/platform/cinematics.test.ts test/platform/static.test.ts
+  node --test test/platform/domain.test.ts test/platform/world3d.test.ts test/platform/envoy-outfits.test.ts test/platform/cinematics.test.ts test/platform/static.test.ts test/platform/world-return.test.ts
   if [ "$#" -gt 0 ]; then
     : "${TEST_DATABASE_URL:?TEST_DATABASE_URL обязателен для тестов платформы: они никогда не пропускаются}"
     step "изменённые тесты: $*"

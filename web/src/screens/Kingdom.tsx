@@ -14,6 +14,7 @@ import { roman } from '../components/EnvoyRankUp';
 import { STATUS } from '../lib/status';
 import { MAP_MOTION_BUDGET, MOTION_WORDS, envoyMotion, envoyRankName, type EnvoyMotion } from '../lib/envoy-outfits';
 import { EnvoyAvatarMark } from '../components/EnvoyAvatar';
+import { readWorldContext, writeWorldContext } from '../lib/worldReturn';
 import { readCitySeen, seenFor, writeCitySeen, type CitySeen } from '../lib/citySeen';
 
 // three.js is loaded only when the 3D city is opened.
@@ -111,7 +112,16 @@ function placeCastles(castles: Castle[], L: Layout) {
 export function Kingdom() {
   const s = useSession();
   const { data, error, loading, reload } = useLoad(() => api<KingdomData>(`/orgs/${s.org}/kingdom`), [s.org]);
-  const [selected, setSelected] = useState<string | null>(null);
+  // Seamless world (ADR-0038): the department selected before a building was entered is selected again.
+  const who = useMemo(() => ({ org: s.org, member: s.membershipId }), [s.org, s.membershipId]);
+  const [selected, setSelectedRaw] = useState<string | null>(() => readWorldContext({ org: s.org, member: s.membershipId })?.selected ?? null);
+  const setSelected = useCallback(
+    (id: string | null) => {
+      setSelectedRaw(id);
+      writeWorldContext(who, { selected: id });
+    },
+    [who],
+  );
   const [celebrate, setCelebrate] = useState<{ id: string; text: string } | null>(null);
   const seen = useRef<Map<string, number> | null>(null);
   // What this person saw here last time (ADR-0030): read once, before the first answer of the server.
@@ -157,6 +167,11 @@ export function Kingdom() {
   useEffect(() => {
     if (enter && mode === 'work') location.hash = enter;
   }, [enter, mode]);
+
+  // A remembered department that the server no longer returns is not selected again.
+  useEffect(() => {
+    if (data && selected && !data.castles.some((c) => c.id === selected)) setSelected(null);
+  }, [data, selected, setSelected]);
 
   // A level-up is shown only when the backend reports a higher level than before.
   useEffect(() => {

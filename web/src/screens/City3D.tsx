@@ -11,6 +11,7 @@ import { useLoad } from '../lib/session';
 import type { Castle, Envoy, IdeaDetail, Kingdom as KingdomData, ListItem } from '../lib/types';
 import { AiAssessment, DeferControl, ItemTrack } from '../components/ItemQuick';
 import { CIVS, civOf, type Civ } from '../components/civ';
+import { readWorldContext, reconcile, writeWorldContext } from '../lib/worldReturn';
 import { World, webglSupported, type Anchor, type AnchorKind, type Quality, type View } from '../world3d/world';
 import { seenFor, type CitySeen } from '../lib/citySeen';
 import { W3dDiag, diagWanted } from '../components/W3dDiag';
@@ -22,7 +23,6 @@ import { HERALDRY, envoyState } from './Kingdom';
  * their civilization and server-computed level, open items and their stage. The scene has no
  * rules of its own — a click only moves the camera and opens existing screens.
  */
-const VIEW_KEY = 'modus.w3d.view';
 const HINT_KEY = 'modus.w3d.hint';
 type Mode = '3d' | 'city' | 'work';
 interface PersonHit {
@@ -147,6 +147,13 @@ export function City3D({ k, since, onMode, onUnavailable, onReload }: { k: Kingd
     }
   });
   const pending = useRef<string | null>(null);
+  // Seamless world (ADR-0038): the camera and the selection as they were before a building was entered.
+  const who = useMemo(() => ({ org: s.org, member: s.membershipId }), [s.org, s.membershipId]);
+  const entered = useRef(false);
+  const selectedRef = useRef<string | null>(null);
+  selectedRef.current = selected;
+  /** The building the person has just come back from: its plate is marked and takes the focus. */
+  const [returned, setReturned] = useState<string | null>(null);
   const colors = useMemo(() => new Map(k.castles.map((c, i) => [c.id, HERALDRY[i % HERALDRY.length]!])), [k.castles]);
   const current = selected ? k.castles.find((c) => c.id === selected) : undefined;
 
@@ -191,11 +198,8 @@ export function City3D({ k, since, onMode, onUnavailable, onReload }: { k: Kingd
     w.resize(host.current.clientWidth, host.current.clientHeight);
     (window as unknown as { __world?: World }).__world = w;
     return () => {
-      try {
-        sessionStorage.setItem(VIEW_KEY, JSON.stringify(w.getView()));
-      } catch {
-        /* storage unavailable */
-      }
+      // Leaving through a building: the view from before the flight is already kept, the close-up is not.
+      if (!entered.current) writeWorldContext(who, { mode: '3d', view: w.getView(), selected: selectedRef.current, place: null });
       ro.disconnect();
       w.dispose();
       world.current = null;
@@ -248,12 +252,12 @@ export function City3D({ k, since, onMode, onUnavailable, onReload }: { k: Kingd
     });
     if (!ready) {
       // Coming back from a district or a hall: the camera is where it was left.
-      try {
-        const saved = sessionStorage.getItem(VIEW_KEY);
-        if (saved) w.setView(JSON.parse(saved) as View);
-      } catch {
-        /* ignore */
-      }
+      // Only what is still true is restored: a department that is gone is not selected again.
+      const saved = readWorldContext(who);
+      const back = saved ? reconcile(saved, k.castles.map((c) => c.id)) : null;
+      if (back?.view) w.setView(back.view as View);
+      if (back?.selected) setSelected(back.selected);
+      if (back?.place && PLACES.some((p) => p.id === back.place)) setReturned(back.place);
       setReady(true);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -289,9 +293,24 @@ export function City3D({ k, since, onMode, onUnavailable, onReload }: { k: Kingd
     }
     const v = w.viewOf(id);
     pending.current = then ?? null;
+    if (then) {
+      // Entering a building: remember where the person stood, not the close-up the flight ends on.
+      entered.current = true;
+      writeWorldContext(who, { mode: '3d', view: w.getView(), selected: selectedRef.current, place: PLACES.some((p) => p.id === id) ? id : null });
+    }
     if (v) await w.flyTo(v, lite || reducedMotion() ? 0 : 1900);
     if (pending.current === then && then) location.hash = then;
-  }, [lite]);
+    // The flight was interrupted by another choice: the person is still in the city.
+    else if (then) entered.current = false;
+  }, [lite, who]);
+
+  // Back from a building: the keyboard and the screen reader land on its plate, the camera does not move.
+  useEffect(() => {
+    if (!ready || !returned) return;
+    labels.current.get(returned)?.focus({ preventScroll: true });
+    const t = window.setTimeout(() => setReturned(null), 2600);
+    return () => window.clearTimeout(t);
+  }, [ready, returned]);
 
   const openDistrict = useCallback(
     (id: string) => {
@@ -412,6 +431,7 @@ export function City3D({ k, since, onMode, onUnavailable, onReload }: { k: Kingd
             ref={ref(p.id)}
             className="w3d-plate"
             data-kind={p.kind}
+            data-returned={returned === p.id ? 'yes' : undefined}
             href={p.href}
             aria-label={`${p.title}: ${p.sub}${p.kind === 'camp' ? `, ${k.wildlands}` : ''}`}
             onClick={(e) => {
