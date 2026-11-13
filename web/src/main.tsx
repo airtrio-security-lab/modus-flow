@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { App } from './App';
 import { OpeningIntro } from './components/OpeningIntro';
 import './styles.css';
+import './experience.css';
 import { captureShare } from './lib/share';
 import { initTheme } from './lib/env';
 import { initLite } from './lib/lite';

@@ -6,13 +6,14 @@
 import { readFileSync } from 'node:fs';
 
 const css = readFileSync(new URL('../src/styles.css', import.meta.url), 'utf8');
-const block = (re) => {
-  const m = css.match(re);
+const experience = readFileSync(new URL('../src/experience.css', import.meta.url), 'utf8');
+const block = (re, source = css) => {
+  const m = source.match(re);
   if (!m) throw new Error(`token block not found: ${re}`);
   return Object.fromEntries([...m[1].matchAll(/--([\w-]+):\s*(#[0-9a-fA-F]{6})/g)].map((x) => [x[1], x[2]]));
 };
-const light = block(/:root \{([\s\S]*?)\n\}/);
-const dark = { ...light, ...block(/:root\[data-theme='dark'\] \{([\s\S]*?)\n\}/) };
+const light = { ...block(/:root \{([\s\S]*?)\n\}/), ...block(/:root \{([\s\S]*?)\n\}/, experience) };
+const dark = { ...light, ...block(/:root\[data-theme='dark'\] \{([\s\S]*?)\n\}/), ...block(/:root\[data-theme='dark'\] \{([\s\S]*?)\n\}/, experience) };
 
 const lum = (hex) => {
   const c = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).map((x) => (x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4));
@@ -31,6 +32,7 @@ const PAIRS = [
   ['amber', 'paper', 4.5], ['amber', 'amber-tint', 4.5], ['on-signal', 'amber', 4.5],
   ['red', 'surface', 4.5], ['red', 'red-tint', 4.5], ['green', 'surface', 4.5],
   ['field-border', 'surface', 3],
+  ['on-gold', 'gold', 4.5], ['chrome-ink', 'chrome', 4.5], ['chrome-muted', 'chrome', 4.5], ['gold', 'chrome', 4.5],
 ];
 let failed = 0;
 for (const [name, t] of [['light', light], ['dark', dark]]) {

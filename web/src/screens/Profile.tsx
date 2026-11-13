@@ -4,10 +4,12 @@ import { ThemeToggle } from '../lib/env';
 import { LiteToggle } from '../lib/lite';
 import { useLoad, useSession } from '../lib/session';
 import type { Contribution, EmployeeProfile, TitleChoices } from '../lib/types';
-import { ErrorBox, Loading, PageHead, StatusChip } from '../components/ui';
+import { ErrorBox, Loading, StatusChip } from '../components/ui';
 import { useTitles } from '../components/Titles';
 import { NotePrefs } from '../components/NotePrefs';
 import { CinemaToggles } from '../components/CinematicNotification';
+import { ExperienceHero, MetricStrip } from '../components/Experience';
+import { Icon } from '../components/icons';
 
 /**
  * «Мой профиль»: who I am here, what I raised and what my implemented ideas
@@ -85,10 +87,15 @@ export function Profile() {
   const open = data?.items.filter((i) => !['implemented', 'rejected', 'closed'].includes(i.status)) ?? [];
 
   return (
-    <div className="stack-lg">
-      <PageHead title="Мой профиль" sub={[me?.jobTitle, me?.department].filter(Boolean).join(', ') || s.orgName} />
-      <section className="panel stack">
-        <h2 className="section-title">{s.me.displayName}</h2>
+    <div className="stack-lg profile-experience">
+      <ExperienceHero eyebrow="Летопись вашего вклада" title="Мой профиль" description="Каждая воплощённая идея делает Содружество сильнее. Здесь — ваша роль, достижения и личные настройки." icon="shield" />
+      <MetricStrip items={[
+        { label: 'В работе', value: data ? open.length : '—', icon: 'scroll' },
+        { label: 'Внедрено идей', value: data ? implemented.length : '—', icon: 'trophy' },
+        { label: 'Уведомления', value: s.unread, icon: 'bell' },
+      ]} />
+      <section className="panel stack profile-identity">
+        <div className="profile-person"><span className="profile-avatar" aria-hidden="true">{s.me.displayName.split(/\s+/).slice(0, 2).map(n => n[0]).join('')}</span><div><span className="experience-eyebrow"><Icon name="shield" />Участник Содружества</span><h2>{s.me.displayName}</h2><p className="muted small">{[me?.jobTitle, me?.department].filter(Boolean).join(' · ') || s.orgName}</p></div></div>
         <dl className="identity">
           <div>
             <dt>Должность</dt>

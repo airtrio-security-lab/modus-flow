@@ -3,7 +3,8 @@ import { civOf, type Civ } from './civ';
 
 /**
  * Council scenes (ADR-0020): the interior of each small council place and of the Great Round Table.
- * Original flat drawings, decoration only. Every scene sits above the same working components
+ * A generated panorama for the Great Hall and vector drawings for local halls, decoration only.
+ * Every scene sits above the same working components
  * (agenda, participants, documents, arguments, recommendations, decisions, deadlines, protocol,
  * history) — the business process never depends on the picture. Representatives «arrive» with a
  * short animation, switched off in light graphics and with reduced motion.
@@ -15,10 +16,12 @@ export function CouncilScene({ place, color = '#a2412f', seats = [], label }: { 
   const kind = place === 'great' ? 'great' : civOf(place);
   return (
     <figure className={`scene scene-${kind}`}>
+      {kind === 'great' ? <img className="council-panorama" src="/media/commonwealth-council.webp" alt={label} loading="lazy" /> : <>
       <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={label} preserveAspectRatio="xMidYMid slice">
-        {kind === 'japan' ? <Japan color={color} /> : kind === 'kazakh' ? <Kazakh color={color} /> : kind === 'mongolia' ? <Mongolia color={color} /> : kind === 'great' ? <Great /> : <Camelot color={color} />}
-        <Arrivals seats={seats} great={kind === 'great'} />
+        {kind === 'japan' ? <Japan color={color} /> : kind === 'kazakh' ? <Kazakh color={color} /> : kind === 'mongolia' ? <Mongolia color={color} /> : <Camelot color={color} />}
+        <Arrivals seats={seats} great={false} />
       </svg>
+      </>}
       <figcaption>{label}</figcaption>
     </figure>
   );
@@ -131,27 +134,6 @@ function Camelot({ color }: { color: string }) {
       <rect x="0" y="120" width={W} height={H - 120} fill="#7b6a55" />
       {/* The long table of the knights' council. */}
       <rect x={70} y={128} width={W - 140} height={18} rx="4" fill="#5a3d26" />
-    </g>
-  );
-}
-
-/** The Great Round Table: one table, four equal banners — no civilization owns the hall. */
-function Great() {
-  const banners: [string, string][] = [['#55606e', 'Камелот'], ['#a2412f', 'Японский сёгунат'], ['#c99a2e', 'Казахское ханство'], ['#2f4f7a', 'Монгольская держава']];
-  return (
-    <g>
-      <rect width={W} height={H} fill="#2b3134" />
-      {[0, 1, 2, 3, 4, 5, 6].map((i) => <rect key={i} x={i * 96 - 10} y={0} width={60} height={110} fill="#343c3f" />)}
-      {banners.map(([c, name], i) => (
-        <g key={name}>
-          <title>{name}</title>
-          <rect x={86 + i * 132} y={12} width={40} height={66} fill={c} />
-          <path d={`M${86 + i * 132},78 L${106 + i * 132},92 L${126 + i * 132},78 Z`} fill={c} />
-        </g>
-      ))}
-      <rect x="0" y="110" width={W} height={H - 110} fill="#3a3330" />
-      <ellipse cx={W / 2} cy={138} rx={200} ry={26} fill="#6b4a2c" stroke="#c99a2e" strokeWidth="3" />
-      <ellipse cx={W / 2} cy={134} rx={60} ry={8} fill="#7d5a37" />
     </g>
   );
 }

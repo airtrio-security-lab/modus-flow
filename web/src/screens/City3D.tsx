@@ -17,6 +17,8 @@ import { World, webglSupported, type Anchor, type AnchorKind, type Quality, type
 import { seenFor, type CitySeen } from '../lib/citySeen';
 import { W3dDiag, diagWanted } from '../components/W3dDiag';
 import { HERALDRY, envoyState } from './Kingdom';
+import { SectionMenu } from '../components/Experience';
+import { Icon } from '../components/icons';
 
 /**
  * «3D-город» (ADR-0026): the commonwealth as a real-time scene with a dark game HUD. Everything
@@ -563,19 +565,19 @@ export function City3D({ k, since, onMode, onUnavailable, onReload }: { k: Kingd
           </button>
         ) : null}
         <button type="button" aria-label="Список подразделений" aria-expanded={listOpen} onClick={() => setListOpen((v) => !v)}>
-          ☰
+          <Icon name="list" />
         </button>
         <button type="button" aria-label="Повернуть влево" onClick={() => world.current?.nudge('ccw')}>
-          ⟲
+          <Icon name="rotate-left" />
         </button>
         <button type="button" aria-label="Повернуть вправо" onClick={() => world.current?.nudge('cw')}>
-          ⟳
+          <Icon name="rotate-right" />
         </button>
         <button type="button" aria-label="Приблизить" onClick={() => world.current?.nudge('in')}>
-          +
+          <Icon name="plus" />
         </button>
         <button type="button" aria-label="Отдалить" onClick={() => world.current?.nudge('out')}>
-          −
+          <Icon name="minus" />
         </button>
         <button
           type="button"
@@ -586,7 +588,7 @@ export function City3D({ k, since, onMode, onUnavailable, onReload }: { k: Kingd
             if (w) void w.flyTo(w.overview(), lite || reducedMotion() ? 0 : 1500);
           }}
         >
-          ⌂
+          <Icon name="castle" />
         </button>
       </div>
 
@@ -849,13 +851,6 @@ function Hud({ k, onMode, onPick, onItem, onPerson }: { k: KingdomData; onMode: 
   const byNumber = /^№?\s*(\d+)$/.exec(term);
   const envoyHit = byNumber ? k.envoys.find((e) => e.number === Number(byNumber[1])) : undefined;
   const nothing = term.length >= 2 && !busy && !depts.length && !items.length && !people.length && !byNumber && !setHit;
-  const nav = [
-    { href: '#/kingdom', label: 'Город', on: true },
-    { href: '#/', label: 'Обращения', on: false },
-    { href: '#/council', label: 'Советы', on: false },
-    { href: '#/library', label: 'Библиотека', on: false },
-    ...(s.isLead || s.isAdmin ? [{ href: '#/overview', label: 'Аналитика', on: false }] : [{ href: '#/rating', label: 'Рейтинг', on: false }]),
-  ];
   return (
     <header className="w3d-top" data-world-ui="">
       <a className="w3d-brand" href="#/kingdom">
@@ -865,13 +860,6 @@ function Hud({ k, onMode, onPick, onItem, onPerson }: { k: KingdomData; onMode: 
           <small>{s.realmName}</small>
         </span>
       </a>
-      <nav aria-label="Разделы">
-        {nav.map((n) => (
-          <a key={n.href} href={n.href} aria-current={n.on ? 'page' : undefined}>
-            {n.label}
-          </a>
-        ))}
-      </nav>
       <div className="w3d-search" data-world-scroll="">
         <input
           type="search"
@@ -953,6 +941,7 @@ function Hud({ k, onMode, onPick, onItem, onPerson }: { k: KingdomData; onMode: 
         </svg>
         {s.unread ? <i>{s.unread > 99 ? '99+' : s.unread}</i> : null}
       </a>
+      <SectionMenu />
       <a className="w3d-user" href="#/me">
         <b>{s.me.displayName}</b>
       </a>

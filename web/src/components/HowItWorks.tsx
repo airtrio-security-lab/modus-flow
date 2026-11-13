@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Icon, type IconName } from './icons';
 
 /**
  * Five steps that answer, without instructions, where to submit, where the
@@ -6,6 +7,7 @@ import { useState } from 'react';
  * The person may hide it; the choice is kept on this device.
  */
 const KEY = 'modus.howto.hidden';
+const STEP_ICONS: IconName[] = ['scroll', 'compass', 'crown', 'shield', 'castle'];
 
 const STEPS = [
   { title: 'Подайте обращение', text: 'Кнопка «Подать обращение» — проблема или идея своими словами.', href: '#/new', link: 'Подать' },
@@ -49,7 +51,7 @@ export function HowItWorks() {
         {STEPS.map((s, i) => (
           <li key={s.title}>
             <span className="howto-n" aria-hidden="true">
-              {i + 1}
+              <Icon name={STEP_ICONS[i] ?? 'scroll'} />
             </span>
             <span className="howto-body">
               <b>{s.title}</b>

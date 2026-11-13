@@ -33,6 +33,7 @@ import { CinematicHost } from './components/CinematicNotification';
 import { clearWorldContext, worldRoute, writeWorldContext } from './lib/worldReturn';
 import { useWorldBack } from './lib/useWorldBack';
 import { dropWorld } from './world3d/keep';
+import { SectionMenu } from './components/Experience';
 
 export function App() {
   const [me, setMe] = useState<Me | null>(null);
@@ -183,6 +184,7 @@ function Shell() {
       first.current = false;
       return;
     }
+    window.scrollTo(0, 0);
     mainRef.current?.focus({ preventScroll: true });
   }, [routeKey]);
   const online = useOnline();
@@ -215,7 +217,7 @@ function Shell() {
   const right = ['#/council', '#/me'].map(pickTab).filter((n): n is NavItem => !!n);
 
   return (
-    <div className="shell">
+    <div className="shell" data-section={head || 'appeals'}>
       <a
         className="skip-link"
         href="#main"
@@ -248,6 +250,7 @@ function Shell() {
         <nav className="nav nav-more" aria-label="Ещё">
           {more.map((n) => (
             <a key={n.href} href={n.href} aria-current={n.match(route) ? 'page' : undefined} aria-label={n.count ? `${n.label}: ${n.count} непрочитанных` : undefined}>
+              <Icon name={TAB_ICON[n.href] ?? 'compass'} />
               <span>{n.label}</span>
               {!!n.count && <span className="count alert" aria-hidden="true">{n.count}</span>}
             </a>
@@ -281,6 +284,7 @@ function Shell() {
             </span>
           </div>
           <div className="row">
+            <SectionMenu />
             <a className="btn quiet small bell" href="#/inbox" aria-label={s.unread ? `Уведомления: ${s.unread} непрочитанных` : 'Уведомления'}>
               <Icon name="bell" />
               {s.unread ? (
@@ -321,7 +325,7 @@ function Shell() {
           <span className="plus" aria-hidden="true">
             <Icon name="plus" />
           </span>
-          Подать
+          <span>Подать</span>
         </a>
         {right.map((n) => (
           <Tab key={n.href} n={n} route={route} />
@@ -332,21 +336,22 @@ function Shell() {
 }
 
 const TAB_ICON: Record<string, IconName> = {
-  '#/': 'inbox-stack',
+  '#/': 'scroll',
   '#/work': 'briefcase',
   '#/board': 'columns',
   '#/inbox': 'bell',
   '#/overview': 'chart',
   '#/kingdom': 'castle',
-  '#/council': 'table',
+  '#/council': 'crown',
   '#/rating': 'trophy',
   '#/library': 'library',
   '#/me': 'person',
+  '#/settings': 'settings',
 };
 
 function Tab({ n, route }: { n: NavItem; route: string[] }) {
   return (
-    <a href={n.href} aria-current={n.match(route) ? 'page' : undefined} aria-label={n.count ? `${n.label}: ${n.count} непрочитанных` : n.label}>
+    <a href={n.href} aria-current={n.match(route) || (n.href === '#/' && route[0] === 'board') ? 'page' : undefined} aria-label={n.count ? `${n.label}: ${n.count} непрочитанных` : n.label}>
       <Icon name={TAB_ICON[n.href] ?? 'inbox-stack'} />
       {!!n.count && (
         <span className="badge" aria-hidden="true">

@@ -2,8 +2,10 @@ import { api, qs } from '../lib/api';
 import { useLoad, useSession } from '../lib/session';
 import { STATUS } from '../lib/status';
 import type { ListItem } from '../lib/types';
-import { ErrorBox, ItemList, Loading, PageHead } from '../components/ui';
+import { ErrorBox, ItemList, Loading } from '../components/ui';
 import { HowItWorks } from '../components/HowItWorks';
+import { ExperienceHero, MetricStrip } from '../components/Experience';
+import { Icon } from '../components/icons';
 
 /** «Мои обращения»: what I raised, what stage it is at, what is waiting for me. */
 export function Mine() {
@@ -16,14 +18,22 @@ export function Mine() {
 
   return (
     <div className="stack-lg">
-      <PageHead
+      <ExperienceHero
+        eyebrow="Ваш голос в Содружестве"
+        icon="scroll"
         title="Мои обращения"
-        sub="Что вы подали или что записали с ваших слов. У каждого обращения есть ответственный и срок ответа."
+        description="Большие перемены начинаются с вашей идеи. Следите за её путём — от первого слова до воплощения."
       >
-        <a className="btn" href="#/new">
-          Подать обращение
+        <a className="btn primary" href="#/new">
+          <Icon name="plus" /> Подать обращение
         </a>
-      </PageHead>
+        <a className="hero-link" href="#/kingdom">В город <Icon name="arrow" /></a>
+      </ExperienceHero>
+      <MetricStrip items={[
+        { label: 'В работе', value: data ? open.length : '—', icon: 'scroll' },
+        { label: 'Нужен ваш ответ', value: data ? waiting.length : '—', icon: 'hourglass' },
+        { label: 'Завершено', value: data ? done.length : '—', icon: 'shield' },
+      ]} />
       <HowItWorks />
       {error ? <ErrorBox error={error} retry={() => void reload()} /> : null}
       {loading && !data ? <Loading /> : null}

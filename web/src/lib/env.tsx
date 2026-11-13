@@ -29,6 +29,7 @@ export function initTheme() {
   try {
     const t = localStorage.getItem(KEY) as Theme | null;
     if (t === 'light' || t === 'dark') apply(t);
+    else if (!t) apply('dark');
   } catch {
     /* storage unavailable: follow the system */
   }
@@ -38,7 +39,7 @@ export function initTheme() {
 export function ThemeToggle() {
   const [t, setT] = useState<Theme>(() => {
     try {
-      return (localStorage.getItem(KEY) as Theme | null) ?? 'system';
+      return (localStorage.getItem(KEY) as Theme | null) ?? 'dark';
     } catch {
       return 'system';
     }

@@ -13,6 +13,8 @@ import type { ExecutorView } from '../lib/types';
 import { CouncilTabs } from './Meetings';
 import { ItemContextPanel } from '../components/ProjectContext';
 import type { IdeaDetail } from '../lib/types';
+import { ExperienceHero, MetricStrip } from '../components/Experience';
+import { Icon } from '../components/icons';
 
 /**
  * «Совет королевства» — the round table (owner brief 2026-11-11, ADR-0012).
@@ -79,7 +81,15 @@ export function CouncilList() {
   const rows = (data ?? []).filter((r) => scope === 'all' || (scope === 'decide' ? r.iDecide : r.iLead));
   return (
     <div className="stack-lg">
-      <PageHead title={`Советы: ${s.realmName}`} sub="Малые советы подразделений и Большой Круглый стол всего Содружества: аргументы, рекомендации — и решение того, кто за него отвечает.">
+      <ExperienceHero eyebrow={s.realmName} title="Зал Совета" icon="crown" art="council" description="Разные мнения. Общее будущее. Здесь идеи обретают поддержку, а обсуждения становятся решениями.">
+        {s.isLead || s.isAdmin ? <a className="btn primary" href="#/meetings/new"><Icon name="plus" />Созвать заседание</a> : null}
+      </ExperienceHero>
+      <MetricStrip items={[
+        { label: 'Большой совет', value: data ? rows.filter(r => r.council === 'great').length : '—', icon: 'crown' },
+        { label: 'Ждут решения', value: data ? rows.filter(r => r.status === 'decision').length : '—', icon: 'hourglass' },
+        { label: 'На пилоте', value: data ? rows.filter(r => r.status === 'in_verification').length : '—', icon: 'spark' },
+      ]} />
+      <div className="council-toolbar">
         {s.isLead ? (
           <div className="segmented" role="group" aria-label="Какие заседания">
             <button type="button" aria-pressed={scope === 'all'} onClick={() => setScope('all')}>
@@ -95,15 +105,14 @@ export function CouncilList() {
         ) : null}
         {s.isLead || s.isAdmin ? (
           <a className="btn" href="#/meetings/new">
-            Созвать заседание с записью
+            <Icon name="scroll" /> Заседание с записью
           </a>
         ) : null}
-      </PageHead>
+      </div>
       <CouncilTabs active="items" />
       {error ? <ErrorBox error={error} retry={() => void reload()} /> : null}
       {loading && !data ? <Loading rows={4} /> : null}
       {data && !rows.length ? <div className="empty">Сейчас на Совете нет обращений{scope !== 'all' ? ' по этому фильтру' : ''}.</div> : null}
-      <CouncilScene place="great" seats={[...new Set(rows.filter((r) => r.council === 'great').map((r) => r.civilization ?? 'camelot'))]} label={`Большой Круглый стол — совет всего Содружества «${s.realmName}»: все цивилизации на равных`} />
       <section className="stack" aria-labelledby="cg-great">
         <h2 id="cg-great" className="section-title">
           Большой Круглый стол ({rows.filter((r) => r.council === 'great').length})
