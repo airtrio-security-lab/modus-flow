@@ -52,6 +52,7 @@
     "demo:seamless": "node web/e2e/seamless-flow.mjs",
     "demo:perf": "node web/e2e/perf-profile.mjs",
     "demo:living": "node web/e2e/living-knowledge-flow.mjs",
+    "voice:agent-tools": "node platform/cli/voice-agent-tools.ts",
     "demo:voice": "node web/e2e/voice-flow.mjs",
     "demo:voice:harness": "node test/platform/support/voice-harness.ts",
     "demo:voice:media": "node web/e2e/voice-media.mjs"

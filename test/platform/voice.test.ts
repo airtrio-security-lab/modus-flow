@@ -7,7 +7,7 @@ import { createApp } from '../../platform/http/app.ts';
 import { issueToken } from '../../platform/http/auth.ts';
 import * as wf from '../../platform/modules/workflow.ts';
 import { DEFAULT_LIMITS, voiceConfigFromEnv, type VoiceConfig } from '../../platform/modules/voice-realtime.ts';
-import { realtimeToolSpecs, TOOL_NAMES } from '../../platform/modules/voice-tools.ts';
+import { elevenLabsToolSpecs, realtimeToolSpecs, TOOL_NAMES } from '../../platform/modules/voice-tools.ts';
 import { planTools } from '../../platform/modules/voice.ts';
 import type { ModelConfig } from '../../platform/modules/advisor-model.ts';
 import { createDraft, publishDraft } from '../../platform/modules/lab.ts';
@@ -382,4 +382,94 @@ test('form of address: only the employee\'s own choice; business style has none;
   assert.equal(typeof summary.json.data.openItemsVisible, 'number', '«у нас N обращений» — a real count');
   assert.equal(typeof summary.json.data.overdueItemsVisible, 'number');
   await end(w.maintainer, t.json.sessionId);
+});
+
+test('ElevenLabs: same switches plus the agent; the key stays on the server; the browser gets one signed URL', async () => {
+  assert.throws(() => voiceConfigFromEnv({ MODUS_VOICE_PROVIDER: 'elevenlabs', ELEVENLABS_API_KEY: KEY, MODUS_DEMO_LOGIN: 'true' }), /MODUS_VOICE_ALLOW_REMOTE=true/);
+  const on = { MODUS_VOICE_PROVIDER: 'elevenlabs', MODUS_VOICE_ALLOW_REMOTE: 'true', MODUS_DEMO_LOGIN: 'true' };
+  assert.throws(() => voiceConfigFromEnv({ ...on, MODUS_VOICE_AGENT_ID: 'agent_abcdef123456' }), /ELEVENLABS_API_KEY/);
+  assert.throws(() => voiceConfigFromEnv({ ...on, ELEVENLABS_API_KEY: KEY }), /MODUS_VOICE_AGENT_ID/);
+  assert.throws(() => voiceConfigFromEnv({ MODUS_VOICE_PROVIDER: 'elevenlabs', MODUS_VOICE_ALLOW_REMOTE: 'true', ELEVENLABS_API_KEY: KEY, MODUS_VOICE_AGENT_ID: 'agent_abcdef123456' }), /MODUS_VOICE_ALLOW_REAL_DATA=true/);
+  const cfg = voiceConfigFromEnv({ ...on, ELEVENLABS_API_KEY: KEY, MODUS_VOICE_AGENT_ID: 'agent_abcdef123456' })!;
+  assert.deepEqual([cfg.provider, cfg.wsOrigin, cfg.voice, cfg.agentId], ['elevenlabs', 'wss://api.elevenlabs.io', 'Альфред', 'agent_abcdef123456']);
+
+  const SIGNED = 'wss://api.elevenlabs.io/v1/convai/conversation?agent_id=agent_abcdef123456&conversation_signature=cvtkn_test';
+  let reply: { status: number; url?: string } = { status: 200, url: SIGNED };
+  const seen: { url: string; key: string }[] = [];
+  const records: Record<string, { agent_id: string; status: string }> = {
+    conv_ours00000001: { agent_id: 'agent_abcdef123456', status: 'done' },
+    conv_foreign00001: { agent_id: 'agent_someoneelse99', status: 'done' },
+  };
+  const deleted: string[] = [];
+  const elFetch = (async (input: string | URL | Request, init?: RequestInit) => {
+    const url = String(input);
+    seen.push({ url, key: ((init?.headers ?? {}) as Record<string, string>)['xi-api-key'] ?? '' });
+    const conv = /\/convai\/conversations\/(conv_\w+)$/.exec(url)?.[1];
+    if (conv) {
+      if (!records[conv]) return new Response('{}', { status: 404 });
+      if (init?.method === 'DELETE') {
+        deleted.push(conv);
+        delete records[conv];
+        return new Response('{}', { status: 200 });
+      }
+      return new Response(JSON.stringify(records[conv]), { status: 200 });
+    }
+    return new Response(JSON.stringify(reply.url ? { signed_url: reply.url } : {}), { status: reply.status });
+  }) as typeof fetch;
+  const root = await serve({ db, authSecret: SECRET, voice: cfg, voiceFetch: elFetch, log: (e) => logs.push(e) });
+
+  const st = await call(root, 'GET', '/orgs/acme/voice/status', { token: tok(w.author) });
+  assert.deepEqual([st.json.voice.kind, st.json.voice.provider, st.json.voice.voice], ['elevenlabs', 'ElevenLabs Agents', 'Альфред']);
+  assert.match(st.json.note, /ElevenLabs/);
+
+  const s = await start(w.author, 'acme', { language: 'ru' }, root);
+  assert.equal(s.status, 201);
+  assert.deepEqual([s.json.provider, s.json.signedUrl], ['elevenlabs', SIGNED]);
+  assert.ok(!s.text.includes(KEY), 'the API key never reaches the browser');
+  assert.deepEqual(seen.at(-1), { url: 'https://api.elevenlabs.io/v1/convai/conversation/get-signed-url?agent_id=agent_abcdef123456', key: KEY });
+  assert.equal(s.json.initiation.type, 'conversation_initiation_client_data');
+  const prompt = s.json.initiation.conversation_config_override.agent.prompt.prompt as string;
+  assert.match(prompt, /Альфред/);
+  assert.match(prompt, /ТОЛЬКО ИЗ ИНСТРУМЕНТОВ/);
+  assert.match(prompt, /ВСТУПЛЕНИЕ/);
+
+  // The same server tools, the same rights, the same refusals.
+  const sum = await tool(w.author, s.json.sessionId, 'get_my_summary', {}, 'acme', root);
+  assert.equal(sum.status, 200);
+  assert.equal((await tool(w.author, s.json.sessionId, 'approve', {}, 'acme', root)).json.error, 'unsupported_tool');
+  assert.equal((await tool(w.colleague, s.json.sessionId, 'get_my_summary', {}, 'acme', root)).status, 404, 'another employee cannot use this session');
+  assert.equal((await call(root, 'POST', `/orgs/acme/voice/sessions/${s.json.sessionId}/sdp`, { token: tok(w.author), sdp: SDP_OFFER })).status, 409, 'no SDP with this provider');
+  assert.equal((await start(w.author, 'acme', { language: 'ru' }, root)).status, 429, 'one conversation per person here too');
+  // Ending the conversation removes ElevenLabs' record of it — only a record of OUR agent.
+  assert.equal((await call(root, 'DELETE', `/orgs/acme/voice/sessions/${s.json.sessionId}?conversation=conv_ours00000001`, { token: tok(w.author) })).status, 200);
+  assert.deepEqual(deleted, ['conv_ours00000001']);
+  assert.ok(seen.filter((x) => x.url.includes('/convai/conversations/')).every((x) => x.key === KEY));
+  const again = await start(w.author, 'acme', { language: 'ru' }, root);
+  assert.equal((await call(root, 'DELETE', `/orgs/acme/voice/sessions/${again.json.sessionId}?conversation=conv_foreign00001`, { token: tok(w.author) })).status, 200);
+  const third = await start(w.author, 'acme', { language: 'ru' }, root);
+  assert.equal((await call(root, 'DELETE', `/orgs/acme/voice/sessions/${third.json.sessionId}?conversation=../../agents/x`, { token: tok(w.author) })).status, 200);
+  assert.deepEqual(deleted, ['conv_ours00000001'], 'another agent’s conversation and a malformed id are never deleted');
+  assert.ok(logs.some((l) => l.voice === 'provider_record' && l.result === 'deleted'));
+
+  // A signed URL of another host is refused: the page may connect only to the configured origin.
+  reply = { status: 200, url: 'wss://evil.example/v1/convai/conversation?x=1' };
+  const other = await start(w.author, 'acme', { language: 'ru' }, root);
+  assert.equal(other.status, 503);
+  assert.match(other.json.message, /MODUS_VOICE_WS_ORIGIN/);
+  reply = { status: 401 };
+  const denied = await start(w.author, 'acme', { language: 'ru' }, root);
+  assert.equal(denied.status, 503);
+  assert.match(denied.json.message, /ключ не принят/);
+  assert.ok(!JSON.stringify(logs).includes(SIGNED), 'the signed URL is not logged');
+});
+
+test('ElevenLabs: the agent’s client tools are generated from the server schemas', () => {
+  const specs = elevenLabsToolSpecs();
+  assert.deepEqual(specs.map((t) => t.name), TOOL_NAMES);
+  for (const t of specs) {
+    assert.deepEqual([t.type, t.expects_response], ['client', true]);
+    for (const [k, v] of Object.entries(t.parameters?.properties ?? {})) assert.ok(v.description && v.description !== k, `${t.name}.${k} has a real description`);
+  }
+  assert.equal(specs.find((t) => t.name === 'get_my_summary')!.parameters, null);
+  assert.deepEqual(specs.find((t) => t.name === 'get_item')!.parameters!.required, ['number']);
 });

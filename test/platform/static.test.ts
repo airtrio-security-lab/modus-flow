@@ -90,3 +90,21 @@ test('pages and scripts keep their behaviour: routing fallback, immutable hashed
   assert.equal(asset.headers.get('accept-ranges'), null);
   await asset.arrayBuffer();
 });
+
+test('the page may connect elsewhere only to an exact origin the owner switched on (ElevenLabs voice, ADR-0043)', async () => {
+  const { mkdtempSync, writeFileSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const dir = mkdtempSync(join(tmpdir(), 'modus-csp-'));
+  writeFileSync(join(dir, 'index.html'), '<!doctype html><title>x</title>');
+  const csp = async (connect?: string[]) => {
+    const serve = createStaticHandler(dir, connect ? { connect } : {});
+    const headers: Record<string, string> = {};
+    const res = { writeHead: (_s: number, h: Record<string, string>) => (Object.assign(headers, h), res), end: () => undefined, setHeader: (k: string, v: string) => (headers[k] = v), on: () => res, once: () => res, emit: () => true, write: () => true };
+    await serve({ method: 'GET', headers: {} } as never, res as never, '/');
+    return headers['Content-Security-Policy'] ?? '';
+  };
+  assert.match(await csp(), /connect-src 'self';/);
+  assert.match(await csp(['wss://api.elevenlabs.io']), /connect-src 'self' wss:\/\/api\.elevenlabs\.io;/);
+  assert.match(await csp(['https://evil.example', 'wss://*', "wss://x.io; script-src 'unsafe-inline'"]), /connect-src 'self';/, 'anything but an exact wss origin is ignored');
+});

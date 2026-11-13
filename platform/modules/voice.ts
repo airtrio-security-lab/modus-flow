@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { AppError } from '../domain/errors.ts';
 import type { OrgActor } from '../domain/model.ts';
 import { isRemote, modelFetch, modelLabel, modelReachable, type ModelConfig } from './advisor-model.ts';
-import { assertSdpOffer, createClientSecret, hangup, relaySdp, type VoiceConfig } from './voice-realtime.ts';
+import { assertSdpOffer, createClientSecret, createSignedUrl, deleteConversation, hangup, relaySdp, type VoiceConfig } from './voice-realtime.ts';
 import type { VoiceSession, VoiceSessionRegistry } from './voice-sessions.ts';
 import { realtimeToolSpecs, runVoiceTool, UNTRUSTED_NOTICE, type ToolDeps, type ToolResult, type VoiceRef } from './voice-tools.ts';
 import * as council from './council.ts';
@@ -121,12 +121,14 @@ export async function voiceStatus(deps: VoiceDeps) {
     : { configured: false, model: null, remote: false, label: null, reachable: false };
   return {
     voice: deps.voice
-      ? { configured: true, provider: 'OpenAI Realtime', model: deps.voice.model, voice: deps.voice.voice, remote: true, maxSeconds: deps.voice.limits.maxSeconds, languages: ['ru', 'kk'] }
-      : { configured: false, provider: null, model: null, voice: null, remote: false, maxSeconds: 0, languages: ['ru', 'kk'] },
+      ? { configured: true, kind: deps.voice.provider, provider: deps.voice.provider === 'elevenlabs' ? 'ElevenLabs Agents' : 'OpenAI Realtime', model: deps.voice.model, voice: deps.voice.voice, remote: true, maxSeconds: deps.voice.limits.maxSeconds, languages: ['ru', 'kk'] }
+      : { configured: false, kind: null, provider: null, model: null, voice: null, remote: false, maxSeconds: 0, languages: ['ru', 'kk'] },
     text,
-    note: deps.voice
-      ? 'Голос и найденные факты передаются в OpenAI на время разговора. Разговор не записывается и не сохраняется.'
-      : 'Голосовой AI не подключён.',
+    note: !deps.voice
+      ? 'Голосовой AI не подключён.'
+      : deps.voice.provider === 'elevenlabs'
+        ? 'Голос и найденные факты передаются в ElevenLabs и в языковую модель его агента на время разговора. MODUS FLOW разговор не записывает и не сохраняет. У агента ElevenLabs запись звука выключена; запись о разговоре, которую ведёт ElevenLabs, MODUS FLOW удаляет после его окончания.'
+        : 'Голос и найденные факты передаются в OpenAI на время разговора. Разговор не записывается и не сохраняется.',
   };
 }
 
@@ -135,15 +137,28 @@ export async function startSession(deps: VoiceDeps, actor: OrgActor, input: z.in
   if (!deps.voice || !deps.registry) throw new AppError('service_unavailable', 'Голосовой AI не подключён');
   const instructions = await buildInstructions(deps, actor, input);
   const s = deps.registry.reserve({ userId: actor.userId, orgId: actor.orgId, membershipId: actor.membershipId, language: input.language, context: input.context ?? null });
+  const common = { sessionId: s.id, expiresAt: new Date(s.deadline).toISOString(), maxSeconds: deps.voice.limits.maxSeconds, model: deps.voice.model, voice: deps.voice.voice, language: s.language };
   try {
+    if (deps.voice.provider === 'elevenlabs') {
+      // The signed URL is the short-lived session secret of this one conversation. The instructions travel
+      // with it: they are not a security boundary — every fact still comes through the server tools.
+      const signedUrl = await createSignedUrl(deps.voice, deps.fetchImpl);
+      deps.log?.({ level: 'info', voice: 'session_started', provider: 'elevenlabs', session: s.id, language: s.language, council: s.context?.number ?? null });
+      return {
+        ...common,
+        provider: 'elevenlabs' as const,
+        signedUrl,
+        initiation: { type: 'conversation_initiation_client_data', conversation_config_override: { agent: { prompt: { prompt: instructions }, first_message: '', language: 'ru' } } },
+      };
+    }
     const secret = await createClientSecret(deps.voice, { instructions, tools: realtimeToolSpecs(), language: input.language }, deps.fetchImpl);
     s.secret = secret.value;
   } catch (e) {
     deps.registry.discard(s);
     throw e;
   }
-  deps.log?.({ level: 'info', voice: 'session_started', session: s.id, language: s.language, council: s.context?.number ?? null });
-  return { sessionId: s.id, expiresAt: new Date(s.deadline).toISOString(), maxSeconds: deps.voice.limits.maxSeconds, model: deps.voice.model, voice: deps.voice.voice, language: s.language };
+  deps.log?.({ level: 'info', voice: 'session_started', provider: 'openai', session: s.id, language: s.language, council: s.context?.number ?? null });
+  return { ...common, provider: 'openai' as const };
 }
 
 const sessionOf = (deps: VoiceDeps, actor: OrgActor, id: string): VoiceSession => {
@@ -154,6 +169,7 @@ const sessionOf = (deps: VoiceDeps, actor: OrgActor, id: string): VoiceSession =
 /** The one SDP exchange of a session. The short-lived secret is used once and dropped. */
 export async function connectSession(deps: VoiceDeps, actor: OrgActor, id: string, offer: string): Promise<string> {
   const s = sessionOf(deps, actor, id);
+  if (deps.voice!.provider !== 'openai') throw new AppError('conflict', 'Этот голосовой провайдер подключается без SDP');
   // A malformed offer is refused before the one-time secret is touched.
   assertSdpOffer(offer);
   if (!s.secret) throw new AppError('conflict', 'Эта голосовая сессия уже подключена. Начните новый разговор');
@@ -202,9 +218,25 @@ async function endSession(deps: VoiceDeps, s: VoiceSession, reason: string) {
   deps.log?.({ level: 'info', voice: 'session_ended', session: s.id, reason, seconds: Math.round((Date.now() - s.createdAt) / 1000), tools: s.toolCalls });
 }
 
-export async function stopSession(deps: VoiceDeps, actor: OrgActor, id: string) {
+/** Delays between attempts to remove the provider's record: it is written a little after the call ends. */
+const PURGE_DELAYS_MS = [0, 8_000, 30_000, 120_000];
+
+async function purgeProviderRecord(deps: VoiceDeps, session: string, conversationId: string, attempt = 0): Promise<void> {
+  const cfg = deps.voice;
+  if (!cfg || cfg.provider !== 'elevenlabs') return;
+  const result = await deleteConversation(cfg, conversationId, deps.fetchImpl);
+  if (result === 'failed' && attempt + 1 < PURGE_DELAYS_MS.length) {
+    setTimeout(() => void purgeProviderRecord(deps, session, conversationId, attempt + 1), PURGE_DELAYS_MS[attempt + 1]).unref();
+    return;
+  }
+  deps.log?.({ level: result === 'deleted' ? 'info' : 'warn', voice: 'provider_record', session, result, attempts: attempt + 1 });
+}
+
+export async function stopSession(deps: VoiceDeps, actor: OrgActor, id: string, conversationId?: string) {
   const s = sessionOf(deps, actor, id);
   await endSession(deps, s, 'ended_by_user');
+  // ElevenLabs keeps a record of every conversation; ours is removed as soon as it is over.
+  if (conversationId) await purgeProviderRecord(deps, s.id, conversationId);
   return { ended: true };
 }
 

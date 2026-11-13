@@ -1,7 +1,9 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { api, errorText } from '../lib/api';
 import { useSession } from '../lib/session';
-import { createRealtimeTransport, type RealtimeTransport, type VoiceState } from '../lib/realtimeTransport';
+import { createRealtimeTransport, type RealtimeTransport, type TransportEvents, type VoiceState } from '../lib/realtimeTransport';
+import { createElevenTransport, type ElevenTransport } from '../lib/elevenTransport';
+import { browserElevenEnv } from '../lib/elevenAudio';
 import {
   askAdvisorText,
   endVoiceSession,
@@ -148,7 +150,7 @@ function AdvisorPanel({ context, onClose, onClearContext }: { context?: VoiceCon
   const [level, setLevel] = useState(0);
   const [silentHint, setSilentHint] = useState(false);
   const [typed, setTyped] = useState('');
-  const transport = useRef<RealtimeTransport | null>(null);
+  const transport = useRef<RealtimeTransport | ElevenTransport | null>(null);
   const session = useRef<string | null>(null);
   const seq = useRef(0);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -169,9 +171,10 @@ function AdvisorPanel({ context, onClose, onClearContext }: { context?: VoiceCon
   const addRefs = (list: VoiceRef[]) => setRefs((r) => [...list.filter((x) => !r.some((y) => y.href === x.href)), ...r].slice(0, 12));
 
   const hangUp = useCallback((reason = 'ended') => {
+    const conv = transport.current && 'conversationId' in transport.current ? transport.current.conversationId() : null;
     transport.current?.stop(reason);
     transport.current = null;
-    if (session.current) void endVoiceSession(s.org, session.current);
+    if (session.current) void endVoiceSession(s.org, session.current, conv);
     session.current = null;
     setMuted(false);
   }, [s.org]);
@@ -255,53 +258,69 @@ function AdvisorPanel({ context, onClose, onClearContext }: { context?: VoiceCon
     setElapsed(0);
     setDraftAnswer('');
     // The server session (and the paid short-lived secret) is created only after the microphone is
-    // allowed: the transport calls negotiate() once it has the microphone.
+    // allowed: the transport asks for the connection once it has the microphone.
     let sid: string | null = null;
-    const t = createRealtimeTransport({
-      negotiate: async (offer) => {
-        const started = await startVoiceSession(s.org, language, context);
-        sid = started.sessionId;
-        session.current = sid;
-        setMaxSeconds(started.maxSeconds);
-        return relayOffer(s.org, sid, offer);
+    const begin = async () => {
+      const started = await startVoiceSession(s.org, language, context);
+      sid = started.sessionId;
+      session.current = sid;
+      setMaxSeconds(started.maxSeconds);
+      return started;
+    };
+    const events: TransportEvents = {
+      onState: (st) => setState(st),
+      onUserText: (text) => addTurn('user', text),
+      onAssistantText: (text, final) => {
+        if (final) {
+          setDraftAnswer('');
+          addTurn('advisor', text);
+        } else setDraftAnswer(text);
       },
-      events: {
-        onState: (st) => setState(st),
-        onUserText: (text) => addTurn('user', text),
-        onAssistantText: (text, final) => {
-          if (final) {
-            setDraftAnswer('');
-            addTurn('advisor', text);
-          } else setDraftAnswer(text);
-        },
-        onToolCall: async (call) => {
-          try {
-            if (!sid) throw new Error('Голосовая сессия не начата');
-            const r = await runVoiceTool(s.org, sid, call.name, call.arguments, call.callId);
-            addRefs(r.refs);
-            const p = r.proposal;
-            if (p) setProposals((list) => [...list, { ...p, key: ++seq.current }]);
-            return r;
-          } catch (e) {
-            // The model hears the real error and must say it; nothing pretends to have worked.
-            return { error: true, message: errorText(e) };
-          }
-        },
-        onError: (_code, message) => setError(message),
-        onReady: () => {
-          // Alfred opens with his report (the «ВСТУПЛЕНИЕ» of the session instructions, built on the
-          // server with the employee's own form of address): the employee hears at once that sound works.
-          t.speakFirst();
-        },
-        onClosed: () => {
-          // Any end — error, lost connection, the employee — frees the server session at once.
-          if (sid && session.current === sid) {
-            void endVoiceSession(s.org, sid);
-            session.current = null;
-          }
-        },
+      onToolCall: async (call) => {
+        try {
+          if (!sid) throw new Error('Голосовая сессия не начата');
+          const r = await runVoiceTool(s.org, sid, call.name, call.arguments, call.callId);
+          addRefs(r.refs);
+          const p = r.proposal;
+          if (p) setProposals((list) => [...list, { ...p, key: ++seq.current }]);
+          return r;
+        } catch (e) {
+          // The model hears the real error and must say it; nothing pretends to have worked.
+          return { error: true, message: errorText(e) };
+        }
       },
-    });
+      onError: (_code, message) => setError(message),
+      onReady: () => {
+        // Alfred opens with his report (the «ВСТУПЛЕНИЕ» of the session instructions, built on the
+        // server with the employee's own form of address): the employee hears at once that sound works.
+        t.speakFirst();
+      },
+      onClosed: () => {
+        // Any end — error, lost connection, the employee — frees the server session at once.
+        if (sid && session.current === sid) {
+          void endVoiceSession(s.org, sid, 'conversationId' in t ? t.conversationId() : null);
+          session.current = null;
+        }
+      },
+    };
+    const t: RealtimeTransport | ElevenTransport =
+      status?.voice.kind === 'elevenlabs'
+        ? createElevenTransport({
+            env: browserElevenEnv(),
+            events,
+            open: async () => {
+              const started = await begin();
+              if (started.provider !== 'elevenlabs') throw new Error('Сервер переключён на другой голосовой сервис. Обновите страницу.');
+              return { url: started.signedUrl, initiation: started.initiation };
+            },
+          })
+        : createRealtimeTransport({
+            events,
+            negotiate: async (offer) => {
+              const started = await begin();
+              return relayOffer(s.org, started.sessionId, offer);
+            },
+          });
     transport.current = t;
     await t.start();
   }
@@ -438,8 +457,9 @@ function AdvisorPanel({ context, onClose, onClearContext }: { context?: VoiceCon
                 </form>
               ) : null}
               <p className="va-fine">
-                {status.voice.provider} · {status.voice.model} · голос «{status.voice.voice}» (синтетический). Голос и найденные факты уходят в OpenAI на время разговора; разговор не записывается и не
-                сохраняется.
+                {status.voice.kind === 'elevenlabs'
+                  ? `${status.voice.provider} · голос «${status.voice.voice}» (клон, права подтверждены владельцем). Голос и найденные факты уходят в ElevenLabs и в языковую модель агента на время разговора. Запись звука у агента выключена; запись о разговоре в ElevenLabs удаляется после его окончания.`
+                  : `${status.voice.provider} · ${status.voice.model} · голос «${status.voice.voice}» (синтетический). Голос и найденные факты уходят в OpenAI на время разговора; разговор не записывается и не сохраняется.`}
               </p>
             </>
           ) : (

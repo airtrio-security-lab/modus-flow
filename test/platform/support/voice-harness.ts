@@ -31,14 +31,34 @@ const providerDown = (async (input: string | URL | Request) => {
   return new Response('{}', { status: 404 });
 }) as typeof fetch;
 
+/**
+ * Second mode — the real ElevenLabs agent without a server key: VOICE_HARNESS_SIGNED_URL holds one signed
+ * URL of a conversation (obtained by the developer; valid for minutes). Everything else is real: the agent,
+ * its voice, the tools, the data. Used once to check the ElevenLabs path end to end (ADR-0043).
+ */
+const signed = process.env.VOICE_HARNESS_SIGNED_URL;
+const elevenVoice = signed
+  ? {
+      provider: 'elevenlabs' as const,
+      url: 'https://api.elevenlabs.io/v1',
+      model: 'ElevenLabs Agents',
+      voice: 'Альфред',
+      apiKey: 'harness-key-never-real',
+      agentId: 'agent_harness000000',
+      wsOrigin: new URL(signed).origin.replace(/^https/, 'wss'),
+      limits: DEFAULT_LIMITS,
+    }
+  : null;
+const signedOnly = (async () => new Response(JSON.stringify({ signed_url: signed }), { status: 200 })) as typeof fetch;
+
 const handler = createApp({
   db: createDatabase(databaseUrl),
   authenticator,
   demo,
   staticDir: 'web/dist',
-  voice: { provider: 'openai', url: 'https://provider.invalid/v1', model: 'harness', voice: 'cedar', apiKey: 'harness-key-never-real', limits: DEFAULT_LIMITS },
-  voiceFetch: providerDown,
+  voice: elevenVoice ?? { provider: 'openai', url: 'https://provider.invalid/v1', model: 'harness', voice: 'cedar', apiKey: 'harness-key-never-real', limits: DEFAULT_LIMITS },
+  voiceFetch: elevenVoice ? signedOnly : providerDown,
   log: (e) => (e.voice ? console.log(JSON.stringify(e)) : undefined),
 });
 const port = Number(process.env.PLATFORM_PORT ?? 3198);
-createServer((req, res) => void handler(req, res)).listen(port, '127.0.0.1', () => console.log(JSON.stringify({ harness: `voice provider DOWN on 127.0.0.1:${port}` })));
+createServer((req, res) => void handler(req, res)).listen(port, '127.0.0.1', () => console.log(JSON.stringify({ harness: `${elevenVoice ? 'ElevenLabs signed URL' : 'voice provider DOWN'} on 127.0.0.1:${port}` })));

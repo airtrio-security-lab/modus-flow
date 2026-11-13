@@ -12,7 +12,7 @@ export interface VoiceContextRef {
 }
 
 export interface VoiceStatus {
-  voice: { configured: boolean; provider: string | null; model: string | null; voice: string | null; remote: boolean; maxSeconds: number };
+  voice: { configured: boolean; kind: 'openai' | 'elevenlabs' | null; provider: string | null; model: string | null; voice: string | null; remote: boolean; maxSeconds: number };
   text: { configured: boolean; model: string | null; remote: boolean; label: string | null; reachable: boolean };
   note: string;
 }
@@ -52,7 +52,13 @@ export interface AskReply {
 export const voiceStatus = (org: string) => api<VoiceStatus>(`/orgs/${org}/voice/status`);
 
 export const startVoiceSession = (org: string, language: VoiceLanguage, context?: VoiceContextRef) =>
-  api<{ sessionId: string; expiresAt: string; maxSeconds: number; model: string; voice: string; language: VoiceLanguage }>(`/orgs/${org}/voice/sessions`, {
+  api<
+    { sessionId: string; expiresAt: string; maxSeconds: number; model: string; voice: string; language: VoiceLanguage } & (
+      | { provider: 'openai' }
+      /** ElevenLabs: the signed URL of this one conversation (a short-lived session secret) and its first message. */
+      | { provider: 'elevenlabs'; signedUrl: string; initiation: Record<string, unknown> }
+    )
+  >(`/orgs/${org}/voice/sessions`, {
     json: context ? { language, context } : { language },
     idempotent: false,
   });
@@ -84,8 +90,9 @@ export async function relayOffer(org: string, sessionId: string, offer: string):
 export const runVoiceTool = (org: string, sessionId: string, name: string, args: string, callId: string) =>
   api<ToolReply>(`/orgs/${org}/voice/sessions/${sessionId}/tools`, { json: { name, arguments: args, callId }, idempotent: false });
 
-export const endVoiceSession = (org: string, sessionId: string) =>
-  api(`/orgs/${org}/voice/sessions/${sessionId}`, { method: 'DELETE', idempotent: false }).catch(() => undefined);
+/** `conversationId` (ElevenLabs): the server removes the provider's record of this conversation. */
+export const endVoiceSession = (org: string, sessionId: string, conversationId?: string | null) =>
+  api(`/orgs/${org}/voice/sessions/${sessionId}${conversationId ? `?conversation=${encodeURIComponent(conversationId)}` : ''}`, { method: 'DELETE', idempotent: false }).catch(() => undefined);
 
 export const askAdvisorText = (org: string, question: string, language: VoiceLanguage, context?: VoiceContextRef) =>
   api<AskReply>(`/orgs/${org}/voice/ask`, { json: context ? { question, language, context } : { question, language }, idempotent: false });

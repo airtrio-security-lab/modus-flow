@@ -575,10 +575,12 @@ export function createApp(config: AppConfig) {
     return { status: 201, raw: Buffer.from(answer, 'utf8'), headers: { 'Content-Type': 'application/sdp' } };
   });
   json('POST', `/voice/sessions/(?<sid>${UUID})/tools`, voice.VoiceToolInput, (a, i, p) => voice.callTool(vdeps, a, p.sid!, i));
-  route('DELETE', VSES, async (ctx) => ({ status: 200, body: await voice.stopSession(vdeps, await org(ctx), ctx.params.sid!) }));
+  route('DELETE', VSES, async (ctx) => ({ status: 200, body: await voice.stopSession(vdeps, await org(ctx), ctx.params.sid!, ctx.query.get('conversation') ?? undefined) }));
   json('POST', '/voice/ask', voice.VoiceAskInput, (a, i) => voice.askText(vdeps, a, i));
 
-  const serveStatic = config.staticDir ? createStaticHandler(config.staticDir) : null;
+  const serveStatic = config.staticDir
+    ? createStaticHandler(config.staticDir, { connect: config.voice?.provider === 'elevenlabs' && config.voice.wsOrigin ? [config.voice.wsOrigin] : [] })
+    : null;
   const DemoLogin = z.object({ userId: z.uuid() }).strict();
   async function demoRoute(req: IncomingMessage, pathname: string): Promise<Reply> {
     const demo = config.demo;

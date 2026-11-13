@@ -72,8 +72,8 @@ const brief = (r: Row) => ({
 });
 
 const Num = z.number().int().min(1).max(2_147_483_647);
-const Days = z.number().int().min(1).max(365);
-const Limit = z.number().int().min(1).max(10);
+const Days = z.number().int().min(1).max(365).describe('За последние N дней');
+const Limit = z.number().int().min(1).max(10).describe('Сколько записей вернуть, не больше 10');
 
 interface ToolDef {
   name: string;
@@ -93,7 +93,7 @@ const SearchInput = z
   .object({
     query: z.string().trim().min(2).max(200).optional().describe('Слова для поиска по названию и тексту обращения'),
     kind: z.enum(['idea', 'problem']).optional().describe('idea — предложение, problem — проблема'),
-    status: z.enum(ITEM_STATUSES).optional(),
+    status: z.enum(ITEM_STATUSES).optional().describe('Статус обращения: in_review — на рассмотрении, decision — ждёт решения, in_progress — внедряется, implemented — внедрено, rejected — отклонено, closed — закрыто'),
     department: z.string().trim().min(2).max(80).optional().describe('Название отдела, например «Склад»'),
     overdue: z.boolean().optional().describe('Только просроченные'),
     open: z.boolean().optional().describe('Только незакрытые'),
@@ -218,7 +218,7 @@ async function decisionHistory(deps: ToolDeps, actor: OrgActor, i: z.infer<typeo
 const MeetingsInput = z
   .object({
     query: z.string().trim().min(2).max(120).optional().describe('Слова из названия совещания'),
-    limit: z.number().int().min(1).max(3).optional(),
+    limit: z.number().int().min(1).max(3).optional().describe('Сколько совещаний вернуть, не больше 3'),
   })
   .strict();
 
@@ -323,10 +323,10 @@ async function confirmedImpact(deps: ToolDeps, actor: OrgActor, i: z.infer<typeo
 const DraftInput = z
   .object({
     kind: z.enum(['idea', 'problem']).describe('idea — предложение, problem — проблема'),
-    title: z.string().trim().min(3).max(160),
+    title: z.string().trim().min(3).max(160).describe('Короткое название, до 160 символов'),
     observation: z.string().trim().min(3).max(3000).optional().describe('Что наблюдает сотрудник, своими словами'),
     proposal: z.string().trim().min(3).max(3000).optional().describe('Что предлагается сделать'),
-    risks: z.string().trim().min(3).max(3000).optional(),
+    risks: z.string().trim().min(3).max(3000).optional().describe('Риски, если сотрудник их назвал'),
   })
   .strict();
 
@@ -389,6 +389,34 @@ export function realtimeToolSpecs() {
 }
 
 export const TOOL_NAMES = VOICE_TOOLS.map((t) => t.name);
+
+/**
+ * The same tool list as «client tools» of an ElevenLabs agent (ADR-0043): the agent asks the page, the page
+ * asks this server, the server validates and runs the tool. Generated from the same zod schemas, so the
+ * agent's tool list and the server's validation cannot drift apart. `npm run voice:agent-tools` prints it.
+ */
+export function elevenLabsToolSpecs() {
+  return realtimeToolSpecs().map((t) => {
+    const schema = t.parameters as { properties?: Record<string, { type?: string; description?: string; enum?: string[] }>; required?: string[] };
+    const props = Object.entries(schema.properties ?? {});
+    return {
+      type: 'client' as const,
+      name: t.name,
+      description: t.description,
+      expects_response: true,
+      response_timeout_secs: 20,
+      parameters: props.length
+        ? {
+            type: 'object' as const,
+            required: schema.required ?? [],
+            properties: Object.fromEntries(
+              props.map(([k, v]) => [k, { type: v.type ?? 'string', description: v.description ?? k, ...(v.enum ? { enum: v.enum } : {}) }]),
+            ),
+          }
+        : null,
+    };
+  });
+}
 
 /**
  * Runs one tool call for an authenticated actor. `rawArgs` is the model's JSON text: parsed and

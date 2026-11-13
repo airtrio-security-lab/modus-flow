@@ -31,13 +31,17 @@ export interface VoiceLimits {
 }
 
 export interface VoiceConfig {
-  provider: 'openai';
+  provider: 'openai' | 'elevenlabs';
   url: string;
   model: string;
   voice: string;
   /** Never logged, never returned by the API, never sent to the browser. */
   apiKey: string;
   limits: VoiceLimits;
+  /** ElevenLabs only: the private agent that holds the voice and the tool list. Not a secret. */
+  agentId?: string;
+  /** ElevenLabs only: the one WebSocket origin the page may connect to (added to the page's connect-src). */
+  wsOrigin?: string;
 }
 
 export const DEFAULT_LIMITS: VoiceLimits = { maxSeconds: 600, sessionsPerHour: 12, maxPerUser: 1, maxPerOrg: 5, toolCallsPerSession: 60 };
@@ -52,7 +56,8 @@ const intEnv = (v: string | undefined, def: number, min: number, max: number, na
 export function voiceConfigFromEnv(env: NodeJS.ProcessEnv): VoiceConfig | null {
   const provider = env.MODUS_VOICE_PROVIDER ?? 'none';
   if (provider === 'none') return null;
-  if (provider !== 'openai') throw new Error('MODUS_VOICE_PROVIDER: поддерживаются "none" и "openai" (OpenAI Realtime)');
+  if (provider === 'elevenlabs') return elevenLabsConfigFromEnv(env);
+  if (provider !== 'openai') throw new Error('MODUS_VOICE_PROVIDER: поддерживаются "none", "openai" (OpenAI Realtime) и "elevenlabs" (ElevenLabs Agents)');
   if (env.MODUS_VOICE_ALLOW_REMOTE !== 'true') {
     throw new Error('MODUS_VOICE_PROVIDER=openai: голос сотрудника и найденные факты будут уходить в OpenAI, и это платно. Нужен явный MODUS_VOICE_ALLOW_REMOTE=true');
   }
@@ -71,14 +76,94 @@ export function voiceConfigFromEnv(env: NodeJS.ProcessEnv): VoiceConfig | null {
     model: (env.MODUS_VOICE_MODEL ?? 'gpt-realtime').trim(),
     voice,
     apiKey,
-    limits: {
-      maxSeconds: intEnv(env.MODUS_VOICE_MAX_SECONDS, DEFAULT_LIMITS.maxSeconds, 30, 3600, 'MODUS_VOICE_MAX_SECONDS'),
-      sessionsPerHour: intEnv(env.MODUS_VOICE_SESSIONS_PER_HOUR, DEFAULT_LIMITS.sessionsPerHour, 1, 200, 'MODUS_VOICE_SESSIONS_PER_HOUR'),
-      maxPerUser: intEnv(env.MODUS_VOICE_MAX_PER_USER, DEFAULT_LIMITS.maxPerUser, 1, 5, 'MODUS_VOICE_MAX_PER_USER'),
-      maxPerOrg: intEnv(env.MODUS_VOICE_MAX_PER_ORG, DEFAULT_LIMITS.maxPerOrg, 1, 200, 'MODUS_VOICE_MAX_PER_ORG'),
-      toolCallsPerSession: DEFAULT_LIMITS.toolCallsPerSession,
-    },
+    limits: limitsFromEnv(env),
   };
+}
+
+const limitsFromEnv = (env: NodeJS.ProcessEnv): VoiceLimits => ({
+  maxSeconds: intEnv(env.MODUS_VOICE_MAX_SECONDS, DEFAULT_LIMITS.maxSeconds, 30, 3600, 'MODUS_VOICE_MAX_SECONDS'),
+  sessionsPerHour: intEnv(env.MODUS_VOICE_SESSIONS_PER_HOUR, DEFAULT_LIMITS.sessionsPerHour, 1, 200, 'MODUS_VOICE_SESSIONS_PER_HOUR'),
+  maxPerUser: intEnv(env.MODUS_VOICE_MAX_PER_USER, DEFAULT_LIMITS.maxPerUser, 1, 5, 'MODUS_VOICE_MAX_PER_USER'),
+  maxPerOrg: intEnv(env.MODUS_VOICE_MAX_PER_ORG, DEFAULT_LIMITS.maxPerOrg, 1, 200, 'MODUS_VOICE_MAX_PER_ORG'),
+  toolCallsPerSession: DEFAULT_LIMITS.toolCallsPerSession,
+});
+
+/**
+ * ElevenLabs Agents (ADR-0043): the owner's own voice. Same switches as OpenAI, plus the agent:
+ *
+ *   MODUS_VOICE_PROVIDER=elevenlabs
+ *   ELEVENLABS_API_KEY=…  (or MODUS_VOICE_API_KEY)   server only
+ *   MODUS_VOICE_AGENT_ID=agent_…                     the private agent (voice, tools, model)
+ *   MODUS_VOICE_ALLOW_REMOTE=true  (+ MODUS_VOICE_ALLOW_REAL_DATA=true outside the demo)
+ *   MODUS_VOICE_VOICE=Альфред                         optional: the name shown in the panel
+ *   MODUS_VOICE_WS_ORIGIN=wss://api.elevenlabs.io     optional: another region of the same service
+ */
+function elevenLabsConfigFromEnv(env: NodeJS.ProcessEnv): VoiceConfig {
+  if (env.MODUS_VOICE_ALLOW_REMOTE !== 'true') {
+    throw new Error('MODUS_VOICE_PROVIDER=elevenlabs: голос сотрудника и найденные факты будут уходить в ElevenLabs и в языковую модель агента, и это платно. Нужен явный MODUS_VOICE_ALLOW_REMOTE=true');
+  }
+  if (env.MODUS_DEMO_LOGIN !== 'true' && env.MODUS_VOICE_ALLOW_REAL_DATA !== 'true') {
+    throw new Error('MODUS_VOICE_PROVIDER=elevenlabs вне демо: в ElevenLabs ушли бы голос и реальные данные сотрудников. Нужно отдельное решение владельца — MODUS_VOICE_ALLOW_REAL_DATA=true');
+  }
+  const apiKey = (env.MODUS_VOICE_API_KEY ?? env.ELEVENLABS_API_KEY)?.trim();
+  if (!apiKey) throw new Error('MODUS_VOICE_PROVIDER=elevenlabs: не задан ключ (ELEVENLABS_API_KEY)');
+  const agentId = env.MODUS_VOICE_AGENT_ID?.trim();
+  if (!agentId || !/^agent_[A-Za-z0-9]{6,60}$/.test(agentId)) throw new Error('MODUS_VOICE_PROVIDER=elevenlabs: нужен MODUS_VOICE_AGENT_ID=agent_… (агент «Альфред» в ElevenLabs)');
+  const url = (env.MODUS_VOICE_URL ?? 'https://api.elevenlabs.io/v1').replace(/\/+$/, '');
+  if (!url.startsWith('https://')) throw new Error('MODUS_VOICE_URL должен начинаться с https://');
+  const wsOrigin = (env.MODUS_VOICE_WS_ORIGIN ?? `wss://${new URL(url).host}`).replace(/\/+$/, '');
+  if (!/^wss:\/\/[a-z0-9.-]+(:\d+)?$/.test(wsOrigin)) throw new Error('MODUS_VOICE_WS_ORIGIN: ожидается адрес вида wss://api.elevenlabs.io');
+  const voice = (env.MODUS_VOICE_VOICE ?? 'Альфред').trim().slice(0, 40);
+  return { provider: 'elevenlabs', url, model: 'ElevenLabs Agents', voice, apiKey, agentId, wsOrigin, limits: limitsFromEnv(env) };
+}
+
+/**
+ * Asks ElevenLabs for a signed WebSocket URL of one conversation with the private agent. The URL is a
+ * short-lived session secret (the only thing the browser gets); the API key stays here.
+ */
+export async function createSignedUrl(cfg: VoiceConfig, fetchImpl: typeof fetch = fetch): Promise<string> {
+  let res: Response;
+  try {
+    res = await fetchImpl(`${cfg.url}/convai/conversation/get-signed-url?agent_id=${encodeURIComponent(cfg.agentId ?? '')}`, {
+      headers: { 'xi-api-key': cfg.apiKey },
+      signal: AbortSignal.timeout(15_000),
+    });
+  } catch {
+    throw new AppError('service_unavailable', 'Голосовой сервис ElevenLabs не отвечает. Попробуйте позже или задайте вопрос текстом');
+  }
+  if (!res.ok) {
+    const why = res.status === 401 ? ': ключ не принят' : res.status === 404 ? ': агент не найден' : res.status === 429 ? ': превышен лимит провайдера' : '';
+    throw new AppError('service_unavailable', `Голосовой сервис ElevenLabs вернул ошибку ${res.status}${why}`);
+  }
+  const url = ((await res.json().catch(() => ({}))) as { signed_url?: unknown }).signed_url;
+  // The page may connect only to the configured origin (its connect-src); anything else is refused here.
+  if (typeof url !== 'string' || !url.startsWith(`${cfg.wsOrigin}/`)) {
+    throw new AppError('service_unavailable', 'Голосовой сервис ElevenLabs вернул адрес другого узла. Задайте его в MODUS_VOICE_WS_ORIGIN');
+  }
+  return url;
+}
+
+/**
+ * Removes the record of one finished conversation at ElevenLabs (transcript, summary, audio): a live
+ * conversation must not become a stored one. Only a conversation of OUR agent is touched — the id comes
+ * from the browser, so it is checked first.
+ */
+export async function deleteConversation(cfg: VoiceConfig, conversationId: string, fetchImpl: typeof fetch = fetch): Promise<'deleted' | 'not_ours' | 'failed'> {
+  if (!/^conv_[A-Za-z0-9]{8,60}$/.test(conversationId)) return 'not_ours';
+  const url = `${cfg.url}/convai/conversations/${conversationId}`;
+  const headers = { 'xi-api-key': cfg.apiKey };
+  try {
+    const seen = await fetchImpl(url, { headers, signal: AbortSignal.timeout(10_000) });
+    if (!seen.ok) return seen.status === 404 ? 'not_ours' : 'failed';
+    const body = (await seen.json().catch(() => ({}))) as { agent_id?: string; status?: string };
+    if (body.agent_id !== cfg.agentId) return 'not_ours';
+    // Still being processed: deleting now would leave what is written afterwards.
+    if (body.status && body.status !== 'done' && body.status !== 'failed') return 'failed';
+    const gone = await fetchImpl(url, { method: 'DELETE', headers, signal: AbortSignal.timeout(10_000) });
+    return gone.ok ? 'deleted' : 'failed';
+  } catch {
+    return 'failed';
+  }
 }
 
 /** What the conversation is configured with. Built by the company layer (voice.ts). */

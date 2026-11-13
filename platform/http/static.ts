@@ -66,7 +66,13 @@ const PAGE_CSP = [
   "form-action 'self'",
 ].join('; ');
 
-export function createStaticHandler(rootDir: string) {
+/**
+ * `connect` adds exact origins to the page's connect-src — only for a voice provider the owner switched on
+ * that needs a direct WebSocket from the page (ElevenLabs, ADR-0043). By default the page talks to 'self' only.
+ */
+export function createStaticHandler(rootDir: string, opts: { connect?: string[] } = {}) {
+  const extra = (opts.connect ?? []).filter((o) => /^wss:\/\/[a-z0-9.-]+(:\d+)?$/.test(o));
+  const pageCsp = extra.length ? PAGE_CSP.replace("connect-src 'self'", `connect-src 'self' ${extra.join(' ')}`) : PAGE_CSP;
   const root = resolve(rootDir);
   return async function serveStatic(req: IncomingMessage, res: ServerResponse, pathname: string): Promise<void> {
     let decoded: string;
@@ -126,7 +132,7 @@ export function createStaticHandler(rootDir: string) {
       'Cache-Control': hashedAsset ? 'public, max-age=31536000, immutable' : 'no-cache',
       'X-Content-Type-Options': 'nosniff',
       'Referrer-Policy': 'no-referrer',
-      ...(ext === '.html' ? { 'Content-Security-Policy': PAGE_CSP, 'X-Frame-Options': 'DENY' } : {}),
+      ...(ext === '.html' ? { 'Content-Security-Policy': pageCsp, 'X-Frame-Options': 'DENY' } : {}),
     });
     res.end(req.method === 'HEAD' ? undefined : body);
   };

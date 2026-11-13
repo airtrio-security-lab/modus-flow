@@ -21,6 +21,14 @@ read -rs OPENAI_API_KEY && export OPENAI_API_KEY   # ключ вводится �
 ./scripts/demo-local.sh --fresh
 ```
 
+Голос «Альфред» (ElevenLabs) вместо стандартного — другой провайдер и другой ключ:
+
+```bash
+export MODUS_VOICE_PROVIDER=elevenlabs MODUS_VOICE_ALLOW_REMOTE=true MODUS_VOICE_AGENT_ID=agent_7201m79ts6jvfnjrzdk07k4qsnb6
+read -rs "ELEVENLABS_API_KEY?ElevenLabs key (hidden): " && export ELEVENLABS_API_KEY
+./scripts/demo-local.sh
+```
+
 В журнале сервера должна появиться строка `voice: CLOUD OpenAI Realtime gpt-realtime, voice cedar, ≤600s`.
 Ноутбук: Chrome или Safari, адрес `http://localhost:3100` (микрофон работает только на https или localhost),
 гарнитура — чтобы советник не слышал сам себя.
