@@ -386,7 +386,6 @@ export class World {
     rb.ground = -1e6;
     this.roads = buildRoads(this.sites, this.height, rb);
     this.land.add(rb.build(this.mats));
-    this.land.add(buildForest(this.sites, this.height, this.tier.trees, { pine: this.wm.forestPine, leaf: this.wm.forestLeaf, trunk: this.wm.forestTrunk }));
 
     // The neutral centre: the palace in the middle, the library and archive, the plaza and the envoys' camp between the roads.
     const y = GEO.centerY;
@@ -441,10 +440,14 @@ export class World {
 
     const libRot = face(la);
     const local = (p: THREE.Vector3, lx: number, ly: number, lz: number) => new THREE.Vector3(p.x + Math.cos(libRot) * lx + Math.sin(libRot) * lz, p.y + ly, p.z - Math.sin(libRot) * lx + Math.cos(libRot) * lz);
+    // The forest keeps clear of the library, its steps and the archive: the three portals are never behind a tree.
+    const court = local(lib, 4, 0, 6);
+    this.land.add(buildForest(this.sites, this.height, this.tier.trees, { pine: this.wm.forestPine, leaf: this.wm.forestLeaf, trunk: this.wm.forestTrunk }, [{ x: court.x, z: court.z, r: 40 }]));
     this.centreSpots = [
-      { id: 'palace', kind: 'palace', pos: new THREE.Vector3(0, y + 78, 0), center: new THREE.Vector3(0, y + 24, 0), r: 50 },
-      { id: 'library', kind: 'library', pos: local(lib, -7.8, 30, 0), center: local(lib, -7.8, 9, 0), r: 20 },
-      { id: 'archive', kind: 'archive', pos: local(lib, 19.2, 30, -1), center: local(lib, 19.2, 10, -1), r: 11 },
+      // The donjon of the palace is the tallest thing in the city: its label floats above the spire (ADR-0034).
+      { id: 'palace', kind: 'palace', pos: new THREE.Vector3(0, y + 100, 0), center: new THREE.Vector3(0, y + 30, 0), r: 50 },
+      { id: 'library', kind: 'library', pos: local(lib, -7.8, 38, 0), center: local(lib, -7.8, 11, 0), r: 22 },
+      { id: 'archive', kind: 'archive', pos: local(lib, 23.2, 30, -1), center: local(lib, 23.2, 10, -1), r: 12 },
       { id: 'plaza', kind: 'plaza', pos: this.plazaAt.clone().setY(y + 16), center: this.plazaAt.clone().setY(y + 2), r: 22 },
       { id: 'camp', kind: 'camp', pos: this.campAt.clone().setY(y + 18), center: this.campAt.clone().setY(y + 3), r: 13 },
     ];
@@ -704,6 +707,12 @@ export class World {
     if (envoy) return { x: envoy.center.x, z: envoy.center.z, dist: 170, az: this.view.az, pol: 1.02 };
     const spot = this.centreSpots.find((s) => s.id === id);
     if (!spot) return null;
+    // The library and the archive look at the palace: the camera comes from that side and a little from the
+    // right, so the three portals and the doors of the archive are seen, not the back wall (ADR-0034).
+    if (spot.kind === 'library' || spot.kind === 'archive') {
+      const front = Math.atan2(-spot.center.x, -spot.center.z);
+      return { x: spot.center.x, z: spot.center.z, dist: spot.kind === 'library' ? 135 : 88, az: front + (spot.kind === 'library' ? 0.8 : 1.05), pol: 1.02 };
+    }
     const az = spot.kind === 'palace' ? this.view.az : Math.atan2(-spot.center.x, -spot.center.z) + Math.PI + 0.3;
     return { x: spot.center.x, z: spot.center.z, dist: spot.kind === 'palace' ? 250 : 150, az, pol: 1.06 };
   }

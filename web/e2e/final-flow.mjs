@@ -240,7 +240,7 @@ try {
   if (await page.locator('.vault').isVisible()) await page.locator('.vault').click();
   await expectText('утверждено как наследие');
   await go('#/library', '10. Великая библиотека: что решили, почему, результат и чему научились');
-  await page.getByLabel('Поиск по всем залам').fill('этикет');
+  await page.getByLabel('Какое решение или опыт вы ищете?').fill('этикет');
   await page.locator('.volume', { hasText: 'Печать этикеток со сканера у ворот' }).getByText('утверждено как наследие').waitFor();
   await shot('10-search');
   await pause(3500);

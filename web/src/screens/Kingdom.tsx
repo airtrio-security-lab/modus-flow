@@ -484,23 +484,26 @@ function Realm({
           </g>
         ))}
         <CityPaths L={L} />
-        <a href="#/council" className="realm-place" aria-label="Дворец Большого Круглого стола — совет всего Содружества: обращения у Совета" onClick={enter('#/council', L.capital, 2.4)}>
+        <a href="#/council" className="realm-place realm-centre" aria-label="Дворец Большого Круглого стола — общий Совет Великого Содружества: обращения у Совета" onClick={enter('#/council', L.capital, 2.4)}>
           <g transform={`translate(${L.capital.x},${L.capital.y})`}>
             <IsoCouncil u={cu} />
-            <LabelPlate y={4.9 * cu + 12} title="Большой Круглый стол" sub="совет всего Содружества" font={L.font} strong />
+            <LabelPlate y={6.2 * cu + 6} title="Большой Круглый стол" sub="совет всего Содружества" font={L.font} strong />
+            <PlaceTip top={17 * cu} title="Дворец Большого Круглого стола" sub="Общий Совет Великого Содружества" font={L.font} />
           </g>
         </a>
         {k.wildlands ? <Camp at={L.camp} count={k.wildlands} font={L.font} /> : null}
-        <a href="#/library" className="realm-place realm-library-link" aria-label="Великая библиотека: Летопись, Библиотека решений и Высший Архив" onClick={enter('#/library', L.library, 2.6)}>
+        <a href="#/library" className="realm-place realm-centre realm-library-link" aria-label="Великая библиотека: Летопись, Библиотека решений и Высший Архив" onClick={enter('#/library', L.library, 2.6)}>
           <g transform={`translate(${L.library.x},${L.library.y})`}>
             <IsoLibrary u={lu} />
-            <LabelPlate y={3.4 * lu + 8} title="Великая библиотека" sub="решения, итоги и уроки" font={L.font * 0.9} />
+            <LabelPlate y={4.2 * lu + 6} title="Великая библиотека" sub="решения, итоги и уроки" font={L.font * 0.9} />
+            <PlaceTip top={7.6 * lu} title="Великая библиотека" sub="Три зала: Летопись, Библиотека решений, Высший Архив" font={L.font * 0.9} />
           </g>
         </a>
-        <a href="#/library?hall=archive" className="realm-place" aria-label="Высший Архив: наследие, утверждённое Советом" onClick={enter('#/library?hall=archive', L.archive, 2.6)}>
+        <a href="#/library?hall=archive" className="realm-place realm-centre" aria-label="Высший Архив: наследие, утверждённое Советом" onClick={enter('#/library?hall=archive', L.archive, 2.6)}>
           <g transform={`translate(${L.archive.x},${L.archive.y})`}>
             <IsoArchive u={lu} />
-            <LabelPlate y={2.5 * lu + 10} title="Высший Архив" sub="наследие Содружества" font={L.font * 0.9} />
+            <LabelPlate y={3.3 * lu + 6} title="Высший Архив" sub="наследие Содружества" font={L.font * 0.9} />
+            <PlaceTip top={5.8 * lu} title="Высший Архив" sub="Знания, прошедшие проверку и утверждение" font={L.font * 0.9} />
           </g>
         </a>
         <a href="#/rating" className="realm-place" aria-label={`Площадь достижений: ${achievements} ${plural(achievements, 'достижение', 'достижения', 'достижений')} замков; рейтинг подразделений`} onClick={enter('#/rating', L.plaza, 2.4)}>
@@ -899,6 +902,27 @@ function LabelPlate({ y, title, sub, font, strong = false }: { y: number; title:
           {sub}
         </text>
       ) : null}
+    </g>
+  );
+}
+
+/**
+ * The name of a building of the centre, shown above it while the pointer is over the building or the
+ * keyboard focus is on it. The plate under the building is always there, so a phone loses nothing.
+ */
+function PlaceTip({ top, title, sub, font }: { top: number; title: string; sub: string; font: number }) {
+  const w = Math.max(title.length * 1.08, sub.length * 0.8) * font * 0.56 + 30;
+  const h = font * 2.45 + 12;
+  const y = -top - h - 8;
+  return (
+    <g className="realm-tip" aria-hidden="true">
+      <rect x={-w / 2} y={y} width={w} height={h} rx="8" />
+      <text x="0" y={y + font + 6} textAnchor="middle" className="realm-tip-title" style={{ fontSize: font * 1.05 }}>
+        {title}
+      </text>
+      <text x="0" y={y + font * 2.15 + 7} textAnchor="middle" className="realm-tip-sub" style={{ fontSize: font * 0.8 }}>
+        {sub}
+      </text>
     </g>
   );
 }

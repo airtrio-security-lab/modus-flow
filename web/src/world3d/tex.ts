@@ -386,7 +386,7 @@ const ornament =
 export type MatKey =
   | 'stone' | 'stoneDark' | 'rock' | 'plaster' | 'wood' | 'woodLight' | 'logs' | 'slate' | 'tileJ' | 'tileGreen' | 'thatch'
   | 'felt' | 'feltDark' | 'bandKz' | 'bandMn' | 'brick' | 'tileBlue' | 'cobble' | 'gold' | 'copper' | 'iron' | 'window' | 'dark'
-  | 'red' | 'marble' | 'sand' | 'brickRed';
+  | 'red' | 'marble' | 'sand' | 'brickRed' | 'bronze' | 'burgundy';
 
 /** The shared material library. Created once per renderer, disposed with it. */
 export function createMaterials(): Record<MatKey, THREE.MeshStandardMaterial> {
@@ -421,6 +421,9 @@ export function createMaterials(): Record<MatKey, THREE.MeshStandardMaterial> {
     window: flat(0x1a1410, 0.5, 0, { emissive: new THREE.Color(0xffb45a), emissiveIntensity: 0.38 }),
     dark: flat(0x14110e, 0.9),
     red: flat(0x8f2b22, 0.8),
+    // The centre of the commonwealth (ADR-0034): bronze doors and the burgundy of approved heritage.
+    bronze: flat(0x7a5a36, 0.48, 0.85, { envMapIntensity: 0.9 }),
+    burgundy: flat(0x6e2233, 0.82),
   };
 }
 

@@ -433,6 +433,18 @@ export async function list(db: Database, actor: OrgActor, f: z.infer<typeof List
       lastVerifiedAt: r.last_verified_at?.toISOString() ?? null,
       stale: r.level !== 'chronicle' && r.status === 'active' && now - (r.last_verified_at ?? r.created_at).getTime() > STALE_DAYS * 864e5,
       updatedAt: r.updated_at.toISOString(),
+      // The archivist's conclusion of the current version, when it has one: the catalogue shows it on the
+      // archive volume (ADR-0034). The same card the row already comes from — no new right, no new query.
+      conclusion:
+        r.card.archiveCategory || r.card.proof || r.card.applicability || r.card.basis || r.card.lastChecked
+          ? {
+              category: r.card.archiveCategory ? ARCHIVE_CATEGORY_TITLE[r.card.archiveCategory] : null,
+              proof: r.card.proof?.slice(0, 220) ?? null,
+              applicability: r.card.applicability?.slice(0, 220) ?? null,
+              basis: r.card.basis?.slice(0, 220) ?? null,
+              lastChecked: r.card.lastChecked ?? null,
+            }
+          : null,
     }));
     const counts = Object.fromEntries(LEVELS.map((l) => [l, items.filter((i) => i.level === l).length]));
     return {

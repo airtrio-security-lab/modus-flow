@@ -44,7 +44,8 @@
     "demo:town:russia": "node web/e2e/russian-city.mjs",
     "demo:refinement": "node web/e2e/refinement-flow.mjs",
     "demo:feel": "node web/e2e/feel-flow.mjs",
-    "demo:envoy": "node web/e2e/envoy-flow.mjs"
+    "demo:envoy": "node web/e2e/envoy-flow.mjs",
+    "demo:commonwealth": "node web/e2e/commonwealth-flow.mjs"
   },
   "engines": {
     "node": ">=22"

@@ -274,7 +274,8 @@ export function buildRoads(sites: Site[], height: (x: number, z: number) => numb
 }
 
 /** Scatter trees on gentle wooded slopes, away from plateaus, roads and water. Returns two instanced meshes. */
-export function buildForest(sites: Site[], height: (x: number, z: number) => number, count: number, mats: { pine: THREE.Material; leaf: THREE.Material; trunk: THREE.Material }) {
+/** `clear` — circles that stay free of trees: the forecourts of the buildings of the centre (ADR-0034). */
+export function buildForest(sites: Site[], height: (x: number, z: number) => number, count: number, mats: { pine: THREE.Material; leaf: THREE.Material; trunk: THREE.Material }, clear: { x: number; z: number; r: number }[] = []) {
   const R = ringRadius(sites.length);
   const r = rng(77);
   const pine: THREE.Matrix4[] = [];
@@ -305,7 +306,10 @@ export function buildForest(sites: Site[], height: (x: number, z: number) => num
     const s = 0.5 + r() * 0.45;
     q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), r() * 6.28);
     m.compose(new THREE.Vector3(x, y - 0.2, z), q, new THREE.Vector3(s, s * (0.9 + r() * 0.4), s));
-    (y > 44 || r() < 0.62 ? pine : leaf).push(m.clone());
+    const kind = y > 44 || r() < 0.62 ? pine : leaf;
+    // Checked last, after every draw of the generator: the rest of the forest stands where it stood.
+    if (clear.some((c) => Math.hypot(x - c.x, z - c.z) < c.r)) continue;
+    kind.push(m.clone());
   }
   const pineGeo = conifer(12, 2.9, 5);
   const leafGeo = foliage(3.1, 7, 4).translate(0, 5.6, 0);
