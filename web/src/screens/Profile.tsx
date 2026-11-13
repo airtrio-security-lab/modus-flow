@@ -7,6 +7,7 @@ import type { Contribution, EmployeeProfile, TitleChoices } from '../lib/types';
 import { ErrorBox, Loading, PageHead, StatusChip } from '../components/ui';
 import { useTitles } from '../components/Titles';
 import { NotePrefs } from '../components/NotePrefs';
+import { CinemaToggles } from '../components/CinematicNotification';
 
 /**
  * «Мой профиль»: who I am here, what I raised and what my implemented ideas
@@ -203,6 +204,7 @@ export function Profile() {
         <div className="row">
           <ThemeToggle />
           <LiteToggle />
+          <CinemaToggles />
           <button className="btn quiet" onClick={s.signOut}>
             Выйти
           </button>

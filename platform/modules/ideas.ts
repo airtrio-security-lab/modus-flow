@@ -1,3 +1,4 @@
+import { methodOfItem } from './knowledge-path.ts';
 import { notFound } from '../domain/errors.ts';
 import { activeDeferral } from './deferral.ts';
 import { runChecks, type CheckResult } from '../domain/checks.ts';
@@ -210,6 +211,8 @@ export async function getIdea(db: Database, actor: OrgActor, number: number) {
     return {
       ...(overview.rows[0] as Record<string, unknown>),
       context: await loadContext(c, idea.id),
+      // «Применить этот метод» (ADR-0040): the knowledge this item was started from, if its reader may open it.
+      method: await methodOfItem(c, idea.id),
       effect: {
         lines,
         measured: effectMeasured(lines),

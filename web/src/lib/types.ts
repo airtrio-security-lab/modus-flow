@@ -198,6 +198,8 @@ export interface Deferral {
 }
 export interface IdeaDetail {
   context: ItemContext;
+  /** «Применить этот метод» (ADR-0040): the knowledge this item was started from, when its reader may open it. */
+  method?: { id: string; title: string; hall: string; startedAt: string } | null;
   effect: ItemEffect;
   id: string;
   number: number;

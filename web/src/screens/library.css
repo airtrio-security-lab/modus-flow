@@ -186,3 +186,60 @@
   :root:not([data-lite='on']) .gc-open .gc-display { animation: gc-open 320ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
   @keyframes gc-open { from { opacity: 0; transform: translateY(6px); } }
 }
+
+/* ---- «Путь решения» (ADR-0040): branches side by side on a wide screen, a sequence of cards on a phone ---- */
+.sp { display: grid; gap: 14px; padding: 20px; border: 1px solid var(--line); border-radius: var(--r-md); background: var(--surface); margin-bottom: 20px; min-width: 0; }
+.sp-head { display: grid; gap: 6px; justify-items: start; }
+.sp-head .gc-h { margin: 0; }
+.sp-lead { margin: 0; color: var(--ink-2); font-size: var(--fs-sm); max-width: 70ch; }
+.sp-branches { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 250px), 1fr)); align-items: start; }
+.sp-branch { display: grid; gap: 10px; align-content: start; padding: 14px; border: 1px solid var(--line); border-radius: var(--r-sm); background: var(--paper); min-width: 0; }
+.sp-branch[data-available='no'] { border-style: dashed; }
+.sp-branch-head { display: grid; gap: 4px; }
+.sp-branch-head p { margin: 0; }
+.sp-branch-no { font-size: var(--fs-xs); color: var(--ink-3); letter-spacing: 0.06em; text-transform: uppercase; }
+.sp-branch-name { font-weight: 600; overflow-wrap: anywhere; }
+.sp-nodes { list-style: none; margin: 0; padding: 0; display: grid; gap: 0; }
+.sp-node { position: relative; display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 10px; padding-bottom: 14px; }
+.sp-node:last-child { padding-bottom: 0; }
+/* The line of the path: from one event down to the next. */
+.sp-node:not(:last-child)::before { content: ''; position: absolute; left: 13px; top: 28px; bottom: 0; width: 2px; background: var(--line-strong); }
+.sp-dot { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; border: 2px solid var(--line-strong); background: var(--surface); color: var(--ink-2); }
+.sp-node[data-tone='ok'] .sp-dot { border-color: var(--green); color: var(--green); }
+.sp-node[data-tone='no'] .sp-dot { border-color: var(--red); color: var(--red); }
+.sp-node[data-tone='wait'] .sp-dot { border-color: var(--amber); color: var(--amber); }
+.sp-card { display: grid; gap: 2px; min-width: 0; }
+.sp-card p { margin: 0; }
+.sp-kind { font-size: var(--fs-xs); color: var(--ink-3); }
+.sp-title { font-weight: 600; overflow-wrap: anywhere; }
+.sp-title a { display: inline-flex; align-items: center; min-height: 24px; }
+.sp-detail { font-size: var(--fs-sm); color: var(--ink-2); overflow-wrap: anywhere; }
+.sp-foot { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; font-size: var(--fs-xs); color: var(--ink-3); font-variant-numeric: tabular-nums; }
+/* The tone is always said in words; the colour only repeats it. */
+.sp-status { font-size: var(--fs-xs); font-weight: 600; color: var(--ink-2); }
+.sp-status[data-tone='ok'] { color: var(--green); }
+.sp-status[data-tone='no'] { color: var(--red); }
+.sp-status[data-tone='wait'] { color: var(--amber); }
+.sp-closed, .sp-fold, .sp-note { margin: 0; font-size: var(--fs-sm); color: var(--ink-2); }
+.sp-note { font-size: var(--fs-xs); color: var(--ink-3); }
+.sp-trunk { display: grid; gap: 10px; }
+.sp-join { margin: 0 auto; width: 2px; height: 18px; background: var(--line-strong); }
+.sp-sub { margin: 0; font-size: var(--fs-sm); font-weight: 600; }
+.sp-uses li { display: grid; gap: 2px; }
+.sp-use-foot { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; }
+@media (max-width: 640px) {
+  .sp { padding: 14px; }
+  .sp-title a { min-height: 44px; }
+}
+
+/* «Применить этот метод» */
+.gc-apply { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; margin-top: 14px; }
+.gc-apply .btn { min-height: 44px; }
+
+/* The paged catalogue (ADR-0041) */
+.gc-result-title { font-family: var(--font-display); font-weight: 400; font-size: var(--fs-lg); margin: 0 0 4px; }
+.gc-active { margin: 0 0 12px; font-size: var(--fs-sm); color: var(--ink-2); overflow-wrap: anywhere; }
+.gc-active-clear { min-height: 44px; padding: 0 6px; background: none; border: 0; color: var(--accent-ink); font: inherit; text-decoration: underline; cursor: pointer; }
+.gc-more { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; justify-content: center; margin-top: 18px; }
+.gc-more .btn { min-height: 44px; min-width: 180px; }
+.gc-more-error { flex-basis: 100%; margin: 0; text-align: center; color: var(--red); font-size: var(--fs-sm); }

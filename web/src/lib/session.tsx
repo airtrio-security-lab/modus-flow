@@ -19,8 +19,28 @@ export interface Session {
   reloadDirectory: () => Promise<void>;
   unread: number;
   refreshInbox: () => Promise<void>;
+  /** The reader's own notifications and audiences from the last refresh (cinematic notifications, ADR-0037). */
+  feed: InboxFeed | null;
   toast: (text: string) => void;
   signOut: () => void;
+}
+
+export interface FeedAudience {
+  id: string;
+  ideaNumber: number;
+  title: string;
+  role: 'king' | 'sender';
+  status: 'requested' | 'accepted';
+  requestedAt: string;
+  acceptedAt: string | null;
+}
+export interface InboxFeed {
+  notes: Notification[];
+  audiences: FeedAudience[];
+  king: string | null;
+  /** False when the audiences could not be read: nothing is concluded about them. */
+  audiencesOk: boolean;
+  at: number;
 }
 
 const Ctx = createContext<Session | null>(null);
@@ -35,6 +55,7 @@ export function SessionProvider({ me, onSignOut, children }: { me: Me; onSignOut
   const m = me.memberships[0]!;
   const [directory, setDirectory] = useState<Directory | null>(null);
   const [unread, setUnread] = useState(0);
+  const [feed, setFeed] = useState<InboxFeed | null>(null);
   const [toastText, setToastText] = useState<string | null>(null);
   const timer = useRef<number | undefined>(undefined);
 
@@ -46,9 +67,11 @@ export function SessionProvider({ me, onSignOut, children }: { me: Me; onSignOut
       const list = await api<Notification[]>(`/orgs/${m.organization}/notifications`);
       // An audience is a separate, server-confirmed event. Include its pending
       // invitation (king) or unseen acceptance (sender) in the bell count.
-      const audiences = await api<{ items: { id: string; role: 'king' | 'sender'; status: 'requested' | 'accepted' }[] }>(
-        `/orgs/${m.organization}/audiences`,
-      ).catch(() => ({ items: [] }));
+      let audiencesOk = true;
+      const audiences = await api<{ king: { membershipId: string } | null; items: FeedAudience[] }>(`/orgs/${m.organization}/audiences`).catch(() => {
+        audiencesOk = false;
+        return { king: null, items: [] as FeedAudience[] };
+      });
       const outstanding = audiences.items.filter((a) => {
         if (a.role === 'king') return a.status === 'requested';
         if (a.status !== 'accepted') return false;
@@ -57,6 +80,7 @@ export function SessionProvider({ me, onSignOut, children }: { me: Me; onSignOut
         } catch { return true; }
       }).length;
       setUnread(list.filter((n) => !n.readAt).length + outstanding);
+      setFeed({ notes: list, audiences: audiences.items, king: audiences.king?.membershipId ?? null, audiencesOk, at: Date.now() });
     } catch {
       /* the counter is a convenience; the inbox page shows errors */
     }
@@ -91,10 +115,11 @@ export function SessionProvider({ me, onSignOut, children }: { me: Me; onSignOut
       reloadDirectory,
       unread,
       refreshInbox,
+      feed,
       toast,
       signOut: onSignOut,
     };
-  }, [me, m, directory, reloadDirectory, unread, refreshInbox, toast, onSignOut]);
+  }, [me, m, directory, reloadDirectory, unread, refreshInbox, feed, toast, onSignOut]);
 
   return (
     <Ctx.Provider value={value}>

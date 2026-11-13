@@ -32,15 +32,16 @@ export class KitView {
   /** Slow turn of the camera while nobody touches it. */
   spin = true;
   /** Buildings of the town (ADR-0029): where each section's pin stands, in scene coordinates. */
-  private pins: { id: string; at: THREE.Vector3 }[] = [];
+  private pins: { id: string; at: THREE.Vector3; own: boolean }[] = [];
   private pinIds: string[] = [];
   private turnTo: number | null = null;
   private span = 150;
   private zoomed = false;
+  private sky = 0;
   /** Extra room around the kit (the town shows the posad before the gate and the pins above the roofs). */
   pad = 1;
   /** Called after every drawn frame with the screen position of each pin (CSS pixels inside the canvas). */
-  onPins: ((list: { id: string; x: number; y: number; depth: number; shown: boolean }[]) => void) | null = null;
+  onPins: ((list: { id: string; x: number; y: number; depth: number; shown: boolean; own: boolean }[]) => void) | null = null;
 
   constructor(private canvas: HTMLCanvasElement) {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
@@ -150,8 +151,7 @@ export class KitView {
     const box = new THREE.Box3().setFromObject(g);
     const size = box.getSize(new THREE.Vector3());
     this.placePins(marks, box);
-    // The town is looked at a little lower: the posad before the gate stays in the frame, the sky is left to the pins.
-    this.centerY = Math.min(22, size.y * 0.32) * (this.pad > 1 ? 0.72 : 1);
+    this.centerY = Math.min(22, size.y * 0.32);
     this.span = Math.max(64, Math.hypot(size.x, size.z) * 1.05 + size.y * 0.5);
     this.fit();
     this.renderer.shadowMap.needsUpdate = true;
@@ -187,7 +187,7 @@ export class KitView {
         continue;
       }
       const at = new THREE.Vector3(m.x * k, top(m.x * k, m.z * k) + 2.4, m.z * k);
-      this.pins.push({ id, at });
+      this.pins.push({ id, at, own: true });
       taken.push(at);
     }
     if (rest.length) {
@@ -217,7 +217,7 @@ export class KitView {
         for (const c of cand) {
           if (!rest.length) break;
           if (taken.every((t) => Math.hypot(t.x - c.x, t.z - c.z) >= sep)) {
-            this.pins.push({ id: rest.shift()!, at: c });
+            this.pins.push({ id: rest.shift()!, at: c, own: false });
             taken.push(c);
           }
         }
@@ -238,6 +238,8 @@ export class KitView {
   private fit() {
     const a = this.camera.aspect;
     this.want = Math.min(420, this.span * this.pad * (a < 1.35 ? Math.min(2, 1.35 / a) : 1));
+    // The town sits lower in the frame, more so on a portrait stage: the sky above it is where the names stand.
+    this.sky = this.pad > 1 ? (a < 1.35 ? 0.11 : 0.085) : 0;
   }
 
   resize(w: number, h: number) {
@@ -320,7 +322,7 @@ export class KitView {
     const sp = Math.sin(this.pol);
     this.camera.position.set(Math.sin(this.az) * sp * this.dist, this.centerY + Math.cos(this.pol) * this.dist, Math.cos(this.az) * sp * this.dist);
     if (this.camera.position.y < 4) this.camera.position.y = 4;
-    this.camera.lookAt(0, this.centerY, 0);
+    this.camera.lookAt(0, this.centerY + this.sky * this.dist, 0);
     this.renderer.render(this.scene, this.camera);
     if (this.onPins && this.pins.length) {
       const w = this.canvas.clientWidth;
@@ -329,7 +331,8 @@ export class KitView {
       this.onPins(
         this.pins.map((p) => {
           v.copy(p.at).project(this.camera);
-          return { id: p.id, x: (v.x * 0.5 + 0.5) * w, y: (-v.y * 0.5 + 0.5) * h, depth: v.z, shown: v.z < 1 && v.x > -1.05 && v.x < 1.05 && v.y > -1.05 && v.y < 1.05 };
+          // `own`: the kit has a building for this section (otherwise the pin stands on a free roof).
+          return { id: p.id, own: p.own, x: (v.x * 0.5 + 0.5) * w, y: (-v.y * 0.5 + 0.5) * h, depth: v.z, shown: v.z < 1 && v.x > -1.05 && v.x < 1.05 && v.y > -1.05 && v.y < 1.05 };
         }),
       );
     }

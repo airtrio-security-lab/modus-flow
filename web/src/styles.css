@@ -1130,6 +1130,7 @@ button.ts { cursor: pointer; min-height: 28px; }
 }
 .w3d:focus-visible { box-shadow: inset 0 0 0 3px rgba(217, 186, 124, 0.7); }
 .w3d-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.w3d-canvas-slot { display: contents; }
 .w3d-loading { position: absolute; inset: 0; display: grid; place-items: center; font-size: var(--fs-lg); color: var(--w-ink-2); background: #0e1014; }
 .w3d a, .w3d button { font: inherit; color: inherit; }
 .w3d button { cursor: pointer; }
@@ -1548,21 +1549,24 @@ button.ts { cursor: pointer; min-height: 28px; }
 }
 
 /* 3D town of a district (ADR-0029): pins on the buildings and the same links as a list. */
-.citadel3d[data-town='yes'] .citadel3d-stage { height: clamp(320px, 56vh, 600px); }
+.citadel3d[data-town='yes'] .citadel3d-stage { height: clamp(340px, 62vh, 640px); }
 .town3d-pins { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
 .town3d-pin {
   position: absolute; left: 0; top: 0; visibility: hidden; pointer-events: auto; will-change: transform;
-  display: grid; justify-items: center; gap: 2px; padding: 4px 6px 0; min-width: 44px; min-height: 44px;
+  display: flex; flex-direction: column; align-items: center; min-width: 44px;
   color: #f4ecdc; text-decoration: none; white-space: nowrap;
 }
 .town3d-pin-name {
   padding: 5px 12px; border-radius: 999px; font-size: var(--fs-sm); font-weight: 600; line-height: 1.2;
   background: rgba(16, 19, 26, 0.86); border: 1px solid rgba(232, 207, 152, 0.45);
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45); backdrop-filter: blur(5px); -webkit-backdrop-filter: blur(5px);
+  translate: var(--dx, 0px) 0;
 }
-.town3d-pin-mark { width: 12px; height: 12px; rotate: 45deg; background: #e8cf98; border: 2px solid #14171d; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.6); }
+/* The stem ties a lifted name to its building. */
+.town3d-pin-stem { width: 1px; height: var(--lift, 0px); background: rgba(232, 207, 152, 0.75); transition: height 140ms ease-out; }
+.town3d-pin-mark { width: 12px; height: 12px; margin: 3px 0; rotate: 45deg; background: #e8cf98; border: 2px solid #14171d; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.6); }
 .town3d-pin[data-compact='yes'] .town3d-pin-name { display: none; }
-.town3d-pin[data-compact='yes'] { align-content: end; }
+.town3d-pin[data-compact='yes'] { min-height: 44px; justify-content: flex-end; }
 .town3d-pin[data-on='yes'] .town3d-pin-name { display: block; border-color: #e8cf98; background: #3a2e1e; }
 @media (hover: hover) { .town3d-pin:hover .town3d-pin-name { display: block; border-color: #e8cf98; background: #3a2e1e; } }
 .town3d-pin[data-on='yes'] { z-index: 20000 !important; }
@@ -1580,7 +1584,7 @@ button.ts { cursor: pointer; min-height: 28px; }
 .town-switch p { margin: 0; color: var(--ink-2); font-size: var(--fs-sm); }
 @media (max-width: 900px) { .town3d-list { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 700px) { .town3d-pin-name { font-size: var(--fs-xs); padding: 4px 9px; } }
-@media (prefers-reduced-motion: reduce) { .town3d-pin-mark { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .town3d-pin-mark, .town3d-pin-stem { transition: none; } }
 
 /* Response layer and diagnostics of the 3D city (ADR-0030) */
 .w3d-tick { display: inline-block; transform-origin: left center; }
@@ -1780,3 +1784,70 @@ dialog, .sheet, .transcript, .protocol > .panel:first-child, .w3d-results, .w3d-
 @media (max-width: 640px) { .envoy-card-head { flex-direction: column; align-items: stretch; } .envoy-hero { align-self: center; } }
 .problem-resolve { padding: 14px 16px; border: 1px solid var(--line-strong); border-left: 3px solid var(--green); border-radius: var(--r-md); background: var(--green-tint); }
 .problem-resolve .btn { min-height: 44px; justify-self: start; }
+
+/* Cinematic notifications (ADR-0037): a 9:16 scene with the server's own text beside it. */
+dialog.cine {
+  --paper: #14181a; --surface: #1c2124; --ink: #e6eaeb; --ink-2: #b4bdc1; --ink-3: #98a1a5;
+  --line: #2c3336; --line-strong: #4a5458; --accent: #5cc4b6; --accent-ink: #74cfc2; --on-accent: #0d1c1a; --hover: #252b2e;
+  padding: 0; border: 1px solid #3a4246; border-radius: 18px; background: var(--paper); color: var(--ink);
+  width: min(780px, calc(100vw - 32px)); max-width: none; max-height: calc(100dvh - 32px); overflow: auto; overscroll-behavior: contain;
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.55); color-scheme: dark;
+}
+dialog.cine::backdrop { background: rgba(5, 8, 12, 0.78); }
+.cine-body { display: grid; grid-template-columns: auto minmax(0, 1fr); }
+.cine[data-mode='failed'] .cine-body { grid-template-columns: minmax(0, 1fr); }
+.cine-frame { position: relative; height: min(72dvh, 640px); aspect-ratio: 9 / 16; background: #000; border-radius: 17px 0 0 17px; overflow: hidden; }
+.cine-media { width: 100%; height: 100%; object-fit: cover; display: block; }
+.cine-tap { position: absolute; left: 50%; top: 50%; translate: -50% -50%; }
+.cine-copy { padding: 28px 24px 24px; display: flex; flex-direction: column; justify-content: flex-end; gap: 10px; min-width: 0; }
+.cine-eyebrow { font-size: var(--fs-xs); letter-spacing: 0.12em; text-transform: uppercase; color: #d9ba7c; font-weight: 600; }
+.cine-copy h2 { font-size: var(--fs-lg); line-height: 1.25; text-wrap: balance; overflow-wrap: anywhere; }
+.cine-copy p { color: var(--ink-2); overflow-wrap: anywhere; }
+.cine-note { font-size: var(--fs-sm); }
+.cine-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.cine-actions .btn { min-height: 44px; }
+.cine-sound.is-blocked { border-color: var(--accent); color: var(--ink); }
+.cine-preload { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+@media (prefers-reduced-motion: no-preference) {
+  :root:not([data-lite='on']) dialog.cine[open] { animation: cine-in 300ms ease-out both; }
+  @keyframes cine-in { from { opacity: 0; translate: 0 12px; } to { opacity: 1; translate: 0 0; } }
+}
+/* Phone: the scene fills the screen, the text and the buttons sit under it. */
+@media (max-width: 640px) {
+  dialog.cine { width: 100vw; height: 100dvh; max-height: 100dvh; border: 0; border-radius: 0; }
+  .cine-body { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto; height: 100%; }
+  .cine-frame { height: auto; width: 100%; aspect-ratio: auto; min-height: 0; border-radius: 0; }
+  .cine-copy { padding: 16px calc(16px + env(safe-area-inset-right)) calc(16px + env(safe-area-inset-bottom)) calc(16px + env(safe-area-inset-left)); gap: 6px; }
+}
+/* No scene for the fact (or the person chose so): an ordinary notice that blocks nothing. */
+.cine-text {
+  position: fixed; right: calc(16px + env(safe-area-inset-right)); bottom: calc(16px + env(safe-area-inset-bottom)); z-index: 1000;
+  width: min(380px, calc(100vw - 32px)); background: var(--surface); color: var(--ink); border: 1px solid var(--line-strong);
+  border-radius: var(--r-md); box-shadow: 0 16px 40px -12px rgba(0, 0, 0, 0.35);
+}
+.cine-text .cine-copy { padding: 16px; }
+.cine-text .cine-eyebrow { color: var(--accent-ink); }
+@media (max-width: 900px) { .cine-text { bottom: calc(76px + env(safe-area-inset-bottom)); } }
+
+/* ---- Seamless world (ADR-0038): the way back into the city and the short entrance ---- */
+.world-return {
+  display: inline-flex; align-items: center; gap: 8px; min-height: 44px; margin-bottom: 8px; padding: 0 14px 0 10px;
+  border: 1px solid var(--line-strong); border-radius: 999px; background: var(--surface); color: var(--ink);
+  font-size: var(--fs-sm); font-weight: 600; text-decoration: none; max-width: 100%; overflow-wrap: anywhere;
+}
+.world-return:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+@media (hover: hover) { .world-return:hover { border-color: var(--accent); } }
+.w3d-plate[data-returned='yes'] { border-color: var(--w-gold); box-shadow: 0 0 0 3px rgba(217, 186, 124, 0.35); }
+/* Opacity only: a transform here would re-anchor the full-screen city and every fixed panel inside the page. */
+@media (prefers-reduced-motion: no-preference) {
+  :root:not([data-lite='on']) .page[data-arrive='building'] { animation: world-enter 260ms ease-out both; }
+  :root:not([data-lite='on']) .page[data-arrive='world'] { animation: world-enter 200ms ease-out both; }
+}
+@keyframes world-enter { from { opacity: 0; } to { opacity: 1; } }
+
+/* «Применить этот метод» (ADR-0040): the knowledge an item is started from — on the form and on the item card. */
+.method-ref { display: grid; gap: 6px; justify-items: start; padding: 14px 16px; border: 1px solid var(--line-strong); border-left: 3px solid var(--accent); border-radius: var(--r-md); background: var(--surface); }
+.method-ref p { margin: 0; }
+.method-ref-kicker { font-size: var(--fs-xs); color: var(--ink-3); letter-spacing: 0.06em; text-transform: uppercase; }
+.method-ref-title { font-weight: 600; overflow-wrap: anywhere; }
+.method-ref .btn { min-height: 44px; }

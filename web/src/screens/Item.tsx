@@ -93,6 +93,15 @@ export function ItemPage({ number }: { number: number }) {
         <ItemKingdom item={item} />
         <ProblemResolved item={item} />
         <EffectPanel effect={item.effect} implemented={item.status === 'implemented'} />
+        {item.method ? (
+          <section className="method-ref" aria-label="Метод, на основе которого создано обращение">
+            <p className="method-ref-kicker">Создано на основе метода</p>
+            <p className="method-ref-title">
+              <a href={`#/library/${item.method.id}`}>{item.method.title}</a> <span className="muted">· {item.method.hall}</span>
+            </p>
+            <p className="small muted">Это ссылка на знание, а не подтверждение. Применение считается подтверждённым после внедрения и записи повторного применения в Библиотеке.</p>
+          </section>
+        ) : null}
         <ItemContextPanel item={item} onChanged={() => void reload()} />
         {item.status === 'implemented' ? (
           <div className="notice library-offer" role="note">

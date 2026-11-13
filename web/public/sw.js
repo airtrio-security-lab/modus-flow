@@ -9,6 +9,8 @@ self.addEventListener('activate', (e) => {
 self.addEventListener('fetch', (e) => {
   const url = new URL(e.request.url);
   if (e.request.method !== 'GET' || url.origin !== location.origin || url.pathname.startsWith('/api/')) return;
+  // Video goes straight to the network: byte ranges stay intact (iOS Safari) and nothing large is cached (ADR-0031).
+  if (url.pathname.startsWith('/cinematics/')) return;
   e.respondWith(
     fetch(e.request)
       .then((res) => {
