@@ -119,6 +119,7 @@ button, summary, .btn { -webkit-tap-highlight-color: transparent; }
 
 /* One dock lives in Shell, above the fixed 3D stage (z-index 60). */
 .tabbar { z-index: 65; }
+.sheet-backdrop { z-index: 80; }
 .shell:has(.w3d) .tabbar { display: grid; }
 .shell:has(.w3d) > .main > .mobile-head { display: none; }
 .tabbar {
